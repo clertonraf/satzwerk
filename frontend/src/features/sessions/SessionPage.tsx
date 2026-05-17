@@ -1,100 +1,51 @@
-import { useEffect, useMemo, useState } from 'react'
-import axios from 'axios'
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import RestTimer from '@/features/sessions/RestTimer'
 import ResumeDiscardModal from '@/features/sessions/ResumeDiscardModal'
 import SetInput from '@/features/sessions/SetInput'
-import {
-  buildWorkoutGroupCatalog,
-  formatDisplayWeight,
-  formatSessionDate,
-  toKilograms,
-} from '@/features/sessions/sessionHelpers'
+import { buildWorkoutGroupCatalog, formatDisplayWeight, formatSessionDate } from '@/features/sessions/sessionHelpers'
+import { useWorkoutSession } from '@/features/sessions/useWorkoutSession'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { exerciseService } from '@/services/exerciseService'
 import { planService } from '@/services/planService'
-import { offlineQueue } from '@/services/offlineQueue'
-import type { AddSetLogRequest, SetLog, WorkoutSession } from '@/services/sessionService'
-import { sessionService } from '@/services/sessionService'
-import { useSessionStore } from '@/store/session'
-
-function createQueuedSetLog(sessionId: string, payload: AddSetLogRequest): SetLog {
-  const timestamp = Date.now()
-
-  return {
-    id: `queued-${sessionId}-${payload.exerciseId}-${payload.setNumber}-${timestamp}`,
-    ...payload,
-    loggedAt: new Date(timestamp).toISOString(),
-  }
-}
+import { queryKeys } from '@/services/queryKeys'
 
 export default function SessionPage() {
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const isOnline = useOnlineStatus()
-  const activeSession = useSessionStore((state) => state.activeSession)
-  const setActiveSession = useSessionStore((state) => state.setActiveSession)
-  const weightUnit = useSessionStore((state) => state.weightUnit)
-  const setWeightUnit = useSessionStore((state) => state.setWeightUnit)
-  const [conflictSession, setConflictSession] = useState<WorkoutSession | null>(null)
-  const [pendingWorkoutGroupId, setPendingWorkoutGroupId] = useState<string | null>(null)
+  const {
+    session,
+    weightUnit,
+    setWeightUnit,
+    conflictSession,
+    isSessionLoading,
+    handleStartSession,
+    handleLogSet,
+    handleCompleteSession,
+    handleDiscardConflict,
+    clearConflictState,
+    isStartPending,
+    isAddSetPending,
+    isCompletePending,
+  } = useWorkoutSession({ onComplete: () => navigate('/history') })
   const plansQuery = useQuery({
-    queryKey: ['plans'],
+    queryKey: queryKeys.plans.all(),
     queryFn: () => planService.list(),
   })
   const exercisesQuery = useQuery({
-    queryKey: ['exercises'],
+    queryKey: queryKeys.exercises.all(),
     queryFn: () => exerciseService.list(),
-  })
-  const openSessionQuery = useQuery<WorkoutSession | null>({
-    queryKey: ['open-session'],
-    queryFn: async () => {
-      try {
-        return await sessionService.getOpen()
-      } catch (error) {
-        if (axios.isAxiosError(error) && error.response?.status === 404) {
-          return null
-        }
-
-        throw error
-      }
-    },
   })
   const planDetailsQueries = useQueries({
     queries: (plansQuery.data ?? []).map((plan) => ({
-      queryKey: ['plans', plan.id],
+      queryKey: queryKeys.plans.detail(plan.id),
       queryFn: () => planService.get(plan.id),
     })),
   })
-  const startMutation = useMutation({
-    mutationFn: (workoutGroupId: string) => sessionService.start(workoutGroupId),
-  })
-  const addSetLogMutation = useMutation({
-    mutationFn: ({ sessionId, exerciseId, setNumber, weight, reps }: {
-      sessionId: string
-      exerciseId: string
-      setNumber: number
-      weight: number
-      reps: number
-    }) =>
-      sessionService.addSetLog(sessionId, {
-        exerciseId,
-        setNumber,
-        weight,
-        reps,
-      }),
-  })
-  const completeMutation = useMutation({
-    mutationFn: (sessionId: string) => sessionService.complete(sessionId),
-  })
-  const discardMutation = useMutation({
-    mutationFn: (sessionId: string) => sessionService.discard(sessionId),
-  })
 
-  const session = activeSession ?? openSessionQuery.data ?? null
   const planDetails = planDetailsQueries.flatMap((query) => (query.data ? [query.data] : []))
   const groupCatalog = useMemo(() => buildWorkoutGroupCatalog(planDetails), [planDetails])
   const groupOptions = useMemo(
@@ -121,131 +72,22 @@ export default function SessionPage() {
     ? null
     : plansQuery.error ??
       exercisesQuery.error ??
-      openSessionQuery.error ??
       planDetailsQueries.find((query) => query.error)?.error
   const isCatalogLoading =
     plansQuery.isLoading || exercisesQuery.isLoading || planDetailsQueries.some((query) => query.isLoading)
-
-  useEffect(() => {
-    if (openSessionQuery.data !== undefined) {
-      setActiveSession(openSessionQuery.data)
-    }
-  }, [openSessionQuery.data, setActiveSession])
-
-  async function handleStartSession(workoutGroupId: string) {
-    if (!isOnline) {
-      return
-    }
-
-    try {
-      const startedSession = await startMutation.mutateAsync(workoutGroupId)
-      setActiveSession(startedSession)
-      queryClient.setQueryData(['open-session'], startedSession)
-      setPendingWorkoutGroupId(null)
-      setConflictSession(null)
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 409) {
-        const openSession = await sessionService.getOpen()
-        setActiveSession(openSession)
-        queryClient.setQueryData(['open-session'], openSession)
-        setPendingWorkoutGroupId(workoutGroupId)
-        setConflictSession(openSession)
-        return
-      }
-
-      throw error
-    }
-  }
-
-  async function handleLogSet(exerciseId: string, setNumber: number, weight: number, reps: number) {
-    if (!session) {
-      return
-    }
-
-    const payload: AddSetLogRequest = {
-      exerciseId,
-      setNumber,
-      weight: toKilograms(weight, weightUnit),
-      reps,
-    }
-
-    let loggedSet: SetLog
-
-    if (isOnline) {
-      loggedSet = await addSetLogMutation.mutateAsync({
-        sessionId: session.id,
-        ...payload,
-      })
-    } else {
-      await offlineQueue.enqueue({ sessionId: session.id, ...payload })
-      loggedSet = createQueuedSetLog(session.id, payload)
-    }
-
-    const updatedSession = {
-      ...session,
-      setLogs: [...session.setLogs, loggedSet],
-    }
-
-    setActiveSession(updatedSession)
-    queryClient.setQueryData(['open-session'], updatedSession)
-  }
-
-  async function handleCompleteSession() {
-    if (!session) {
-      return
-    }
-
-    const completedSession = await completeMutation.mutateAsync(session.id)
-    setActiveSession(null)
-    queryClient.setQueryData(['open-session'], null)
-    queryClient.setQueryData<WorkoutSession[]>(['session-history'], (current = []) => [completedSession, ...current])
-    navigate('/history')
-  }
-
-  async function handleDiscardConflict() {
-    if (!conflictSession) {
-      return
-    }
-
-    const nextWorkoutGroupId = pendingWorkoutGroupId
-
-    await discardMutation.mutateAsync(conflictSession.id)
-    setActiveSession(null)
-    queryClient.setQueryData(['open-session'], null)
-    setConflictSession(null)
-    setPendingWorkoutGroupId(null)
-
-    if (nextWorkoutGroupId) {
-      await handleStartSession(nextWorkoutGroupId)
-    }
-  }
-
-  function clearConflictState() {
-    setPendingWorkoutGroupId(null)
-    setConflictSession(null)
-  }
 
   if (queryError) {
     return <p className="text-sm text-destructive">Could not load workout session data.</p>
   }
 
-  if (!session && openSessionQuery.isLoading) {
+  if (!session && isSessionLoading) {
     return <p className="text-sm text-muted-foreground">Loading workout session...</p>
   }
 
   return (
     <div className="space-y-6">
       {conflictSession ? (
-        <ResumeDiscardModal
-          onResume={() => {
-            setActiveSession(conflictSession)
-            queryClient.setQueryData(['open-session'], conflictSession)
-            clearConflictState()
-          }}
-          onDiscard={() => {
-            void handleDiscardConflict()
-          }}
-        />
+        <ResumeDiscardModal onResume={clearConflictState} onDiscard={() => void handleDiscardConflict()} />
       ) : null}
 
       <Card className="border-border bg-card/90 shadow-sm">
@@ -289,7 +131,7 @@ export default function SessionPage() {
                     key={group.id}
                     className="flex w-full items-center justify-between rounded-lg border border-border px-4 py-4 text-left transition hover:border-primary hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
                     type="button"
-                    disabled={!isOnline || startMutation.isPending}
+                    disabled={!isOnline || isStartPending}
                     onClick={() => {
                       void handleStartSession(group.id)
                     }}
@@ -330,7 +172,7 @@ export default function SessionPage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                           <SetInput
-                            isLoading={addSetLogMutation.isPending}
+                            isLoading={isAddSetPending}
                             setNumber={nextSetNumber}
                             onLog={({ reps, setNumber, weight }) => {
                               void handleLogSet(exercise.exerciseId, setNumber, weight, reps)
@@ -365,7 +207,7 @@ export default function SessionPage() {
               )}
 
               <div className="flex justify-end">
-                <Button type="button" disabled={completeMutation.isPending} onClick={() => void handleCompleteSession()}>
+                <Button type="button" disabled={isCompletePending} onClick={() => void handleCompleteSession()}>
                   Push Workout
                 </Button>
               </div>

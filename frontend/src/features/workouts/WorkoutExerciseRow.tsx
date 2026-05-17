@@ -13,8 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ADVANCED_TECHNIQUE_OPTIONS, formatAdvancedTechnique } from '@/features/workouts/advancedTechnique'
-import type { WorkoutExerciseSummary } from '@/services/planService'
-import type { UpdateWorkoutExerciseRequest } from '@/services/workoutExerciseService'
+import type { UpdateWorkoutExerciseRequest, WorkoutExerciseSummary } from '@/services/planService'
 
 const schema = z.object({
   sets: z.number().int().min(1, 'Sets must be at least 1'),

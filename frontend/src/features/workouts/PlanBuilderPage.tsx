@@ -16,9 +16,14 @@ import {
 import { Input } from '@/components/ui/input'
 import WorkoutGroupSection from '@/features/workouts/WorkoutGroupSection'
 import { exerciseService } from '@/services/exerciseService'
-import { planService } from '@/services/planService'
-import { workoutExerciseService, type CreateWorkoutExerciseRequest, type UpdateWorkoutExerciseRequest } from '@/services/workoutExerciseService'
-import { workoutGroupService } from '@/services/workoutGroupService'
+import {
+  planService,
+  workoutExerciseService,
+  workoutGroupService,
+  type CreateWorkoutExerciseRequest,
+  type UpdateWorkoutExerciseRequest,
+} from '@/services/planService'
+import { queryKeys } from '@/services/queryKeys'
 
 const nameSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
@@ -56,19 +61,19 @@ export default function PlanBuilderPage() {
   })
 
   const { data: plan, isLoading } = useQuery({
-    queryKey: ['plans', planId],
+    queryKey: queryKeys.plans.detail(planId ?? ''),
     queryFn: () => planService.get(planId!),
     enabled: Boolean(planId),
   })
   const { data: exerciseCatalog = [] } = useQuery({
-    queryKey: ['exercises'],
+    queryKey: queryKeys.exercises.all(),
     queryFn: () => exerciseService.list(),
   })
 
   async function refreshPlanData() {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['plans'] }),
-      queryClient.invalidateQueries({ queryKey: ['plans', planId] }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.plans.all() }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.plans.detail(planId!) }),
     ])
   }
 

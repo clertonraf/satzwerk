@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import PlansPage from '../PlansPage'
 import { planService } from '@/services/planService'
+import { queryKeys } from '@/services/queryKeys'
 
 vi.mock('@/services/planService', () => ({
   planService: {
@@ -85,7 +86,7 @@ describe('Plan import', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     fireEvent.change(input, { target: { files: [file] } })
 
-    await waitFor(() => expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: ['plans'] }))
+    await waitFor(() => expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: queryKeys.plans.all() }))
   })
 
   it('shows error message when import fails', async () => {

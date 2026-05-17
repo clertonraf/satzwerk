@@ -1,23 +1,24 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import ContributionHeatmap from '@/features/analytics/ContributionHeatmap'
 import StreakCard from '@/features/analytics/StreakCard'
 import { analyticsService } from '@/services/analyticsService'
+import { queryKeys } from '@/services/queryKeys'
 import { sessionService } from '@/services/sessionService'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function DashboardPage() {
   const { data: heatmapEntries = [] } = useQuery({
-    queryKey: ['heatmap'],
+    queryKey: queryKeys.analytics.heatmap(),
     queryFn: () => analyticsService.heatmap(),
   })
   const { data: streakData } = useQuery({
-    queryKey: ['streak'],
+    queryKey: queryKeys.analytics.streak(),
     queryFn: analyticsService.streak,
   })
   const { data: history = [] } = useQuery({
-    queryKey: ['session-history'],
+    queryKey: queryKeys.sessions.history(),
     queryFn: sessionService.history,
   })
 

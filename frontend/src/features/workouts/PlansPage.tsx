@@ -25,6 +25,7 @@ import {
 import { Input } from '@/components/ui/input'
 import PlanCard from '@/features/workouts/PlanCard'
 import { planService, type WorkoutPlan } from '@/services/planService'
+import { queryKeys } from '@/services/queryKeys'
 
 const schema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
@@ -47,14 +48,14 @@ export default function PlansPage() {
     defaultValues: { name: '' },
   })
   const { data: plans = [], isLoading } = useQuery({
-    queryKey: ['plans'],
+    queryKey: queryKeys.plans.all(),
     queryFn: () => planService.list(),
   })
 
   const createPlanMutation = useMutation({
     mutationFn: (name: string) => planService.create(name),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['plans'] })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.plans.all() })
       reset({ name: '' })
       setIsCreateOpen(false)
     },
@@ -62,13 +63,13 @@ export default function PlansPage() {
 
   const activatePlanMutation = useMutation({
     mutationFn: (id: string) => planService.activate(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['plans'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.plans.all() }),
   })
 
   const deletePlanMutation = useMutation({
     mutationFn: (id: string) => planService.delete(id),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['plans'] })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.plans.all() })
       setPlanToDelete(null)
     },
   })
@@ -76,7 +77,7 @@ export default function PlansPage() {
   const importMutation = useMutation({
     mutationFn: (file: File) => planService.importFromFile(file),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['plans'] })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.plans.all() })
     },
   })
 

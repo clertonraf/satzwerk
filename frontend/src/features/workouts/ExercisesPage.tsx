@@ -25,6 +25,7 @@ import {
   type CreateExerciseRequest,
   type Exercise,
 } from '@/services/exerciseService'
+import { queryKeys } from '@/services/queryKeys'
 
 export default function ExercisesPage() {
   const queryClient = useQueryClient()
@@ -32,15 +33,15 @@ export default function ExercisesPage() {
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null)
   const [exerciseToDelete, setExerciseToDelete] = useState<Exercise | null>(null)
   const { data: exercises = [], isLoading } = useQuery({
-    queryKey: ['exercises'],
+    queryKey: queryKeys.exercises.all(),
     queryFn: () => exerciseService.list(),
   })
 
   const createExerciseMutation = useMutation({
     mutationFn: (data: CreateExerciseRequest) => exerciseService.create(data),
     onSuccess: (createdExercise) => {
-      queryClient.setQueryData<Exercise[]>(['exercises'], (current = []) => [createdExercise, ...current])
-      void queryClient.invalidateQueries({ queryKey: ['exercises'] })
+      queryClient.setQueryData<Exercise[]>(queryKeys.exercises.all(), (current = []) => [createdExercise, ...current])
+      void queryClient.invalidateQueries({ queryKey: queryKeys.exercises.all() })
       setIsFormOpen(false)
     },
   })
@@ -48,10 +49,10 @@ export default function ExercisesPage() {
   const updateExerciseMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: CreateExerciseRequest }) => exerciseService.update(id, data),
     onSuccess: (updatedExercise) => {
-      queryClient.setQueryData<Exercise[]>(['exercises'], (current = []) =>
+      queryClient.setQueryData<Exercise[]>(queryKeys.exercises.all(), (current = []) =>
         current.map((exercise) => (exercise.id === updatedExercise.id ? updatedExercise : exercise))
       )
-      void queryClient.invalidateQueries({ queryKey: ['exercises'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.exercises.all() })
       setEditingExercise(null)
       setIsFormOpen(false)
     },
@@ -60,10 +61,10 @@ export default function ExercisesPage() {
   const deleteExerciseMutation = useMutation({
     mutationFn: (id: string) => exerciseService.delete(id),
     onSuccess: (_, id) => {
-      queryClient.setQueryData<Exercise[]>(['exercises'], (current = []) =>
+      queryClient.setQueryData<Exercise[]>(queryKeys.exercises.all(), (current = []) =>
         current.filter((exercise) => exercise.id !== id)
       )
-      void queryClient.invalidateQueries({ queryKey: ['exercises'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.exercises.all() })
       setExerciseToDelete(null)
     },
   })

@@ -3,11 +3,11 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import WorkoutGroupSection from '../WorkoutGroupSection'
-import { workoutExerciseService } from '@/services/workoutExerciseService'
+import { workoutExerciseService } from '@/services/planService'
 import { QueryClientWrapper } from '@/test/QueryClientWrapper'
 
-vi.mock('@/services/workoutExerciseService', async () => {
-  const actual = await vi.importActual<typeof import('@/services/workoutExerciseService')>('@/services/workoutExerciseService')
+vi.mock('@/services/planService', async () => {
+  const actual = await vi.importActual<typeof import('@/services/planService')>('@/services/planService')
 
   return {
     ...actual,

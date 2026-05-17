@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { offlineQueue } from '@/services/offlineQueue'
+import { queryKeys } from '@/services/queryKeys'
 import { useOnlineStatus } from './useOnlineStatus'
 
 export function useOfflineSync() {
@@ -21,7 +22,7 @@ export function useOfflineSync() {
     wasOffline.current = false
 
     void offlineQueue.flush().then(() => {
-      void queryClient.invalidateQueries({ queryKey: ['open-session'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.open() })
     })
   }, [isOnline, queryClient])
 }

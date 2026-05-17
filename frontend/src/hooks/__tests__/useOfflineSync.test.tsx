@@ -3,6 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { offlineQueue } from '@/services/offlineQueue'
+import { queryKeys } from '@/services/queryKeys'
 import { useOfflineSync } from '../useOfflineSync'
 
 const mockUseOnlineStatus = vi.fn()
@@ -46,6 +47,6 @@ describe('useOfflineSync', () => {
     rerender()
 
     await waitFor(() => expect(offlineQueue.flush).toHaveBeenCalledTimes(1))
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['open-session'] })
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.sessions.open() })
   })
 })

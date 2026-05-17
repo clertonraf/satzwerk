@@ -16,12 +16,13 @@ import {
 import { Input } from '@/components/ui/input'
 import { ADVANCED_TECHNIQUE_OPTIONS } from '@/features/workouts/advancedTechnique'
 import WorkoutExerciseRow from '@/features/workouts/WorkoutExerciseRow'
-import type { WorkoutGroupDetail } from '@/services/planService'
 import {
   workoutExerciseService,
   type CreateWorkoutExerciseRequest,
   type UpdateWorkoutExerciseRequest,
-} from '@/services/workoutExerciseService'
+  type WorkoutGroupDetail,
+} from '@/services/planService'
+import { queryKeys } from '@/services/queryKeys'
 
 const groupSchema = z.object({
   title: z.string().trim().min(1, 'Title is required'),
@@ -121,7 +122,7 @@ export default function WorkoutGroupSection({
   const reorderMutation = useMutation({
     mutationFn: ({ exerciseId, direction }: { exerciseId: string; direction: 'UP' | 'DOWN' }) =>
       workoutExerciseService.reorder(planId, group.id, exerciseId, direction),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['plans', planId] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.plans.detail(planId) }),
   })
 
   const exercises = group.exercises.slice().sort((left, right) => left.orderIndex - right.orderIndex)

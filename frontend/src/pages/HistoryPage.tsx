@@ -3,20 +3,21 @@ import { useQueries, useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { buildWorkoutGroupCatalog, formatSessionDate } from '@/features/sessions/sessionHelpers'
 import { planService } from '@/services/planService'
+import { queryKeys } from '@/services/queryKeys'
 import { sessionService } from '@/services/sessionService'
 
 export default function HistoryPage() {
   const historyQuery = useQuery({
-    queryKey: ['session-history'],
+    queryKey: queryKeys.sessions.history(),
     queryFn: () => sessionService.history(),
   })
   const plansQuery = useQuery({
-    queryKey: ['plans'],
+    queryKey: queryKeys.plans.all(),
     queryFn: () => planService.list(),
   })
   const planDetailsQueries = useQueries({
     queries: (plansQuery.data ?? []).map((plan) => ({
-      queryKey: ['plans', plan.id],
+      queryKey: queryKeys.plans.detail(plan.id),
       queryFn: () => planService.get(plan.id),
     })),
   })

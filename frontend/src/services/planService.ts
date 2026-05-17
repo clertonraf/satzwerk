@@ -31,6 +31,15 @@ export interface WorkoutPlanDetail extends WorkoutPlan {
   groups: WorkoutGroupDetail[]
 }
 
+export interface CreateWorkoutExerciseRequest {
+  exerciseId: string
+  sets: number
+  reps: number
+  advancedTechnique?: string
+}
+
+export type UpdateWorkoutExerciseRequest = Partial<CreateWorkoutExerciseRequest>
+
 export const planService = {
   list: () => api.get<WorkoutPlan[]>('/plans').then((response) => response.data),
   get: (id: string) => api.get<WorkoutPlanDetail>(`/plans/${id}`).then((response) => response.data),
@@ -47,4 +56,23 @@ export const planService = {
       })
       .then((response) => response.data)
   },
+}
+
+export const workoutGroupService = {
+  create: (planId: string, title: string) =>
+    api.post<WorkoutGroupDetail>(`/plans/${planId}/groups`, { title }).then((response) => response.data),
+  update: (planId: string, groupId: string, title: string) =>
+    api.patch<WorkoutGroupDetail>(`/plans/${planId}/groups/${groupId}`, { title }).then((response) => response.data),
+  delete: (planId: string, groupId: string) => api.delete(`/plans/${planId}/groups/${groupId}`).then(() => undefined),
+}
+
+export const workoutExerciseService = {
+  create: (planId: string, groupId: string, data: CreateWorkoutExerciseRequest) =>
+    api.post<WorkoutExerciseSummary>(`/plans/${planId}/groups/${groupId}/exercises`, data).then((response) => response.data),
+  update: (planId: string, groupId: string, exerciseId: string, data: UpdateWorkoutExerciseRequest) =>
+    api.patch<WorkoutExerciseSummary>(`/plans/${planId}/groups/${groupId}/exercises/${exerciseId}`, data).then((response) => response.data),
+  reorder: (planId: string, groupId: string, exerciseId: string, direction: 'UP' | 'DOWN') =>
+    api.patch(`/plans/${planId}/groups/${groupId}/exercises/${exerciseId}/order`, { direction }).then((response) => response.data),
+  delete: (planId: string, groupId: string, exerciseId: string) =>
+    api.delete(`/plans/${planId}/groups/${groupId}/exercises/${exerciseId}`).then(() => undefined),
 }
