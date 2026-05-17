@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: satzwerk-api
+  r2dbc:
+    url: r2dbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:satzwerk}
+    username: ${DB_USER:satzwerk}
+    password: ${DB_PASSWORD:satzwerk}
+  flyway:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:satzwerk}
+    user: ${DB_USER:satzwerk}
+    password: ${DB_PASSWORD:satzwerk}
+  security:
+    user:
+      name: disabled
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+jwt:
+  secret: ${JWT_SECRET:change-me-in-production}
+  expiry-ms: ${JWT_EXPIRY_MS:900000}
+  refresh-expiry-ms: ${JWT_REFRESH_EXPIRY_MS:604800000}
+
+kraftlogparser:
+  url: ${KRAFTLOGPARSER_URL:http://kraftlogparser:8080}

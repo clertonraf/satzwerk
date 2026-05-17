@@ -1,0 +1,1 @@
+ALTER TABLE workout_exercises ADD COLUMN to_failure BOOLEAN NOT NULL DEFAULT FALSE;
