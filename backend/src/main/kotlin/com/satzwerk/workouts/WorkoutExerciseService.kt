@@ -10,8 +10,7 @@ import java.util.UUID
 
 @Service
 class WorkoutExerciseService(
-    private val workoutPlanService: WorkoutPlanService,
-    private val workoutGroupRepository: WorkoutGroupRepository,
+    private val workoutGroupService: WorkoutGroupService,
     private val workoutExerciseRepository: WorkoutExerciseRepository,
     private val exerciseRepository: ExerciseRepository,
 ) {
@@ -21,7 +20,7 @@ class WorkoutExerciseService(
         groupId: UUID,
         request: CreateWorkoutExerciseRequest,
     ): WorkoutExerciseResponse {
-        getRequiredGroup(userId, planId, groupId)
+        workoutGroupService.getRequiredGroup(userId, planId, groupId)
         val exercise = exerciseRepository.findById(request.exerciseId) ?: throw NotFoundException("Exercise not found")
         if (exercise.userId != userId) {
             throw ForbiddenException("Exercise does not belong to user")
@@ -47,7 +46,7 @@ class WorkoutExerciseService(
         exerciseId: UUID,
         request: UpdateWorkoutExerciseRequest,
     ): WorkoutExerciseResponse {
-        getRequiredGroup(userId, planId, groupId)
+        workoutGroupService.getRequiredGroup(userId, planId, groupId)
         val existing = getRequiredWorkoutExercise(groupId, exerciseId)
         val exercise = exerciseRepository.findById(existing.exerciseId) ?: throw NotFoundException("Exercise not found")
         return workoutExerciseRepository
@@ -68,7 +67,7 @@ class WorkoutExerciseService(
         groupId: UUID,
         exerciseId: UUID,
     ) {
-        getRequiredGroup(userId, planId, groupId)
+        workoutGroupService.getRequiredGroup(userId, planId, groupId)
         val workoutExercise = getRequiredWorkoutExercise(groupId, exerciseId)
         workoutExerciseRepository.deleteById(requireNotNull(workoutExercise.id))
     }
@@ -81,7 +80,7 @@ class WorkoutExerciseService(
         exerciseId: UUID,
         direction: ReorderDirection,
     ): List<WorkoutExerciseResponse> {
-        getRequiredGroup(userId, planId, groupId)
+        workoutGroupService.getRequiredGroup(userId, planId, groupId)
         val exercises = workoutExerciseRepository.findAllByWorkoutGroupIdOrderByOrderIndex(groupId)
         val targetIndex = exercises.indexOfFirst { it.id == exerciseId }
         if (targetIndex == -1) {
@@ -111,16 +110,6 @@ class WorkoutExerciseService(
             exerciseRepository.findAllById(reordered.map { it.exerciseId }.toSet())
                 .toList().associate { it.id!! to it.name }
         return reordered.map { it.toResponse(nameById[it.exerciseId] ?: it.exerciseId.toString()) }
-    }
-
-    private suspend fun getRequiredGroup(
-        userId: UUID,
-        planId: UUID,
-        groupId: UUID,
-    ): WorkoutGroup {
-        workoutPlanService.getOwnedPlan(userId, planId)
-        return workoutGroupRepository.findByIdAndWorkoutPlanId(groupId, planId)
-            ?: throw NotFoundException("Workout group not found")
     }
 
     private suspend fun getRequiredWorkoutExercise(

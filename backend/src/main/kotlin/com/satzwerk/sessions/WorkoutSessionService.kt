@@ -1,10 +1,9 @@
 package com.satzwerk.sessions
 
 import com.satzwerk.common.ConflictException
-import com.satzwerk.common.ForbiddenException
 import com.satzwerk.common.NotFoundException
 import com.satzwerk.workouts.WorkoutGroupRepository
-import com.satzwerk.workouts.WorkoutPlanRepository
+import com.satzwerk.workouts.WorkoutPlanService
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -15,7 +14,7 @@ class WorkoutSessionService(
     private val workoutSessionRepository: WorkoutSessionRepository,
     private val setLogRepository: SetLogRepository,
     private val workoutGroupRepository: WorkoutGroupRepository,
-    private val workoutPlanRepository: WorkoutPlanRepository,
+    private val workoutPlanService: WorkoutPlanService,
 ) {
     suspend fun start(
         userId: UUID,
@@ -94,11 +93,10 @@ class WorkoutSessionService(
         userId: UUID,
         workoutGroupId: UUID,
     ) {
-        val group = getRequiredWorkoutGroup(workoutGroupRepository, workoutGroupId)
-        val plan = getRequiredWorkoutPlan(workoutPlanRepository, group.workoutPlanId)
-        if (plan.userId != userId) {
-            throw ForbiddenException("Workout group does not belong to user")
-        }
+        val group =
+            workoutGroupRepository.findById(workoutGroupId)
+                ?: throw NotFoundException("Workout group not found")
+        workoutPlanService.getOwnedPlan(userId, group.workoutPlanId)
     }
 
     private suspend fun getOwnedSession(
@@ -119,20 +117,6 @@ private fun requireOpenSession(session: WorkoutSession) {
         throw ConflictException("Workout session is already completed")
     }
 }
-
-private suspend fun getRequiredWorkoutGroup(
-    workoutGroupRepository: WorkoutGroupRepository,
-    workoutGroupId: UUID,
-): com.satzwerk.workouts.WorkoutGroup =
-    workoutGroupRepository.findById(workoutGroupId)
-        ?: throw NotFoundException("Workout group not found")
-
-private suspend fun getRequiredWorkoutPlan(
-    workoutPlanRepository: WorkoutPlanRepository,
-    planId: UUID,
-): com.satzwerk.workouts.WorkoutPlan =
-    workoutPlanRepository.findById(planId)
-        ?: throw NotFoundException("Workout plan not found")
 
 fun WorkoutSession.toResponse(setLogs: List<SetLogResponse>): WorkoutSessionResponse =
     WorkoutSessionResponse(
