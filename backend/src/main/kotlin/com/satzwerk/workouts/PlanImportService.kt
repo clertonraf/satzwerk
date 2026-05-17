@@ -1,6 +1,7 @@
 package com.satzwerk.workouts
 
 import com.fasterxml.jackson.databind.JsonNode
+import kotlinx.coroutines.flow.toList
 import org.springframework.http.codec.multipart.FilePart
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -33,6 +34,8 @@ class PlanImportService(
             )
         val planId = requireNotNull(plan.id)
 
+        val exerciseByNameLower = resolveExercises(userId, parsed)
+
         parsed.workouts.forEachIndexed { groupIndex, parsedWorkout ->
             val groupTitle =
                 parsedWorkout.bodyParts
@@ -49,10 +52,9 @@ class PlanImportService(
                     ),
                 )
             val groupId = requireNotNull(group.id)
-            val primaryMuscleGroup = parsedWorkout.bodyParts.firstOrNull()
 
             parsedWorkout.exercises.forEachIndexed { exerciseIndex, parsedExercise ->
-                val exercise = findOrCreateExercise(userId, parsedExercise.exercise, primaryMuscleGroup)
+                val exercise = requireNotNull(exerciseByNameLower[parsedExercise.exercise.lowercase()])
                 val (reps, toFailure) = mapReps(parsedExercise.reps)
 
                 workoutExerciseRepository.save(
@@ -72,19 +74,46 @@ class PlanImportService(
         return plan.toResponse()
     }
 
-    private suspend fun findOrCreateExercise(
+    private suspend fun resolveExercises(
         userId: UUID,
-        name: String,
-        muscleGroup: String?,
-    ): Exercise =
-        exerciseRepository.findByUserIdAndNameIgnoreCase(userId, name)
-            ?: exerciseRepository.save(
-                Exercise(
-                    userId = userId,
-                    name = name,
-                    muscleGroup = muscleGroup.orEmpty(),
-                ),
-            )
+        parsed: KraftLogParserResponse,
+    ): Map<String, Exercise> {
+        val nameLowerToOriginal =
+            buildMap<String, String> {
+                parsed.workouts.forEach { workout ->
+                    workout.exercises.forEach { ex -> putIfAbsent(ex.exercise.lowercase(), ex.exercise) }
+                }
+            }
+        val nameLowerToMuscleGroup =
+            buildMap<String, String> {
+                parsed.workouts.forEach { workout ->
+                    val muscleGroup = workout.bodyParts.firstOrNull().orEmpty()
+                    workout.exercises.forEach { ex -> putIfAbsent(ex.exercise.lowercase(), muscleGroup) }
+                }
+            }
+
+        val existingByNameLower =
+            if (nameLowerToOriginal.isEmpty()) {
+                emptyMap()
+            } else {
+                exerciseRepository.findAllByUserIdAndNamesLowercase(userId, nameLowerToOriginal.keys)
+                    .associateBy { it.name.lowercase() }
+            }
+
+        val newExercises =
+            exerciseRepository.saveAll(
+                nameLowerToOriginal.filterKeys { it !in existingByNameLower }
+                    .map { (nameLower, originalName) ->
+                        Exercise(
+                            userId = userId,
+                            name = originalName,
+                            muscleGroup = nameLowerToMuscleGroup[nameLower].orEmpty(),
+                        )
+                    },
+            ).toList()
+
+        return existingByNameLower + newExercises.associateBy { it.name.lowercase() }
+    }
 
     private fun mapReps(repsNode: JsonNode): Pair<Int, Boolean> =
         if (repsNode.isTextual && repsNode.asText().uppercase() == "F") {
