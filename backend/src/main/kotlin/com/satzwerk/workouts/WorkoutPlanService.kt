@@ -2,7 +2,6 @@ package com.satzwerk.workouts
 
 import com.satzwerk.common.ForbiddenException
 import com.satzwerk.common.NotFoundException
-import kotlinx.coroutines.flow.toList
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -13,7 +12,6 @@ class WorkoutPlanService(
     private val workoutPlanRepository: WorkoutPlanRepository,
     private val workoutGroupRepository: WorkoutGroupRepository,
     private val workoutExerciseRepository: WorkoutExerciseRepository,
-    private val exerciseRepository: ExerciseRepository,
 ) {
     suspend fun create(
         userId: UUID,
@@ -39,22 +37,13 @@ class WorkoutPlanService(
         val plan = getOwnedPlan(userId, planId)
         val groups = workoutGroupRepository.findAllByWorkoutPlanIdOrderByOrderIndex(planId)
 
-        val allWorkoutExercises =
-            groups.flatMap { group ->
-                workoutExerciseRepository.findAllByWorkoutGroupIdOrderByOrderIndex(requireNotNull(group.id))
-            }
-        val exerciseNameById =
-            exerciseRepository
-                .findAllById(allWorkoutExercises.map { it.exerciseId }.toSet())
-                .toList()
-                .associate { it.id!! to it.name }
-
         val exercisesByGroup =
             groups.associate { group ->
-                requireNotNull(group.id) to
-                    allWorkoutExercises
-                        .filter { it.workoutGroupId == group.id }
-                        .map { we -> we.toResponse(exerciseNameById[we.exerciseId] ?: we.exerciseId.toString()) }
+                val groupId = requireNotNull(group.id)
+                val exercises =
+                    workoutExerciseRepository.findAllWithNameByWorkoutGroupId(groupId)
+                        .map { it.toResponse() }
+                groupId to exercises
             }
 
         return plan.toDetailResponse(groups, exercisesByGroup)
@@ -148,6 +137,18 @@ fun WorkoutPlan.toDetailResponse(
 fun WorkoutExercise.toResponse(exerciseName: String): WorkoutExerciseResponse =
     WorkoutExerciseResponse(
         id = requireNotNull(id),
+        exerciseId = exerciseId,
+        exerciseName = exerciseName,
+        sets = sets,
+        reps = reps,
+        toFailure = toFailure,
+        advancedTechnique = advancedTechnique,
+        orderIndex = orderIndex,
+    )
+
+fun WorkoutExerciseWithName.toResponse(): WorkoutExerciseResponse =
+    WorkoutExerciseResponse(
+        id = id,
         exerciseId = exerciseId,
         exerciseName = exerciseName,
         sets = sets,

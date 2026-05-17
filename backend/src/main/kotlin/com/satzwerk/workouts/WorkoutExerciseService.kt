@@ -2,7 +2,6 @@ package com.satzwerk.workouts
 
 import com.satzwerk.common.ForbiddenException
 import com.satzwerk.common.NotFoundException
-import kotlinx.coroutines.flow.toList
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -93,10 +92,8 @@ class WorkoutExerciseService(
                 ReorderDirection.DOWN -> targetIndex + 1
             }
         if (swapIndex !in exercises.indices) {
-            val nameById =
-                exerciseRepository.findAllById(exercises.map { it.exerciseId }.toSet())
-                    .toList().associate { it.id!! to it.name }
-            return exercises.map { it.toResponse(nameById[it.exerciseId] ?: it.exerciseId.toString()) }
+            return workoutExerciseRepository.findAllWithNameByWorkoutGroupId(groupId)
+                .map { it.toResponse() }
         }
 
         val now = Instant.now()
@@ -105,11 +102,8 @@ class WorkoutExerciseService(
         workoutExerciseRepository.save(target.copy(orderIndex = partner.orderIndex, updatedAt = now))
         workoutExerciseRepository.save(partner.copy(orderIndex = target.orderIndex, updatedAt = now))
 
-        val reordered = workoutExerciseRepository.findAllByWorkoutGroupIdOrderByOrderIndex(groupId)
-        val nameById =
-            exerciseRepository.findAllById(reordered.map { it.exerciseId }.toSet())
-                .toList().associate { it.id!! to it.name }
-        return reordered.map { it.toResponse(nameById[it.exerciseId] ?: it.exerciseId.toString()) }
+        return workoutExerciseRepository.findAllWithNameByWorkoutGroupId(groupId)
+            .map { it.toResponse() }
     }
 
     private suspend fun getRequiredWorkoutExercise(
