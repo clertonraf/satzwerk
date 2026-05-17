@@ -39,20 +39,23 @@ class WorkoutPlanService(
         val plan = getOwnedPlan(userId, planId)
         val groups = workoutGroupRepository.findAllByWorkoutPlanIdOrderByOrderIndex(planId)
 
-        val allWorkoutExercises = groups.flatMap { group ->
-            workoutExerciseRepository.findAllByWorkoutGroupIdOrderByOrderIndex(requireNotNull(group.id))
-        }
-        val exerciseNameById = exerciseRepository
-            .findAllById(allWorkoutExercises.map { it.exerciseId }.toSet())
-            .toList()
-            .associate { it.id!! to it.name }
+        val allWorkoutExercises =
+            groups.flatMap { group ->
+                workoutExerciseRepository.findAllByWorkoutGroupIdOrderByOrderIndex(requireNotNull(group.id))
+            }
+        val exerciseNameById =
+            exerciseRepository
+                .findAllById(allWorkoutExercises.map { it.exerciseId }.toSet())
+                .toList()
+                .associate { it.id!! to it.name }
 
-        val exercisesByGroup = groups.associate { group ->
-            requireNotNull(group.id) to
-                allWorkoutExercises
-                    .filter { it.workoutGroupId == group.id }
-                    .map { we -> we.toResponse(exerciseNameById[we.exerciseId] ?: we.exerciseId.toString()) }
-        }
+        val exercisesByGroup =
+            groups.associate { group ->
+                requireNotNull(group.id) to
+                    allWorkoutExercises
+                        .filter { it.workoutGroupId == group.id }
+                        .map { we -> we.toResponse(exerciseNameById[we.exerciseId] ?: we.exerciseId.toString()) }
+            }
 
         return plan.toDetailResponse(groups, exercisesByGroup)
     }

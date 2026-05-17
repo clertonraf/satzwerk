@@ -1,5 +1,8 @@
 package com.satzwerk.workouts
 
+import com.satzwerk.common.currentUserId
+import com.satzwerk.common.handleErrors
+import com.satzwerk.common.validateOrBadRequest
 import jakarta.validation.Validator
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
@@ -16,40 +19,36 @@ class WorkoutGroupHandler(
     private val validator: Validator,
 ) {
     suspend fun create(request: ServerRequest): ServerResponse =
-        handleWorkoutErrors {
+        handleErrors {
             val body = request.awaitBody<CreateGroupRequest>()
-            validate(validator, body)?.let {
-                return@handleWorkoutErrors ServerResponse.badRequest().bodyValueAndAwait(it)
+            validateOrBadRequest(validator, body) {
+                val response =
+                    workoutGroupService.create(
+                        currentUserId(request),
+                        UUID.fromString(request.pathVariable("planId")),
+                        body,
+                    )
+                ServerResponse.status(HttpStatus.CREATED).bodyValueAndAwait(response)
             }
-
-            val response =
-                workoutGroupService.create(
-                    currentUserId(request),
-                    UUID.fromString(request.pathVariable("planId")),
-                    body,
-                )
-            ServerResponse.status(HttpStatus.CREATED).bodyValueAndAwait(response)
         }
 
     suspend fun update(request: ServerRequest): ServerResponse =
-        handleWorkoutErrors {
+        handleErrors {
             val body = request.awaitBody<UpdateGroupRequest>()
-            validate(validator, body)?.let {
-                return@handleWorkoutErrors ServerResponse.badRequest().bodyValueAndAwait(it)
+            validateOrBadRequest(validator, body) {
+                val response =
+                    workoutGroupService.update(
+                        currentUserId(request),
+                        UUID.fromString(request.pathVariable("planId")),
+                        UUID.fromString(request.pathVariable("groupId")),
+                        body,
+                    )
+                ServerResponse.ok().bodyValueAndAwait(response)
             }
-
-            val response =
-                workoutGroupService.update(
-                    currentUserId(request),
-                    UUID.fromString(request.pathVariable("planId")),
-                    UUID.fromString(request.pathVariable("groupId")),
-                    body,
-                )
-            ServerResponse.ok().bodyValueAndAwait(response)
         }
 
     suspend fun delete(request: ServerRequest): ServerResponse =
-        handleWorkoutErrors {
+        handleErrors {
             workoutGroupService.delete(
                 currentUserId(request),
                 UUID.fromString(request.pathVariable("planId")),

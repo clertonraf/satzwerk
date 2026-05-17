@@ -1,11 +1,9 @@
 package com.satzwerk.workouts
 
-import com.satzwerk.common.ErrorResponse
-import com.satzwerk.common.ForbiddenException
-import com.satzwerk.common.NotFoundException
-import com.satzwerk.common.ValidationErrorResponse
+import com.satzwerk.common.currentUserId
+import com.satzwerk.common.handleErrors
+import com.satzwerk.common.validateOrBadRequest
 import jakarta.validation.Validator
-import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.server.ServerRequest
@@ -15,8 +13,6 @@ import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import org.springframework.web.reactive.function.server.buildAndAwait
 import java.util.UUID
 
-private typealias ResponseBlock = suspend () -> ServerResponse
-
 @Component
 class ExerciseHandler(
     private val exerciseService: ExerciseService,
@@ -25,20 +21,10 @@ class ExerciseHandler(
     suspend fun create(request: ServerRequest): ServerResponse =
         handleErrors {
             val body = request.awaitBody<CreateExerciseRequest>()
-            val violations = validator.validate(body)
-            if (violations.isNotEmpty()) {
-                return@handleErrors ServerResponse
-                    .badRequest()
-                    .bodyValueAndAwait(
-                        ValidationErrorResponse(
-                            violations.associate { it.propertyPath.toString() to it.message },
-                        ),
-                    )
+            validateOrBadRequest(validator, body) {
+                val response = exerciseService.create(currentUserId(request), body)
+                ServerResponse.status(HttpStatus.CREATED).bodyValueAndAwait(response)
             }
-
-            val userId = currentUserId(request)
-            val response = exerciseService.create(userId, body)
-            ServerResponse.status(HttpStatus.CREATED).bodyValueAndAwait(response)
         }
 
     suspend fun list(request: ServerRequest): ServerResponse =
@@ -79,19 +65,5 @@ class ExerciseHandler(
                 UUID.fromString(request.pathVariable("id")),
             )
             ServerResponse.noContent().buildAndAwait()
-        }
-
-    private suspend fun currentUserId(request: ServerRequest): UUID {
-        val principal = request.principal().awaitSingle()
-        return UUID.fromString(principal.name)
-    }
-
-    private suspend fun handleErrors(block: ResponseBlock): ServerResponse =
-        try {
-            block()
-        } catch (_: ForbiddenException) {
-            ServerResponse.status(HttpStatus.FORBIDDEN).bodyValueAndAwait(ErrorResponse("Forbidden"))
-        } catch (_: NotFoundException) {
-            ServerResponse.status(HttpStatus.NOT_FOUND).bodyValueAndAwait(ErrorResponse("Not found"))
         }
 }

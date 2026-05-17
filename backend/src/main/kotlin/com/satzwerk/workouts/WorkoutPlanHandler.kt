@@ -1,6 +1,9 @@
 package com.satzwerk.workouts
 
 import com.satzwerk.common.ErrorResponse
+import com.satzwerk.common.currentUserId
+import com.satzwerk.common.handleErrors
+import com.satzwerk.common.validateOrBadRequest
 import jakarta.validation.Validator
 import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.http.HttpStatus
@@ -20,27 +23,25 @@ class WorkoutPlanHandler(
     private val validator: Validator,
 ) {
     suspend fun create(request: ServerRequest): ServerResponse =
-        handleWorkoutErrors {
+        handleErrors(withWebClient = true) {
             val body = request.awaitBody<CreatePlanRequest>()
-            validate(validator, body)?.let {
-                return@handleWorkoutErrors ServerResponse.badRequest().bodyValueAndAwait(it)
+            validateOrBadRequest(validator, body) {
+                val response = workoutPlanService.create(currentUserId(request), body)
+                ServerResponse.status(HttpStatus.CREATED).bodyValueAndAwait(response)
             }
-
-            val response = workoutPlanService.create(currentUserId(request), body)
-            ServerResponse.status(HttpStatus.CREATED).bodyValueAndAwait(response)
         }
 
     suspend fun list(request: ServerRequest): ServerResponse =
-        handleWorkoutErrors {
+        handleErrors(withWebClient = true) {
             ServerResponse.ok().bodyValueAndAwait(workoutPlanService.list(currentUserId(request)))
         }
 
     suspend fun import(request: ServerRequest): ServerResponse =
-        handleWorkoutErrors {
+        handleErrors(withWebClient = true) {
             val multipartData = request.multipartData().awaitSingle()
             val filePart =
                 multipartData.getFirst("file") as? FilePart
-                    ?: return@handleWorkoutErrors ServerResponse
+                    ?: return@handleErrors ServerResponse
                         .badRequest()
                         .bodyValueAndAwait(ErrorResponse("Missing 'file' part"))
 
@@ -49,7 +50,7 @@ class WorkoutPlanHandler(
         }
 
     suspend fun getDetail(request: ServerRequest): ServerResponse =
-        handleWorkoutErrors {
+        handleErrors(withWebClient = true) {
             val response =
                 workoutPlanService.getDetail(
                     currentUserId(request),
@@ -59,23 +60,21 @@ class WorkoutPlanHandler(
         }
 
     suspend fun update(request: ServerRequest): ServerResponse =
-        handleWorkoutErrors {
+        handleErrors(withWebClient = true) {
             val body = request.awaitBody<UpdatePlanRequest>()
-            validate(validator, body)?.let {
-                return@handleWorkoutErrors ServerResponse.badRequest().bodyValueAndAwait(it)
+            validateOrBadRequest(validator, body) {
+                val response =
+                    workoutPlanService.update(
+                        currentUserId(request),
+                        UUID.fromString(request.pathVariable("planId")),
+                        body,
+                    )
+                ServerResponse.ok().bodyValueAndAwait(response)
             }
-
-            val response =
-                workoutPlanService.update(
-                    currentUserId(request),
-                    UUID.fromString(request.pathVariable("planId")),
-                    body,
-                )
-            ServerResponse.ok().bodyValueAndAwait(response)
         }
 
     suspend fun delete(request: ServerRequest): ServerResponse =
-        handleWorkoutErrors {
+        handleErrors(withWebClient = true) {
             workoutPlanService.delete(
                 currentUserId(request),
                 UUID.fromString(request.pathVariable("planId")),
@@ -84,7 +83,7 @@ class WorkoutPlanHandler(
         }
 
     suspend fun activate(request: ServerRequest): ServerResponse =
-        handleWorkoutErrors {
+        handleErrors(withWebClient = true) {
             workoutPlanService.activate(
                 currentUserId(request),
                 UUID.fromString(request.pathVariable("planId")),

@@ -94,8 +94,9 @@ class WorkoutExerciseService(
                 ReorderDirection.DOWN -> targetIndex + 1
             }
         if (swapIndex !in exercises.indices) {
-            val nameById = exerciseRepository.findAllById(exercises.map { it.exerciseId }.toSet())
-                .toList().associate { it.id!! to it.name }
+            val nameById =
+                exerciseRepository.findAllById(exercises.map { it.exerciseId }.toSet())
+                    .toList().associate { it.id!! to it.name }
             return exercises.map { it.toResponse(nameById[it.exerciseId] ?: it.exerciseId.toString()) }
         }
 
@@ -106,8 +107,9 @@ class WorkoutExerciseService(
         workoutExerciseRepository.save(partner.copy(orderIndex = target.orderIndex, updatedAt = now))
 
         val reordered = workoutExerciseRepository.findAllByWorkoutGroupIdOrderByOrderIndex(groupId)
-        val nameById = exerciseRepository.findAllById(reordered.map { it.exerciseId }.toSet())
-            .toList().associate { it.id!! to it.name }
+        val nameById =
+            exerciseRepository.findAllById(reordered.map { it.exerciseId }.toSet())
+                .toList().associate { it.id!! to it.name }
         return reordered.map { it.toResponse(nameById[it.exerciseId] ?: it.exerciseId.toString()) }
     }
 

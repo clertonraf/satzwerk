@@ -1,13 +1,12 @@
 package com.satzwerk.analytics
 
-import kotlinx.coroutines.reactor.awaitSingle
+import com.satzwerk.common.currentUserId
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.server.ServerRequest
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import java.time.LocalDate
 import java.time.ZoneOffset
-import java.util.UUID
 
 private const val DEFAULT_HEATMAP_WEEKS = 52L
 
@@ -27,8 +26,4 @@ class AnalyticsHandler(
         val userId = currentUserId(request)
         return ServerResponse.ok().bodyValueAndAwait(analyticsService.streak(userId))
     }
-}
-
-private suspend fun currentUserId(request: ServerRequest): UUID {
-    return UUID.fromString(request.principal().awaitSingle().name)
 }

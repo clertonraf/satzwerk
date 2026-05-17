@@ -34,10 +34,11 @@ class PlanImportService(
         val planId = requireNotNull(plan.id)
 
         parsed.workouts.forEachIndexed { groupIndex, parsedWorkout ->
-            val groupTitle = parsedWorkout.bodyParts
-                .filter { it.isNotBlank() }
-                .joinToString(", ")
-                .ifBlank { parsedWorkout.name }
+            val groupTitle =
+                parsedWorkout.bodyParts
+                    .filter { it.isNotBlank() }
+                    .joinToString(", ")
+                    .ifBlank { parsedWorkout.name }
 
             val group =
                 workoutGroupRepository.save(
