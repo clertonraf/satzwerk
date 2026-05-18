@@ -16,7 +16,7 @@ enum class AdvancedTechnique(val parserAliases: List<String>) {
     REST_PAUSE(listOf("rest")),
     GVT(listOf("gvt")),
     FST_7(listOf("fst")),
-    GIRONDA(listOf("gironda"));
+    GIRONDA(listOf("gironda")), ;
 
     companion object {
         fun fromParserString(raw: String): AdvancedTechnique? {

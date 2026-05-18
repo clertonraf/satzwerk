@@ -123,7 +123,9 @@ class PlanImportService(
         }
 
     internal fun mapTechnique(raw: String?): String? =
-        raw?.let { AdvancedTechnique.fromParserString(it)?.name }
+        raw?.let {
+            AdvancedTechnique.fromParserString(it)?.name
+        }
 
     internal fun planNameFromFilename(filename: String): String =
         filename.substringBeforeLast(".")
