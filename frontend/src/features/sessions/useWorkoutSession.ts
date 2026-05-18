@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import axios from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toKilograms } from '@/features/sessions/sessionHelpers'
@@ -22,8 +22,6 @@ function createQueuedSetLog(sessionId: string, payload: AddSetLogRequest): SetLo
 export function useWorkoutSession({ onComplete }: { onComplete: () => void }) {
   const queryClient = useQueryClient()
   const isOnline = useOnlineStatus()
-  const activeSession = useSessionStore((state) => state.activeSession)
-  const setActiveSession = useSessionStore((state) => state.setActiveSession)
   const weightUnit = useSessionStore((state) => state.weightUnit)
   const setWeightUnit = useSessionStore((state) => state.setWeightUnit)
   const [conflictSession, setConflictSession] = useState<WorkoutSession | null>(null)
@@ -73,13 +71,7 @@ export function useWorkoutSession({ onComplete }: { onComplete: () => void }) {
     mutationFn: (sessionId: string) => sessionService.discard(sessionId),
   })
 
-  const session = activeSession ?? openSessionQuery.data ?? null
-
-  useEffect(() => {
-    if (openSessionQuery.data !== undefined) {
-      setActiveSession(openSessionQuery.data)
-    }
-  }, [openSessionQuery.data, setActiveSession])
+  const session = openSessionQuery.data ?? null
 
   async function handleStartSession(workoutGroupId: string) {
     if (!isOnline) {
@@ -88,14 +80,12 @@ export function useWorkoutSession({ onComplete }: { onComplete: () => void }) {
 
     try {
       const startedSession = await startMutation.mutateAsync(workoutGroupId)
-      setActiveSession(startedSession)
       queryClient.setQueryData(queryKeys.sessions.open(), startedSession)
       setPendingWorkoutGroupId(null)
       setConflictSession(null)
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 409) {
         const openSession = await sessionService.getOpen()
-        setActiveSession(openSession)
         queryClient.setQueryData(queryKeys.sessions.open(), openSession)
         setPendingWorkoutGroupId(workoutGroupId)
         setConflictSession(openSession)
@@ -135,7 +125,6 @@ export function useWorkoutSession({ onComplete }: { onComplete: () => void }) {
       setLogs: [...session.setLogs, loggedSet],
     }
 
-    setActiveSession(updatedSession)
     queryClient.setQueryData(queryKeys.sessions.open(), updatedSession)
   }
 
@@ -145,7 +134,6 @@ export function useWorkoutSession({ onComplete }: { onComplete: () => void }) {
     }
 
     const completedSession = await completeMutation.mutateAsync(session.id)
-    setActiveSession(null)
     queryClient.setQueryData(queryKeys.sessions.open(), null)
     queryClient.setQueryData<WorkoutSession[]>(queryKeys.sessions.history(), (current = []) => [completedSession, ...current])
     onComplete()
@@ -159,7 +147,6 @@ export function useWorkoutSession({ onComplete }: { onComplete: () => void }) {
     const nextWorkoutGroupId = pendingWorkoutGroupId
 
     await discardMutation.mutateAsync(conflictSession.id)
-    setActiveSession(null)
     queryClient.setQueryData(queryKeys.sessions.open(), null)
     setConflictSession(null)
     setPendingWorkoutGroupId(null)
