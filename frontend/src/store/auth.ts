@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { tokenService } from '@/services/tokenService'
 
 export interface User {
   id: string
@@ -20,7 +21,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   setAccessToken: (token) => set({ accessToken: token }),
   setUser: (user) => set({ user }),
   logout: () => {
-    localStorage.removeItem('refreshToken')
+    tokenService.clearRefreshToken()
     set({ accessToken: null, user: null })
   },
 }))

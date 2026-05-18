@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { useAuthStore } from '@/store/auth'
+import { tokenService } from '@/services/tokenService'
 
 export const api = axios.create({ baseURL: '/api' })
 
@@ -54,7 +55,7 @@ api.interceptors.response.use(
     isRefreshing = true
 
     try {
-      const refreshToken = localStorage.getItem('refreshToken')
+      const refreshToken = tokenService.getRefreshToken()
 
       if (!refreshToken) {
         throw new Error('No refresh token')
@@ -62,7 +63,7 @@ api.interceptors.response.use(
 
       const { data } = await axios.post('/api/auth/refresh', { refreshToken })
       useAuthStore.getState().setAccessToken(data.accessToken)
-      localStorage.setItem('refreshToken', data.refreshToken)
+      tokenService.saveRefreshToken(data.refreshToken)
       flushQueue(null, data.accessToken)
       original.headers.Authorization = `Bearer ${data.accessToken}`
       return api(original)

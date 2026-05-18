@@ -3,6 +3,7 @@ import { isAxiosError } from 'axios'
 import { useForm } from 'react-hook-form'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
+import { tokenService } from '@/services/tokenService'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -49,7 +50,7 @@ export default function LoginPage() {
     try {
       const response = await authService.login(values)
       setAccessToken(response.accessToken)
-      localStorage.setItem('refreshToken', response.refreshToken)
+      tokenService.saveRefreshToken(response.refreshToken)
       navigate(redirectTo, { replace: true })
     } catch (error) {
       setError('root', {

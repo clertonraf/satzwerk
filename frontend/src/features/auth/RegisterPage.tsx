@@ -3,6 +3,7 @@ import { isAxiosError } from 'axios'
 import { useForm } from 'react-hook-form'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
+import { tokenService } from '@/services/tokenService'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -49,7 +50,7 @@ export default function RegisterPage() {
     try {
       const response = await authService.register(values)
       setAccessToken(response.accessToken)
-      localStorage.setItem('refreshToken', response.refreshToken)
+      tokenService.saveRefreshToken(response.refreshToken)
       navigate('/', { replace: true })
     } catch (error) {
       if (isAxiosError(error) && error.response?.status === 409) {
