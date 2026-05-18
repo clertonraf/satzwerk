@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { Link } from 'react-router-dom'
 import { z } from 'zod'
@@ -22,7 +21,7 @@ import {
   type UpdateWorkoutExerciseRequest,
   type WorkoutGroupDetail,
 } from '@/services/planService'
-import { queryKeys } from '@/services/queryKeys'
+import { usePlanDetailMutation } from '@/features/workouts/usePlanDetailMutation'
 
 const groupSchema = z.object({
   title: z.string().trim().min(1, 'Title is required'),
@@ -77,7 +76,6 @@ export default function WorkoutGroupSection({
   onUpdateExercise,
   onUpdateGroup,
 }: WorkoutGroupSectionProps) {
-  const queryClient = useQueryClient()
   const [isAddExerciseOpen, setIsAddExerciseOpen] = useState(false)
   const [isEditGroupOpen, setIsEditGroupOpen] = useState(false)
   const {
@@ -119,11 +117,9 @@ export default function WorkoutGroupSection({
     setIsAddExerciseOpen(true)
   }
 
-  const reorderMutation = useMutation({
-    mutationFn: ({ exerciseId, direction }: { exerciseId: string; direction: 'UP' | 'DOWN' }) =>
-      workoutExerciseService.reorder(planId, group.id, exerciseId, direction),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.plans.detail(planId) }),
-  })
+  const reorderMutation = usePlanDetailMutation(planId, ({ exerciseId, direction }: { exerciseId: string; direction: 'UP' | 'DOWN' }) =>
+    workoutExerciseService.reorder(planId, group.id, exerciseId, direction)
+  )
 
   const exercises = group.exercises.slice().sort((left, right) => left.orderIndex - right.orderIndex)
 

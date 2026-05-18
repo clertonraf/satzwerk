@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { useParams } from 'react-router-dom'
 import { z } from 'zod'
@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import WorkoutGroupSection from '@/features/workouts/WorkoutGroupSection'
+import { usePlanDetailMutation } from '@/features/workouts/usePlanDetailMutation'
 import { exerciseService } from '@/services/exerciseService'
 import {
   planService,
@@ -38,7 +39,6 @@ type GroupFormValues = z.infer<typeof groupSchema>
 
 export default function PlanBuilderPage() {
   const { planId } = useParams<{ planId: string }>()
-  const queryClient = useQueryClient()
   const [isAddGroupOpen, setIsAddGroupOpen] = useState(false)
   const [isEditingName, setIsEditingName] = useState(false)
   const {
@@ -70,57 +70,22 @@ export default function PlanBuilderPage() {
     queryFn: () => exerciseService.list(),
   })
 
-  async function refreshPlanData() {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.plans.all() }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.plans.detail(planId!) }),
-    ])
-  }
+  const updatePlanMutation = usePlanDetailMutation(planId!, (name: string) => planService.update(planId!, name), () => setIsEditingName(false))
 
-  const updatePlanMutation = useMutation({
-    mutationFn: (name: string) => planService.update(planId!, name),
-    onSuccess: async () => {
-      await refreshPlanData()
-      setIsEditingName(false)
-    },
+  const createGroupMutation = usePlanDetailMutation(planId!, (title: string) => workoutGroupService.create(planId!, title), () => {
+    setIsAddGroupOpen(false)
+    resetGroup({ title: '' })
   })
 
-  const createGroupMutation = useMutation({
-    mutationFn: (title: string) => workoutGroupService.create(planId!, title),
-    onSuccess: async () => {
-      await refreshPlanData()
-      setIsAddGroupOpen(false)
-      resetGroup({ title: '' })
-    },
-  })
+  const updateGroupMutation = usePlanDetailMutation(planId!, ({ groupId, title }: { groupId: string; title: string }) => workoutGroupService.update(planId!, groupId, title))
 
-  const updateGroupMutation = useMutation({
-    mutationFn: ({ groupId, title }: { groupId: string; title: string }) => workoutGroupService.update(planId!, groupId, title),
-    onSuccess: refreshPlanData,
-  })
+  const deleteGroupMutation = usePlanDetailMutation(planId!, (groupId: string) => workoutGroupService.delete(planId!, groupId))
 
-  const deleteGroupMutation = useMutation({
-    mutationFn: (groupId: string) => workoutGroupService.delete(planId!, groupId),
-    onSuccess: refreshPlanData,
-  })
+  const createExerciseMutation = usePlanDetailMutation(planId!, ({ groupId, data }: { groupId: string; data: CreateWorkoutExerciseRequest }) => workoutExerciseService.create(planId!, groupId, data))
 
-  const createExerciseMutation = useMutation({
-    mutationFn: ({ groupId, data }: { groupId: string; data: CreateWorkoutExerciseRequest }) =>
-      workoutExerciseService.create(planId!, groupId, data),
-    onSuccess: refreshPlanData,
-  })
+  const updateExerciseMutation = usePlanDetailMutation(planId!, ({ groupId, exerciseId, data }: { groupId: string; exerciseId: string; data: UpdateWorkoutExerciseRequest }) => workoutExerciseService.update(planId!, groupId, exerciseId, data))
 
-  const updateExerciseMutation = useMutation({
-    mutationFn: ({ groupId, exerciseId, data }: { groupId: string; exerciseId: string; data: UpdateWorkoutExerciseRequest }) =>
-      workoutExerciseService.update(planId!, groupId, exerciseId, data),
-    onSuccess: refreshPlanData,
-  })
-
-  const deleteExerciseMutation = useMutation({
-    mutationFn: ({ groupId, exerciseId }: { groupId: string; exerciseId: string }) =>
-      workoutExerciseService.delete(planId!, groupId, exerciseId),
-    onSuccess: refreshPlanData,
-  })
+  const deleteExerciseMutation = usePlanDetailMutation(planId!, ({ groupId, exerciseId }: { groupId: string; exerciseId: string }) => workoutExerciseService.delete(planId!, groupId, exerciseId))
 
   if (!planId) {
     return <p className="text-sm text-muted-foreground">Workout plan not found.</p>
