@@ -9,7 +9,7 @@ import java.util.UUID
 
 @Service
 class PlanImportService(
-    private val kraftLogParserClient: KraftLogParserClient,
+    private val planParser: PlanParser,
     private val workoutPlanRepository: WorkoutPlanRepository,
     private val workoutGroupRepository: WorkoutGroupRepository,
     private val workoutExerciseRepository: WorkoutExerciseRepository,
@@ -20,7 +20,7 @@ class PlanImportService(
         userId: UUID,
         filePart: FilePart,
     ): WorkoutPlanResponse {
-        val parsed = kraftLogParserClient.parse(filePart)
+        val parsed = planParser.parse(filePart)
         val planName = planNameFromFilename(filePart.filename())
 
         val plan =

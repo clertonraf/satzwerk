@@ -8,7 +8,7 @@ import org.mockito.Mockito.mock
 class PlanImportServiceTest {
     private val service =
         PlanImportService(
-            kraftLogParserClient = KraftLogParserClient("http://localhost"),
+            planParser = KraftLogParserClient("http://localhost"),
             workoutPlanRepository = mock(WorkoutPlanRepository::class.java),
             workoutGroupRepository = mock(WorkoutGroupRepository::class.java),
             workoutExerciseRepository = mock(WorkoutExerciseRepository::class.java),

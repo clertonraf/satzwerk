@@ -37,10 +37,10 @@ data class ParsedExercise(
 class KraftLogParserClient(
     @Value("\${kraftlogparser.url:http://kraftlogparser:8080}")
     private val baseUrl: String,
-) {
+) : PlanParser {
     private val webClient: WebClient = WebClient.builder().baseUrl(baseUrl).build()
 
-    suspend fun parse(filePart: FilePart): KraftLogParserResponse {
+    override suspend fun parse(filePart: FilePart): KraftLogParserResponse {
         val builder = MultipartBodyBuilder()
         builder.asyncPart("file", filePart.content(), DataBuffer::class.java)
             .header("Content-Disposition", "form-data; name=\"file\"; filename=\"${filePart.filename()}\"")
