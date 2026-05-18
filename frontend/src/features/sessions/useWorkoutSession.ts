@@ -3,25 +3,16 @@ import axios from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toKilograms } from '@/features/sessions/sessionHelpers'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
-import { offlineQueue } from '@/services/offlineQueue'
+import { useSessionTransport } from '@/features/sessions/useSessionTransport'
 import { queryKeys } from '@/services/queryKeys'
-import type { AddSetLogRequest, SetLog, WorkoutSession } from '@/services/sessionService'
+import type { AddSetLogRequest, WorkoutSession } from '@/services/sessionService'
 import { sessionService } from '@/services/sessionService'
 import { useSessionStore } from '@/store/session'
-
-function createQueuedSetLog(sessionId: string, payload: AddSetLogRequest): SetLog {
-  const timestamp = Date.now()
-
-  return {
-    id: `queued-${sessionId}-${payload.exerciseId}-${payload.setNumber}-${timestamp}`,
-    ...payload,
-    loggedAt: new Date(timestamp).toISOString(),
-  }
-}
 
 export function useWorkoutSession({ onComplete }: { onComplete: () => void }) {
   const queryClient = useQueryClient()
   const isOnline = useOnlineStatus()
+  const transport = useSessionTransport()
   const weightUnit = useSessionStore((state) => state.weightUnit)
   const setWeightUnit = useSessionStore((state) => state.setWeightUnit)
   const [conflictSession, setConflictSession] = useState<WorkoutSession | null>(null)
@@ -42,27 +33,6 @@ export function useWorkoutSession({ onComplete }: { onComplete: () => void }) {
   })
   const startMutation = useMutation({
     mutationFn: (workoutGroupId: string) => sessionService.start(workoutGroupId),
-  })
-  const addSetLogMutation = useMutation({
-    mutationFn: ({
-      sessionId,
-      exerciseId,
-      setNumber,
-      weight,
-      reps,
-    }: {
-      sessionId: string
-      exerciseId: string
-      setNumber: number
-      weight: number
-      reps: number
-    }) =>
-      sessionService.addSetLog(sessionId, {
-        exerciseId,
-        setNumber,
-        weight,
-        reps,
-      }),
   })
   const completeMutation = useMutation({
     mutationFn: (sessionId: string) => sessionService.complete(sessionId),
@@ -108,23 +78,8 @@ export function useWorkoutSession({ onComplete }: { onComplete: () => void }) {
       reps,
     }
 
-    let loggedSet: SetLog
-
-    if (isOnline) {
-      loggedSet = await addSetLogMutation.mutateAsync({
-        sessionId: session.id,
-        ...payload,
-      })
-    } else {
-      await offlineQueue.enqueue({ sessionId: session.id, ...payload })
-      loggedSet = createQueuedSetLog(session.id, payload)
-    }
-
-    const updatedSession = {
-      ...session,
-      setLogs: [...session.setLogs, loggedSet],
-    }
-
+    const loggedSet = await transport.logSet(session.id, payload)
+    const updatedSession = { ...session, setLogs: [...session.setLogs, loggedSet] }
     queryClient.setQueryData(queryKeys.sessions.open(), updatedSession)
   }
 
@@ -173,7 +128,8 @@ export function useWorkoutSession({ onComplete }: { onComplete: () => void }) {
     handleDiscardConflict,
     clearConflictState,
     isStartPending: startMutation.isPending,
-    isAddSetPending: addSetLogMutation.isPending,
+    isAddSetPending: transport.isLogSetPending,
     isCompletePending: completeMutation.isPending,
   }
 }
+
