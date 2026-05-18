@@ -122,19 +122,8 @@ class PlanImportService(
             repsNode.asInt() to false
         }
 
-    internal fun mapTechnique(raw: String?): String? {
-        if (raw == null) return null
-
-        val lower = raw.lowercase()
-        return when {
-            lower.contains("rest") -> AdvancedTechnique.REST_PAUSE.name
-            lower.contains("strip") -> AdvancedTechnique.SST.name
-            lower.contains("gvt") -> AdvancedTechnique.GVT.name
-            lower.contains("fst") -> AdvancedTechnique.FST_7.name
-            lower.contains("gironda") -> AdvancedTechnique.GIRONDA.name
-            else -> null
-        }
-    }
+    internal fun mapTechnique(raw: String?): String? =
+        raw?.let { AdvancedTechnique.fromParserString(it)?.name }
 
     internal fun planNameFromFilename(filename: String): String =
         filename.substringBeforeLast(".")

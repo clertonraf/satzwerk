@@ -11,12 +11,19 @@ enum class WorkoutSource {
     IMPORTED,
 }
 
-enum class AdvancedTechnique {
-    SST,
-    REST_PAUSE,
-    GVT,
-    FST_7,
-    GIRONDA,
+enum class AdvancedTechnique(val parserAliases: List<String>) {
+    SST(listOf("strip")),
+    REST_PAUSE(listOf("rest")),
+    GVT(listOf("gvt")),
+    FST_7(listOf("fst")),
+    GIRONDA(listOf("gironda"));
+
+    companion object {
+        fun fromParserString(raw: String): AdvancedTechnique? {
+            val lower = raw.lowercase()
+            return entries.firstOrNull { technique -> technique.parserAliases.any { lower.contains(it) } }
+        }
+    }
 }
 
 @Table("workout_plans")
