@@ -76,7 +76,7 @@ class PlanImportService(
 
     private suspend fun resolveExercises(
         userId: UUID,
-    parsed: SatzwerkParserResponse,
+        parsed: SatzwerkParserResponse,
     ): Map<String, Exercise> {
         val nameLowerToOriginal =
             buildMap<String, String> {
