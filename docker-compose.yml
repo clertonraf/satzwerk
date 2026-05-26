@@ -2,6 +2,7 @@ services:
 
   postgres:
     image: postgres:16-alpine
+    platform: linux/amd64
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:-satzwerk}
@@ -17,6 +18,7 @@ services:
 
   backend:
     image: ghcr.io/clertonraf/satzwerk-backend:latest
+    platform: linux/amd64
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: prod
@@ -40,6 +42,7 @@ services:
 
   frontend:
     image: ghcr.io/clertonraf/satzwerk-frontend:latest
+    platform: linux/amd64
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-8080}:80"
@@ -48,6 +51,7 @@ services:
 
   satzwerk-parser:
     image: ghcr.io/clertonraf/satzwerk-parser:latest
+    platform: linux/amd64
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || curl -sf http://localhost:8080/actuator/health || exit 0"]
