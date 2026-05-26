@@ -53,8 +53,8 @@ services:
       - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
 
-  kraftlogparser:
-    image: ghcr.io/clertonraf/kraftlogparser:latest
+  satzwerk-parser:
+    image: ghcr.io/clertonraf/satzwerk-parser:latest
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || curl -sf http://localhost:8080/actuator/health || exit 0"]

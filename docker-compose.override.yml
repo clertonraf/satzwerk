@@ -9,9 +9,9 @@ services:
       - "8083:8080"
     environment:
       SPRING_PROFILES_ACTIVE: local
-      KRAFTLOGPARSER_URL: http://kraftlogparser:8080
+      SATZWERK_PARSER_URL: http://satzwerk-parser:8080
 
-  kraftlogparser:
+  satzwerk-parser:
     ports:
       - "8084:8080"
 

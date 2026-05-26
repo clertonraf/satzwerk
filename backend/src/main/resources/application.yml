@@ -27,5 +27,5 @@ jwt:
   expiry-ms: ${JWT_EXPIRY_MS:900000}
   refresh-expiry-ms: ${JWT_REFRESH_EXPIRY_MS:604800000}
 
-kraftlogparser:
-  url: ${KRAFTLOGPARSER_URL:http://kraftlogparser:8080}
+satzwerk-parser:
+  url: ${SATZWERK_PARSER_URL:http://satzwerk-parser:8080}

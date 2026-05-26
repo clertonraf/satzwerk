@@ -12,7 +12,7 @@ import org.springframework.web.reactive.function.BodyInserters
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.awaitBody
 
-data class KraftLogParserResponse(
+data class SatzwerkParserResponse(
     @JsonProperty("rest_interval")
     val restInterval: List<Int>? = null,
     val workouts: List<ParsedWorkout>,
@@ -34,13 +34,13 @@ data class ParsedExercise(
 )
 
 @Component
-class KraftLogParserClient(
-    @Value("\${kraftlogparser.url:http://kraftlogparser:8080}")
+class SatzwerkParserClient(
+    @Value("\${satzwerk-parser.url:http://satzwerk-parser:8080}")
     private val baseUrl: String,
 ) : PlanParser {
     private val webClient: WebClient = WebClient.builder().baseUrl(baseUrl).build()
 
-    override suspend fun parse(filePart: FilePart): KraftLogParserResponse {
+    override suspend fun parse(filePart: FilePart): SatzwerkParserResponse {
         val builder = MultipartBodyBuilder()
         builder.asyncPart("file", filePart.content(), DataBuffer::class.java)
             .header("Content-Disposition", "form-data; name=\"file\"; filename=\"${filePart.filename()}\"")
@@ -51,6 +51,6 @@ class KraftLogParserClient(
             .contentType(MediaType.MULTIPART_FORM_DATA)
             .body(BodyInserters.fromMultipartData(builder.build()))
             .retrieve()
-            .awaitBody<KraftLogParserResponse>()
+            .awaitBody<SatzwerkParserResponse>()
     }
 }

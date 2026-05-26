@@ -37,10 +37,10 @@ A GitHub-style contribution grid showing training activity over time. Each day's
 _Avoid_: Contribution graph, activity chart
 
 **WorkoutSource**:
-An enum on WorkoutPlan describing how the plan was created: `MANUAL` (built in-app) or `IMPORTED` (created by uploading a spreadsheet via KraftLogParser).
+An enum on WorkoutPlan describing how the plan was created: `MANUAL` (built in-app) or `IMPORTED` (created by uploading a spreadsheet via satzwerk-parser).
 
 **PlanImport**:
-The act of uploading an xlsx spreadsheet to create a WorkoutPlan. The file is parsed externally by KraftLogParser; the resulting exercises, groups, and plan are created atomically. The plan name is derived from the filename. The imported plan starts inactive.
+The act of uploading an xlsx spreadsheet to create a WorkoutPlan. The file is parsed externally by satzwerk-parser; the resulting exercises, groups, and plan are created atomically. The plan name is derived from the filename. The imported plan starts inactive.
 _Avoid_: Plan upload, spreadsheet sync
 
 ## Relationships

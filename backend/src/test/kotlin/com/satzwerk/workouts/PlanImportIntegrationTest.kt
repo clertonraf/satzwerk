@@ -50,7 +50,7 @@ class PlanImportIntegrationTest {
     lateinit var client: WebTestClient
 
     @MockitoBean
-    lateinit var kraftLogParserClient: KraftLogParserClient
+    lateinit var satzwerkParserClient: SatzwerkParserClient
 
     private lateinit var authToken: String
 
@@ -101,7 +101,7 @@ class PlanImportIntegrationTest {
     fun `import deduplicates exercises by name`() {
         createExercise(authToken, "Bench Press", "CHEST")
         mockParserResponse(
-            KraftLogParserResponse(
+            SatzwerkParserResponse(
                 workouts =
                     listOf(
                         ParsedWorkout(
@@ -150,7 +150,7 @@ class PlanImportIntegrationTest {
     @Test
     fun `import maps reps F to toFailure true`() {
         mockParserResponse(
-            KraftLogParserResponse(
+            SatzwerkParserResponse(
                 workouts =
                     listOf(
                         ParsedWorkout(
@@ -191,7 +191,7 @@ class PlanImportIntegrationTest {
     @Test
     fun `import maps unknown technique to null`() {
         mockParserResponse(
-            KraftLogParserResponse(
+            SatzwerkParserResponse(
                 workouts =
                     listOf(
                         ParsedWorkout(
@@ -253,17 +253,17 @@ class PlanImportIntegrationTest {
             .exchange()
     }
 
-    private fun mockParserResponse(response: KraftLogParserResponse) {
+    private fun mockParserResponse(response: SatzwerkParserResponse) {
         runBlocking {
-            whenever(kraftLogParserClient.parse(any())).thenReturn(response)
+            whenever(satzwerkParserClient.parse(any())).thenReturn(response)
         }
     }
 
     private fun parserResponse(
         workoutCount: Int,
         exercisesPerWorkout: Int,
-    ): KraftLogParserResponse =
-        KraftLogParserResponse(
+    ): SatzwerkParserResponse =
+        SatzwerkParserResponse(
             workouts =
                 (1..workoutCount).map { workoutIndex ->
                     ParsedWorkout(
