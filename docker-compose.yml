@@ -44,8 +44,7 @@ services:
     image: ghcr.io/clertonraf/satzwerk-frontend:latest
     restart: unless-stopped
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.rule=Host(`${DOMAIN:-localhost}`)"
