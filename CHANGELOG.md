@@ -1,3 +1,13 @@
+## v0.0.2 (2026-05-30)
+
+## What's Changed
+* ci: optimize pipeline with path filters, artifact passing, and buildx cache by @clertonraf in https://github.com/clertonraf/satzwerk/pull/9
+
+
+**Full Changelog**: https://github.com/clertonraf/satzwerk/compare/v0.0.1...v0.0.2
+
+---
+
 # Changelog
 
 ## v0.0.1 (2026-05-30)
