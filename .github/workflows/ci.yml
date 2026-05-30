@@ -312,7 +312,8 @@ jobs:
           #   • poll the stack's Status field until it becomes active (1).
           echo "Triggering stack redeploy..."
           set +e
-          curl -s \
+          # Keep -L so http→https redirects are followed (same as the GET calls).
+          curl -sL \
             -o /tmp/portainer_deploy.json \
             -w "%{http_code}" \
             --max-time 180 \
@@ -355,6 +356,7 @@ jobs:
 
           # Poll GET /api/stacks/{id} until Status == 1 (active) or we time out.
           # Portainer sets Status=1 once all containers in the stack are running.
+          # Fail fast on 4xx (auth/config error) rather than burning the full timeout.
           MAX_WAIT=300
           INTERVAL=20
           ELAPSED=0
@@ -363,17 +365,35 @@ jobs:
             sleep "${INTERVAL}"
             ELAPSED=$((ELAPSED + INTERVAL))
 
-            STACK_STATUS=$(curl -fsSL --max-time 15 \
+            set +e
+            POLL_RESPONSE=$(curl -sL --max-time 15 \
+              -o /tmp/portainer_poll.json \
+              -w "%{http_code}" \
               -H "X-API-Key: ${PORTAINER_TOKEN}" \
               "${PORTAINER_URL}/api/stacks/${STACK_ID}" \
-              2>/dev/null | jq -r '.Status' 2>/dev/null || echo "unreachable")
+              2>/dev/null)
+            POLL_EXIT=$?
+            set -e
 
-            echo "  [${ELAPSED}s/${MAX_WAIT}s] Stack status: ${STACK_STATUS}"
-
-            if [ "${STACK_STATUS}" = "1" ]; then
-              echo "Stack is active. Deployment succeeded."
-              exit 0
-            fi
+            case "${POLL_RESPONSE}" in
+              200)
+                STACK_STATUS=$(jq -r '.Status' /tmp/portainer_poll.json 2>/dev/null || echo "unknown")
+                echo "  [${ELAPSED}s/${MAX_WAIT}s] Stack status: ${STACK_STATUS}"
+                if [ "${STACK_STATUS}" = "1" ]; then
+                  echo "Stack is active. Deployment succeeded."
+                  exit 0
+                fi
+                ;;
+              4[0-9][0-9])
+                echo "Poll error HTTP ${POLL_RESPONSE} — check PORTAINER_URL and PORTAINER_TOKEN." >&2
+                cat /tmp/portainer_poll.json >&2
+                exit 1
+                ;;
+              *)
+                # 5xx / curl timeout / connection error — transient, keep polling
+                echo "  [${ELAPSED}s/${MAX_WAIT}s] Poll returned HTTP ${POLL_RESPONSE} (exit ${POLL_EXIT}), retrying..."
+                ;;
+            esac
           done
 
           echo "Stack did not become active within ${MAX_WAIT}s." >&2
