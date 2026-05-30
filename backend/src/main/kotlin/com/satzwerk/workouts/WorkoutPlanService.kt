@@ -38,13 +38,9 @@ class WorkoutPlanService(
         val groups = workoutGroupRepository.findAllByWorkoutPlanIdOrderByOrderIndex(planId)
 
         val exercisesByGroup =
-            groups.associate { group ->
-                val groupId = requireNotNull(group.id)
-                val exercises =
-                    workoutExerciseRepository.findAllWithNameByWorkoutGroupId(groupId)
-                        .map { it.toResponse() }
-                groupId to exercises
-            }
+            workoutExerciseRepository.findAllWithNameByPlanId(planId)
+                .groupBy { it.workoutGroupId }
+                .mapValues { (_, exercises) -> exercises.map { it.toResponse() } }
 
         return plan.toDetailResponse(groups, exercisesByGroup)
     }

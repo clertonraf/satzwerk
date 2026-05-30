@@ -62,4 +62,18 @@ interface WorkoutExerciseRepository : CoroutineCrudRepository<WorkoutExercise, U
         """,
     )
     suspend fun findAllWithNameByWorkoutGroupId(groupId: UUID): List<WorkoutExerciseWithName>
+
+    @Query(
+        """
+        SELECT we.id, we.workout_group_id, we.exercise_id, e.name AS exercise_name,
+               we.sets, we.reps, we.to_failure, we.advanced_technique, we.order_index,
+               we.created_at, we.updated_at
+        FROM workout_exercises we
+        JOIN exercises e ON e.id = we.exercise_id
+        JOIN workout_groups wg ON wg.id = we.workout_group_id
+        WHERE wg.workout_plan_id = :planId
+        ORDER BY we.order_index
+        """,
+    )
+    suspend fun findAllWithNameByPlanId(planId: UUID): List<WorkoutExerciseWithName>
 }
