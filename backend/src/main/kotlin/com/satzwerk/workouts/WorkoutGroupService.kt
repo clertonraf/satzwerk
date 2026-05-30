@@ -63,9 +63,3 @@ class WorkoutGroupService(
     }
 }
 
-fun WorkoutGroup.toResponse(): WorkoutGroupResponse =
-    WorkoutGroupResponse(
-        id = requireNotNull(id),
-        title = title,
-        orderIndex = orderIndex,
-    )
