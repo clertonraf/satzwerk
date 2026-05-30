@@ -7,7 +7,7 @@ Satzwerk is a self-hosted, multi-user gym workout tracker. Users build workout p
 The canonical domain vocabulary is defined in `CONTEXT.md` at the repo root. Always use those terms — never the synonyms marked as _Avoid_. Key terms: **WorkoutPlan**, **WorkoutGroup**, **WorkoutExercise**, **Exercise**, **WorkoutSession**, **SetLog**, **Heatmap**, **PlanImport**.
 
 A few rules that aren't obvious:
-- All weights are always stored and transmitted in **kg**. UI display may convert to lbs via `useSessionStore`.
+- All weights are always stored and transmitted in **kg**. UI display may convert to lb via per-exercise unit state in `SessionPage` (`exerciseUnits: Record<exerciseId, 'kg'|'lb'>`); there is no global unit store.
 - Exactly **one active WorkoutPlan** per user at a time; activating one deactivates all others.
 - Exactly **one open WorkoutSession** per user at a time; starting a new one requires the existing one to be resumed or discarded first.
 - **Exercises are per-user** — there is no shared global catalog.
@@ -50,7 +50,7 @@ Integration tests use **Testcontainers** (real PostgreSQL, not H2). Tests run se
 **Feature-based structure** under `src/`:
 - `features/{auth,workouts,sessions,analytics}/` — each feature owns its pages, components, hooks, and `__tests__/`
 - `services/` — all API calls; `queryKeys.ts` is the single source of truth for TanStack Query cache keys
-- `store/` — Zustand stores (`auth.ts` for JWT state, `session.ts` for weight unit preference)
+- `store/` — Zustand stores (`auth.ts` for JWT state)
 - `lib/db.ts` — Dexie (IndexedDB) schema; only `queuedSetLogs` table for offline queue
 
 Always use the constants from `services/queryKeys.ts` when writing TanStack Query calls — never inline string keys.

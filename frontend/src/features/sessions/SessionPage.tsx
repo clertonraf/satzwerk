@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -23,8 +23,12 @@ export default function SessionPage() {
   const [isForfeitModalOpen, setIsForfeitModalOpen] = useState(false)
   const [previewGroup, setPreviewGroup] = useState<{ group: WorkoutGroupDetail; planName: string } | null>(null)
   const [exerciseUnits, setExerciseUnits] = useState<Record<string, 'kg' | 'lb'>>({})
-  const toggleExerciseUnit = (exerciseId: string, unit: 'kg' | 'lb') =>
+  const setExerciseUnit = (exerciseId: string, unit: 'kg' | 'lb') =>
     setExerciseUnits((prev) => ({ ...prev, [exerciseId]: unit }))
+
+  useEffect(() => {
+    setExerciseUnits({})
+  }, [session?.id])
   const {
     session,
     conflictSession,
@@ -218,7 +222,7 @@ export default function SessionPage() {
                                 type="button"
                                 size="sm"
                                 variant={exerciseUnit === 'kg' ? 'default' : 'ghost'}
-                                onClick={() => toggleExerciseUnit(exercise.exerciseId, 'kg')}
+                                onClick={() => setExerciseUnit(exercise.exerciseId, 'kg')}
                               >
                                 kg
                               </Button>
@@ -226,7 +230,7 @@ export default function SessionPage() {
                                 type="button"
                                 size="sm"
                                 variant={exerciseUnit === 'lb' ? 'default' : 'ghost'}
-                                onClick={() => toggleExerciseUnit(exercise.exerciseId, 'lb')}
+                                onClick={() => setExerciseUnit(exercise.exerciseId, 'lb')}
                               >
                                 lb
                               </Button>
