@@ -111,7 +111,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          ENDPOINT_ID=$(curl -fsSL \
+          CURL="curl -fsSL --max-time 30 --retry 3 --retry-delay 10 --retry-all-errors"
+
+          ENDPOINT_ID=$(${CURL} \
             -H "X-API-Key: ${PORTAINER_TOKEN}" \
             "${PORTAINER_URL}/api/endpoints" \
             | jq '.[] | select(.Name == "princess-celestia") | .Id')
@@ -121,7 +123,7 @@ jobs:
             exit 1
           fi
 
-          STACK_ID=$(curl -fsSL \
+          STACK_ID=$(${CURL} \
             -H "X-API-Key: ${PORTAINER_TOKEN}" \
             "${PORTAINER_URL}/api/stacks" \
             | jq ".[] | select(.Name == \"satzwerk\" and .EndpointId == ${ENDPOINT_ID}) | .Id")
@@ -131,7 +133,7 @@ jobs:
             exit 1
           fi
 
-          STACK_FILE=$(curl -fsSL \
+          STACK_FILE=$(${CURL} \
             -H "X-API-Key: ${PORTAINER_TOKEN}" \
             "${PORTAINER_URL}/api/stacks/${STACK_ID}/file" \
             | jq -r '.StackFileContent')
@@ -140,7 +142,7 @@ jobs:
             --arg content "${STACK_FILE}" \
             '{"pullImage": true, "prune": false, "stackFileContent": $content}')
 
-          curl -fsSL \
+          curl -fsSL --max-time 120 --retry 2 --retry-delay 15 --retry-all-errors \
             -X PUT \
             -H "X-API-Key: ${PORTAINER_TOKEN}" \
             -H "Content-Type: application/json" \
