@@ -5,7 +5,7 @@ import { tokenService } from '@/services/tokenService'
 export const api = axios.create({ baseURL: '/api' })
 
 api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().accessToken
+  const token = tokenService.getAccessToken()
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`

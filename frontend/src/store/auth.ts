@@ -18,10 +18,13 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   accessToken: null,
   user: null,
-  setAccessToken: (token) => set({ accessToken: token }),
+  setAccessToken: (token) => {
+    tokenService.saveAccessToken(token)
+    set({ accessToken: token })
+  },
   setUser: (user) => set({ user }),
   logout: () => {
-    tokenService.clearRefreshToken()
+    tokenService.clearTokens()
     set({ accessToken: null, user: null })
   },
 }))
