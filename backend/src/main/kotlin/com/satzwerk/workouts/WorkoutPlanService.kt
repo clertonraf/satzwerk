@@ -1,7 +1,7 @@
 package com.satzwerk.workouts
 
-import com.satzwerk.common.ForbiddenException
 import com.satzwerk.common.NotFoundException
+import com.satzwerk.common.requireOwnership
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -90,9 +90,7 @@ class WorkoutPlanService(
         planId: UUID,
     ): WorkoutPlan {
         val plan = workoutPlanRepository.findById(planId) ?: throw NotFoundException("Workout plan not found")
-        if (plan.userId != userId) {
-            throw ForbiddenException("Workout plan does not belong to user")
-        }
+        requireOwnership(plan.userId, userId, "Workout plan")
 
         return plan
     }
