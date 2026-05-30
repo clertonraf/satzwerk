@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import RestTimer from '@/features/sessions/RestTimer'
+import ForfeitSessionModal from '@/features/sessions/ForfeitSessionModal'
 import ResumeDiscardModal from '@/features/sessions/ResumeDiscardModal'
 import SetInput from '@/features/sessions/SetInput'
 import { buildWorkoutGroupCatalog, formatDisplayWeight, formatSessionDate } from '@/features/sessions/sessionHelpers'
@@ -17,6 +18,7 @@ import { queryKeys } from '@/services/queryKeys'
 export default function SessionPage() {
   const navigate = useNavigate()
   const isOnline = useOnlineStatus()
+  const [isForfeitModalOpen, setIsForfeitModalOpen] = useState(false)
   const {
     session,
     weightUnit,
@@ -26,12 +28,17 @@ export default function SessionPage() {
     handleStartSession,
     handleLogSet,
     handleCompleteSession,
+    handleForfeitSession,
     handleDiscardConflict,
     clearConflictState,
     isStartPending,
     isAddSetPending,
     isCompletePending,
-  } = useWorkoutSession({ onComplete: () => navigate('/history') })
+    isForfeitPending,
+  } = useWorkoutSession({
+    onComplete: () => navigate('/history'),
+    onForfeit: () => navigate('/session'),
+  })
   const plansQuery = useQuery({
     queryKey: queryKeys.plans.all(),
     queryFn: () => planService.list(),
@@ -89,6 +96,16 @@ export default function SessionPage() {
     <div className="space-y-6">
       {conflictSession ? (
         <ResumeDiscardModal onResume={clearConflictState} onDiscard={() => void handleDiscardConflict()} />
+      ) : null}
+
+      {isForfeitModalOpen ? (
+        <ForfeitSessionModal
+          onConfirm={() => {
+            setIsForfeitModalOpen(false)
+            void handleForfeitSession()
+          }}
+          onCancel={() => setIsForfeitModalOpen(false)}
+        />
       ) : null}
 
       <Card className="border-border bg-card/90 shadow-sm">
@@ -212,8 +229,17 @@ export default function SessionPage() {
                 </p>
               )}
 
-              <div className="flex justify-end">
-                <Button type="button" disabled={isCompletePending} onClick={() => void handleCompleteSession()}>
+              <div className="flex justify-between">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                  disabled={isForfeitPending || isCompletePending}
+                  onClick={() => setIsForfeitModalOpen(true)}
+                >
+                  Forfeit session
+                </Button>
+                <Button type="button" disabled={isCompletePending || isForfeitPending} onClick={() => void handleCompleteSession()}>
                   Push Workout
                 </Button>
               </div>

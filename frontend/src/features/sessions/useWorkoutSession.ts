@@ -9,7 +9,7 @@ import type { AddSetLogRequest, WorkoutSession } from '@/services/sessionService
 import { sessionService } from '@/services/sessionService'
 import { useSessionStore } from '@/store/session'
 
-export function useWorkoutSession({ onComplete }: { onComplete: () => void }) {
+export function useWorkoutSession({ onComplete, onForfeit }: { onComplete: () => void; onForfeit?: () => void }) {
   const queryClient = useQueryClient()
   const isOnline = useOnlineStatus()
   const transport = useSessionTransport()
@@ -94,6 +94,16 @@ export function useWorkoutSession({ onComplete }: { onComplete: () => void }) {
     onComplete()
   }
 
+  async function handleForfeitSession() {
+    if (!session) {
+      return
+    }
+
+    await discardMutation.mutateAsync(session.id)
+    queryClient.setQueryData(queryKeys.sessions.open(), null)
+    onForfeit?.()
+  }
+
   async function handleDiscardConflict() {
     if (!conflictSession) {
       return
@@ -125,11 +135,13 @@ export function useWorkoutSession({ onComplete }: { onComplete: () => void }) {
     handleStartSession,
     handleLogSet,
     handleCompleteSession,
+    handleForfeitSession,
     handleDiscardConflict,
     clearConflictState,
     isStartPending: startMutation.isPending,
     isAddSetPending: transport.isLogSetPending,
     isCompletePending: completeMutation.isPending,
+    isForfeitPending: discardMutation.isPending,
   }
 }
 
