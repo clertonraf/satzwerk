@@ -62,4 +62,3 @@ class WorkoutGroupService(
             ?: throw NotFoundException("Workout group not found")
     }
 }
-

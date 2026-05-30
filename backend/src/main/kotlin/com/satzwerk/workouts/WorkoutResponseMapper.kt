@@ -42,11 +42,12 @@ fun WorkoutPlan.toDetailResponse(
         isActive = isActive,
         groups =
             groups.map { group ->
+                val groupId = requireNotNull(group.id)
                 WorkoutGroupDetailResponse(
-                    id = requireNotNull(group.id),
+                    id = groupId,
                     title = group.title,
                     orderIndex = group.orderIndex,
-                    exercises = exercisesByGroup[requireNotNull(group.id)].orEmpty(),
+                    exercises = exercisesByGroup[groupId].orEmpty(),
                 )
             },
         createdAt = createdAt,
