@@ -1,0 +1,10 @@
+# Lightweight runtime image — expects a pre-built JAR at build/libs/*.jar
+# Used by the CI publish job, which uploads the JAR as an artifact from the
+# build job and downloads it here so Gradle never runs inside Docker.
+FROM eclipse-temurin:21-jre-alpine AS runtime
+WORKDIR /app
+RUN addgroup -S satzwerk && adduser -S satzwerk -G satzwerk
+COPY build/libs/*.jar app.jar
+USER satzwerk
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]
