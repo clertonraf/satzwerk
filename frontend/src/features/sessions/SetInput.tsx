@@ -1,17 +1,20 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useSessionStore } from '@/store/session'
+import { convertWeightHint } from '@/features/sessions/sessionHelpers'
 
 const schema = z.object({
   weight: z
     .string()
     .trim()
     .min(1, 'Weight is required')
-    .transform((value) => Number(value))
-    .refine((value) => value > 0, 'Must be positive'),
+    .refine((value) => {
+      const n = Number(value)
+      return !isNaN(n) && n > 0
+    }, 'Must be a positive number')
+    .transform((value) => Number(value)),
   reps: z
     .string()
     .trim()
@@ -27,14 +30,15 @@ interface SetInputProps {
   onLog: (data: { weight: number; reps: number; setNumber: number }) => void
   setNumber: number
   isLoading?: boolean
+  unit: 'kg' | 'lb'
 }
 
-export default function SetInput({ onLog, setNumber, isLoading = false }: SetInputProps) {
-  const weightUnit = useSessionStore((state) => state.weightUnit)
+export default function SetInput({ onLog, setNumber, isLoading = false, unit }: SetInputProps) {
   const {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<SetInputFormValues, undefined, SetInputValues>({
     resolver: zodResolver(schema),
@@ -43,6 +47,9 @@ export default function SetInput({ onLog, setNumber, isLoading = false }: SetInp
       reps: '',
     },
   })
+
+  const weightValue = useWatch({ control, name: 'weight' })
+  const hint = convertWeightHint(weightValue, unit)
 
   return (
     <form
@@ -57,10 +64,14 @@ export default function SetInput({ onLog, setNumber, isLoading = false }: SetInp
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">
           <label className="text-sm font-medium" htmlFor={`weight-${setNumber}`}>
-            Weight ({weightUnit})
+            Weight ({unit})
           </label>
-          <Input id={`weight-${setNumber}`} type="number" inputMode="decimal" step="any" {...register('weight')} />
-          {errors.weight ? <p className="text-sm text-destructive">{errors.weight.message}</p> : null}
+          <Input id={`weight-${setNumber}`} type="number" inputMode="decimal" step="0.001" {...register('weight')} />
+          {errors.weight ? (
+            <p className="text-sm text-destructive">{errors.weight.message}</p>
+          ) : hint ? (
+            <p className="text-sm text-muted-foreground">{hint}</p>
+          ) : null}
         </div>
 
         <div className="space-y-2">

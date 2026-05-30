@@ -5,13 +5,10 @@ import { useSessionTransport } from '@/features/sessions/useSessionTransport'
 import { queryKeys } from '@/services/queryKeys'
 import type { AddSetLogRequest, WorkoutSession } from '@/services/sessionService'
 import { sessionService } from '@/services/sessionService'
-import { useSessionStore } from '@/store/session'
 
 export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () => void; onForfeit?: () => void }) {
   const queryClient = useQueryClient()
   const transport = useSessionTransport()
-  const weightUnit = useSessionStore((state) => state.weightUnit)
-  const setWeightUnit = useSessionStore((state) => state.setWeightUnit)
 
   const openSessionQuery = useQuery<WorkoutSession | null>({
     queryKey: queryKeys.sessions.open(),
@@ -41,7 +38,7 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
 
   const session = openSessionQuery.data ?? null
 
-  async function handleLogSet(exerciseId: string, setNumber: number, weight: number, reps: number) {
+  async function handleLogSet(exerciseId: string, setNumber: number, weight: number, reps: number, unit: 'kg' | 'lb') {
     if (!session) {
       return
     }
@@ -49,7 +46,7 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
     const payload: AddSetLogRequest = {
       exerciseId,
       setNumber,
-      weight: toKilograms(weight, weightUnit),
+      weight: toKilograms(weight, unit),
       reps,
     }
 
@@ -81,8 +78,6 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
 
   return {
     session,
-    weightUnit,
-    setWeightUnit,
     isSessionLoading: openSessionQuery.isLoading,
     handleLogSet,
     handleCompleteSession,
