@@ -62,10 +62,3 @@ class WorkoutGroupService(
             ?: throw NotFoundException("Workout group not found")
     }
 }
-
-fun WorkoutGroup.toResponse(): WorkoutGroupResponse =
-    WorkoutGroupResponse(
-        id = requireNotNull(id),
-        title = title,
-        orderIndex = orderIndex,
-    )

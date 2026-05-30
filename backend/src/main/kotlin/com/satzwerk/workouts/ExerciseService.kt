@@ -90,15 +90,3 @@ class ExerciseService(
         return exercise
     }
 }
-
-fun Exercise.toResponse(): ExerciseResponse =
-    ExerciseResponse(
-        id = requireNotNull(id),
-        name = name,
-        muscleGroup = muscleGroup,
-        description = description,
-        videoUrl = videoUrl,
-        equipment = equipment,
-        createdAt = createdAt,
-        updatedAt = updatedAt,
-    )
