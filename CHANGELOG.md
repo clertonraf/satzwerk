@@ -1,3 +1,17 @@
+## v0.0.3 (2026-05-30)
+
+## What's Changed
+* refactor(plan-import): extract createGroupsAndExercises pipeline stage by @clertonraf in https://github.com/clertonraf/satzwerk/pull/5
+* refactor(analytics): replace awaitSingle with asFlow().toList() in AnalyticsRepository by @clertonraf in https://github.com/clertonraf/satzwerk/pull/6
+* refactor(sessions): split useWorkoutSession into lifecycle and conflict-resolution hooks by @clertonraf in https://github.com/clertonraf/satzwerk/pull/7
+* refactor(auth): centralize token lifecycle in tokenService by @clertonraf in https://github.com/clertonraf/satzwerk/pull/8
+* ci(deploy): fix Portainer 504 false failures and duplicate deployments by @clertonraf in https://github.com/clertonraf/satzwerk/pull/10
+
+
+**Full Changelog**: https://github.com/clertonraf/satzwerk/compare/v0.0.2...v0.0.3
+
+---
+
 ## v0.0.2 (2026-05-30)
 
 ## What's Changed
