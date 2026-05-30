@@ -103,6 +103,32 @@ class WorkoutPlanIntegrationTest {
     }
 
     @Test
+    fun `get plan detail returns exercises across multiple groups in one batch`() {
+        val planId = createPlan(authToken, "PPL")
+        val groupA = createGroup(authToken, planId, "Treino A")
+        val groupB = createGroup(authToken, planId, "Treino B")
+        val secondExerciseId = createExercise(authToken, "Squat", "LEGS")
+
+        createWorkoutExercise(authToken, planId, groupA, exerciseId, orderIndex = 0)
+        createWorkoutExercise(authToken, planId, groupB, secondExerciseId, orderIndex = 0)
+
+        client
+            .get()
+            .uri("/api/plans/$planId")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.groups.length()").isEqualTo(2)
+            .jsonPath("$.groups[0].title").isEqualTo("Treino A")
+            .jsonPath("$.groups[0].exercises.length()").isEqualTo(1)
+            .jsonPath("$.groups[0].exercises[0].exerciseName").isEqualTo("Bench Press")
+            .jsonPath("$.groups[1].title").isEqualTo("Treino B")
+            .jsonPath("$.groups[1].exercises.length()").isEqualTo(1)
+            .jsonPath("$.groups[1].exercises[0].exerciseName").isEqualTo("Squat")
+    }
+
+    @Test
     fun `update plan changes name`() {
         val planId = createPlan(authToken, "PPL")
 
