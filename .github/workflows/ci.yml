@@ -265,9 +265,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          CURL="curl -fsSL --max-time 30 --retry 3 --retry-delay 10 --retry-all-errors"
+          # Read-only calls: retry on transient connection errors only (not on
+          # HTTP errors — a 4xx here means misconfiguration and must not loop).
+          CURL_GET="curl -fsSL --max-time 30 --retry 3 --retry-delay 10 --retry-connrefused"
 
-          ENDPOINT_ID=$(${CURL} \
+          ENDPOINT_ID=$(${CURL_GET} \
             -H "X-API-Key: ${PORTAINER_TOKEN}" \
             "${PORTAINER_URL}/api/endpoints" \
             | jq '.[] | select(.Name == "princess-celestia") | .Id')
@@ -277,7 +279,7 @@ jobs:
             exit 1
           fi
 
-          STACK_ID=$(${CURL} \
+          STACK_ID=$(${CURL_GET} \
             -H "X-API-Key: ${PORTAINER_TOKEN}" \
             "${PORTAINER_URL}/api/stacks" \
             | jq ".[] | select(.Name == \"satzwerk\" and .EndpointId == ${ENDPOINT_ID}) | .Id")
@@ -287,7 +289,7 @@ jobs:
             exit 1
           fi
 
-          STACK_FILE=$(${CURL} \
+          STACK_FILE=$(${CURL_GET} \
             -H "X-API-Key: ${PORTAINER_TOKEN}" \
             "${PORTAINER_URL}/api/stacks/${STACK_ID}/file" \
             | jq -r '.StackFileContent')
@@ -296,12 +298,83 @@ jobs:
             --arg content "${STACK_FILE}" \
             '{"pullImage": true, "prune": false, "stackFileContent": $content}')
 
-          curl -fsSL --max-time 120 --retry 2 --retry-delay 15 --retry-all-errors \
+          # Trigger the redeploy.  Portainer's stack-update call is synchronous
+          # and blocks while Docker pulls the new arm64 images (~2-3 min).
+          # A reverse proxy sitting in front of Portainer typically times out
+          # after ~90 s and returns HTTP 504, even though Portainer keeps
+          # pulling in the background.
+          #
+          # We therefore:
+          #   • do NOT use --retry-all-errors — retrying a 504 would trigger
+          #     duplicate concurrent deployments on the host.
+          #   • treat 504 and curl-timeout (000) as "pull in progress, not failed".
+          #   • treat 4xx as a hard error (bad config / auth).
+          #   • poll the stack's Status field until it becomes active (1).
+          echo "Triggering stack redeploy..."
+          set +e
+          curl -s \
+            -o /tmp/portainer_deploy.json \
+            -w "%{http_code}" \
+            --max-time 180 \
             -X PUT \
             -H "X-API-Key: ${PORTAINER_TOKEN}" \
             -H "Content-Type: application/json" \
             -d "${PAYLOAD}" \
             "${PORTAINER_URL}/api/stacks/${STACK_ID}?endpointId=${ENDPOINT_ID}" \
-            | jq '.Id, .Status'
+            > /tmp/portainer_http_code.txt 2>/tmp/portainer_curl_err.txt
+          CURL_EXIT=$?
+          set -e
 
-          echo "Deployment triggered successfully."
+          HTTP_CODE=$(cat /tmp/portainer_http_code.txt 2>/dev/null || echo "000")
+          [ -z "${HTTP_CODE}" ] && HTTP_CODE="000"
+
+          case "${HTTP_CODE}" in
+            200|202)
+              echo "Portainer completed the redeploy synchronously (HTTP ${HTTP_CODE})."
+              jq -r '"Stack id=\(.Id) status=\(.Status)"' /tmp/portainer_deploy.json 2>/dev/null || true
+              exit 0
+              ;;
+            504|000)
+              # 504 = proxy timed out while Portainer pulls the image.
+              # 000 = curl itself timed out (--max-time). Either way, Portainer
+              # is still working — proceed to the status poll below.
+              echo "Proxy/curl timeout (HTTP ${HTTP_CODE}, curl exit ${CURL_EXIT}) — Portainer is pulling the image. Polling for completion..."
+              ;;
+            4[0-9][0-9])
+              echo "Client error HTTP ${HTTP_CODE} — check PORTAINER_URL and PORTAINER_TOKEN." >&2
+              cat /tmp/portainer_deploy.json >&2
+              exit 1
+              ;;
+            *)
+              echo "Unexpected HTTP ${HTTP_CODE} (curl exit ${CURL_EXIT})." >&2
+              cat /tmp/portainer_deploy.json >&2
+              cat /tmp/portainer_curl_err.txt >&2
+              exit 1
+              ;;
+          esac
+
+          # Poll GET /api/stacks/{id} until Status == 1 (active) or we time out.
+          # Portainer sets Status=1 once all containers in the stack are running.
+          MAX_WAIT=300
+          INTERVAL=20
+          ELAPSED=0
+
+          while [ "${ELAPSED}" -lt "${MAX_WAIT}" ]; do
+            sleep "${INTERVAL}"
+            ELAPSED=$((ELAPSED + INTERVAL))
+
+            STACK_STATUS=$(curl -fsSL --max-time 15 \
+              -H "X-API-Key: ${PORTAINER_TOKEN}" \
+              "${PORTAINER_URL}/api/stacks/${STACK_ID}" \
+              2>/dev/null | jq -r '.Status' 2>/dev/null || echo "unreachable")
+
+            echo "  [${ELAPSED}s/${MAX_WAIT}s] Stack status: ${STACK_STATUS}"
+
+            if [ "${STACK_STATUS}" = "1" ]; then
+              echo "Stack is active. Deployment succeeded."
+              exit 0
+            fi
+          done
+
+          echo "Stack did not become active within ${MAX_WAIT}s." >&2
+          exit 1
