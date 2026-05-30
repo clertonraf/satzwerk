@@ -158,7 +158,7 @@ export default function SessionPage() {
                 {groupOptions.map(({ group, plan }) => (
                   <div
                     key={group.id}
-                    className="flex w-full items-center justify-between rounded-lg border border-border px-4 py-4 transition hover:border-primary hover:bg-accent"
+                    className="flex w-full items-center justify-between rounded-lg border border-border px-4 py-4"
                   >
                     <span>
                       <span className="block font-medium">{group.title}</span>
