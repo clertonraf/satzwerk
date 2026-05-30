@@ -10,8 +10,6 @@ export function useWorkoutSession({ onComplete, onForfeit }: { onComplete: () =>
 
   return {
     session: lifecycle.session,
-    weightUnit: lifecycle.weightUnit,
-    setWeightUnit: lifecycle.setWeightUnit,
     conflictSession: conflict.conflictSession,
     isSessionLoading: lifecycle.isSessionLoading,
     handleStartSession: conflict.handleStartSession,

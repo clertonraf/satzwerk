@@ -22,10 +22,11 @@ export default function SessionPage() {
   const isOnline = useOnlineStatus()
   const [isForfeitModalOpen, setIsForfeitModalOpen] = useState(false)
   const [previewGroup, setPreviewGroup] = useState<{ group: WorkoutGroupDetail; planName: string } | null>(null)
+  const [exerciseUnits, setExerciseUnits] = useState<Record<string, 'kg' | 'lb'>>({})
+  const toggleExerciseUnit = (exerciseId: string, unit: 'kg' | 'lb') =>
+    setExerciseUnits((prev) => ({ ...prev, [exerciseId]: unit }))
   const {
     session,
-    weightUnit,
-    setWeightUnit,
     conflictSession,
     isSessionLoading,
     handleStartSession,
@@ -129,15 +130,6 @@ export default function SessionPage() {
                 : 'Choose a workout group to begin training.'}
             </CardDescription>
           </div>
-
-          <div className="flex items-center gap-2 self-start rounded-lg border border-border p-1">
-            <Button type="button" size="sm" variant={weightUnit === 'kg' ? 'default' : 'ghost'} onClick={() => setWeightUnit('kg')}>
-              kg
-            </Button>
-            <Button type="button" size="sm" variant={weightUnit === 'lb' ? 'default' : 'ghost'} onClick={() => setWeightUnit('lb')}>
-              lb
-            </Button>
-          </div>
         </CardHeader>
         <CardContent>
           {!session ? (
@@ -204,26 +196,50 @@ export default function SessionPage() {
                     const exerciseLogs = session.setLogs.filter((log) => log.exerciseId === exercise.exerciseId)
                     const nextSetNumber = exerciseLogs.length + 1
                     const exerciseName = exercisesById.get(exercise.exerciseId)?.name ?? `Exercise ${exercise.exerciseId}`
+                    const exerciseUnit = exerciseUnits[exercise.exerciseId] ?? 'kg'
 
                     return (
                       <Card key={exercise.id} className="border-border bg-background/70 shadow-none">
                         <CardHeader>
-                          <CardTitle className="text-xl">{exerciseName}</CardTitle>
-                          <CardDescription>
-                            Target {exercise.sets} sets × {exercise.reps} reps
-                          </CardDescription>
-                          {formatAdvancedTechnique(exercise.advancedTechnique) ? (
-                            <span className="inline-flex w-fit rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
-                              {formatAdvancedTechnique(exercise.advancedTechnique)}
-                            </span>
-                          ) : null}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="space-y-1.5">
+                              <CardTitle className="text-xl">{exerciseName}</CardTitle>
+                              <CardDescription>
+                                Target {exercise.sets} sets × {exercise.reps} reps
+                              </CardDescription>
+                              {formatAdvancedTechnique(exercise.advancedTechnique) ? (
+                                <span className="inline-flex w-fit rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
+                                  {formatAdvancedTechnique(exercise.advancedTechnique)}
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="flex shrink-0 items-center gap-1 rounded-lg border border-border p-1">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={exerciseUnit === 'kg' ? 'default' : 'ghost'}
+                                onClick={() => toggleExerciseUnit(exercise.exerciseId, 'kg')}
+                              >
+                                kg
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={exerciseUnit === 'lb' ? 'default' : 'ghost'}
+                                onClick={() => toggleExerciseUnit(exercise.exerciseId, 'lb')}
+                              >
+                                lb
+                              </Button>
+                            </div>
+                          </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
                           <SetInput
                             isLoading={isAddSetPending}
                             setNumber={nextSetNumber}
+                            unit={exerciseUnit}
                             onLog={({ reps, setNumber, weight }) => {
-                              void handleLogSet(exercise.exerciseId, setNumber, weight, reps)
+                              void handleLogSet(exercise.exerciseId, setNumber, weight, reps, exerciseUnit)
                             }}
                           />
                           <RestTimer />
@@ -234,7 +250,7 @@ export default function SessionPage() {
                               <ul className="space-y-2 text-sm text-muted-foreground">
                                 {exerciseLogs.map((log) => (
                                   <li key={log.id} className="rounded-lg border border-border px-3 py-2">
-                                    Set {log.setNumber}: {formatDisplayWeight(log.weight, weightUnit)} × {log.reps}
+                                    Set {log.setNumber}: {formatDisplayWeight(log.weight, exerciseUnit)} × {log.reps}
                                   </li>
                                 ))}
                               </ul>
