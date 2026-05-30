@@ -35,7 +35,16 @@ class PlanImportService(
         val planId = requireNotNull(plan.id)
 
         val exerciseByNameLower = resolveExercises(userId, parsed)
+        createGroupsAndExercises(planId, parsed, exerciseByNameLower)
 
+        return plan.toResponse()
+    }
+
+    private suspend fun createGroupsAndExercises(
+        planId: UUID,
+        parsed: SatzwerkParserResponse,
+        exerciseByNameLower: Map<String, Exercise>,
+    ) {
         parsed.workouts.forEachIndexed { groupIndex, parsedWorkout ->
             val groupTitle =
                 parsedWorkout.bodyParts
@@ -70,8 +79,6 @@ class PlanImportService(
                 )
             }
         }
-
-        return plan.toResponse()
     }
 
     private suspend fun resolveExercises(
