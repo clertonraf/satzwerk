@@ -7,6 +7,7 @@ import RestTimer from '@/features/sessions/RestTimer'
 import ForfeitSessionModal from '@/features/sessions/ForfeitSessionModal'
 import ResumeDiscardModal from '@/features/sessions/ResumeDiscardModal'
 import SetInput from '@/features/sessions/SetInput'
+import WorkoutGroupPreviewModal from '@/features/sessions/WorkoutGroupPreviewModal'
 import { buildWorkoutGroupCatalog, formatDisplayWeight, formatSessionDate } from '@/features/sessions/sessionHelpers'
 import { formatAdvancedTechnique } from '@/features/workouts/advancedTechnique'
 import { useWorkoutSession } from '@/features/sessions/useWorkoutSession'
@@ -14,11 +15,13 @@ import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { exerciseService } from '@/services/exerciseService'
 import { planService } from '@/services/planService'
 import { queryKeys } from '@/services/queryKeys'
+import type { WorkoutGroupDetail } from '@/services/planService'
 
 export default function SessionPage() {
   const navigate = useNavigate()
   const isOnline = useOnlineStatus()
   const [isForfeitModalOpen, setIsForfeitModalOpen] = useState(false)
+  const [previewGroup, setPreviewGroup] = useState<{ group: WorkoutGroupDetail; planName: string } | null>(null)
   const {
     session,
     weightUnit,
@@ -108,6 +111,14 @@ export default function SessionPage() {
         />
       ) : null}
 
+      {previewGroup ? (
+        <WorkoutGroupPreviewModal
+          group={previewGroup.group}
+          planName={previewGroup.planName}
+          onClose={() => setPreviewGroup(null)}
+        />
+      ) : null}
+
       <Card className="border-border bg-card/90 shadow-sm">
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1.5">
@@ -145,14 +156,9 @@ export default function SessionPage() {
                   </p>
                 ) : null}
                 {groupOptions.map(({ group, plan }) => (
-                  <button
+                  <div
                     key={group.id}
-                    className="flex w-full items-center justify-between rounded-lg border border-border px-4 py-4 text-left transition hover:border-primary hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
-                    type="button"
-                    disabled={!isOnline || isStartPending}
-                    onClick={() => {
-                      void handleStartSession(group.id)
-                    }}
+                    className="flex w-full items-center justify-between rounded-lg border border-border px-4 py-4"
                   >
                     <span>
                       <span className="block font-medium">{group.title}</span>
@@ -160,8 +166,27 @@ export default function SessionPage() {
                         {plan.name} · {group.exercises.length} exercises
                       </span>
                     </span>
-                    <span className="text-sm font-medium text-primary">Start</span>
-                  </button>
+                    <span className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setPreviewGroup({ group, planName: plan.name })}
+                      >
+                        Preview
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={!isOnline || isStartPending}
+                        onClick={() => {
+                          void handleStartSession(group.id)
+                        }}
+                      >
+                        Start
+                      </Button>
+                    </span>
+                  </div>
                 ))}
               </div>
             )
