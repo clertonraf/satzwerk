@@ -98,3 +98,54 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ghcr.io/clertonraf/satzwerk-frontend:latest
+
+  deploy:
+    name: Deploy to Portainer
+    runs-on: ubuntu-latest
+    needs: [publish]
+    steps:
+      - name: Redeploy stack on Portainer
+        env:
+          PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
+          PORTAINER_TOKEN: ${{ secrets.PORTAINER_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          ENDPOINT_ID=$(curl -fsSL \
+            -H "X-API-Key: ${PORTAINER_TOKEN}" \
+            "${PORTAINER_URL}/api/endpoints" \
+            | jq '.[] | select(.Name == "princess-celestia") | .Id')
+
+          if [ -z "${ENDPOINT_ID}" ]; then
+            echo "Error: Portainer environment 'princess-celestia' not found." >&2
+            exit 1
+          fi
+
+          STACK_ID=$(curl -fsSL \
+            -H "X-API-Key: ${PORTAINER_TOKEN}" \
+            "${PORTAINER_URL}/api/stacks" \
+            | jq ".[] | select(.Name == \"satzwerk\" and .EndpointId == ${ENDPOINT_ID}) | .Id")
+
+          if [ -z "${STACK_ID}" ]; then
+            echo "Error: Portainer stack 'satzwerk' not found on environment ${ENDPOINT_ID}." >&2
+            exit 1
+          fi
+
+          STACK_FILE=$(curl -fsSL \
+            -H "X-API-Key: ${PORTAINER_TOKEN}" \
+            "${PORTAINER_URL}/api/stacks/${STACK_ID}/file" \
+            | jq -r '.StackFileContent')
+
+          PAYLOAD=$(jq -n \
+            --arg content "${STACK_FILE}" \
+            '{"pullImage": true, "prune": false, "stackFileContent": $content}')
+
+          curl -fsSL \
+            -X PUT \
+            -H "X-API-Key: ${PORTAINER_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "${PAYLOAD}" \
+            "${PORTAINER_URL}/api/stacks/${STACK_ID}?endpointId=${ENDPOINT_ID}" \
+            | jq '.Id, .Status'
+
+          echo "Deployment triggered successfully."
