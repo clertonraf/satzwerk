@@ -7,6 +7,7 @@ import RestTimer from '@/features/sessions/RestTimer'
 import ResumeDiscardModal from '@/features/sessions/ResumeDiscardModal'
 import SetInput from '@/features/sessions/SetInput'
 import { buildWorkoutGroupCatalog, formatDisplayWeight, formatSessionDate } from '@/features/sessions/sessionHelpers'
+import { formatAdvancedTechnique } from '@/features/workouts/advancedTechnique'
 import { useWorkoutSession } from '@/features/sessions/useWorkoutSession'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { exerciseService } from '@/services/exerciseService'
@@ -169,6 +170,11 @@ export default function SessionPage() {
                           <CardDescription>
                             Target {exercise.sets} sets × {exercise.reps} reps
                           </CardDescription>
+                          {formatAdvancedTechnique(exercise.advancedTechnique) ? (
+                            <span className="inline-flex w-fit rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
+                              {formatAdvancedTechnique(exercise.advancedTechnique)}
+                            </span>
+                          ) : null}
                         </CardHeader>
                         <CardContent className="space-y-4">
                           <SetInput
