@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -22,9 +22,6 @@ export default function SessionPage() {
   const isOnline = useOnlineStatus()
   const [isForfeitModalOpen, setIsForfeitModalOpen] = useState(false)
   const [previewGroup, setPreviewGroup] = useState<{ group: WorkoutGroupDetail; planName: string } | null>(null)
-  const [exerciseUnits, setExerciseUnits] = useState<Record<string, 'kg' | 'lb'>>({})
-  const setExerciseUnit = (exerciseId: string, unit: 'kg' | 'lb') =>
-    setExerciseUnits((prev) => ({ ...prev, [exerciseId]: unit }))
 
   const {
     session,
@@ -45,9 +42,19 @@ export default function SessionPage() {
     onForfeit: () => navigate('/session'),
   })
 
-  useEffect(() => {
-    setExerciseUnits({})
-  }, [session?.id])
+  const [unitState, setUnitState] = useState<{ sessionId: string | undefined; units: Record<string, 'kg' | 'lb'> }>({
+    sessionId: undefined,
+    units: {},
+  })
+  // Derive per-exercise units scoped to the current session — automatically
+  // resets to {} when session?.id changes (new session or session ended).
+  const exerciseUnits = unitState.sessionId === session?.id ? unitState.units : {}
+  const setExerciseUnit = (exerciseId: string, unit: 'kg' | 'lb') =>
+    setUnitState((prev) => {
+      const current = prev.sessionId === session?.id ? prev.units : {}
+      return { sessionId: session?.id, units: { ...current, [exerciseId]: unit } }
+    })
+
   const plansQuery = useQuery({
     queryKey: queryKeys.plans.all(),
     queryFn: () => planService.list(),
