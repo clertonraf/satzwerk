@@ -1,6 +1,7 @@
 package com.satzwerk.analytics
 
-import kotlinx.coroutines.reactor.awaitSingle
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.reactive.asFlow
 import org.springframework.r2dbc.core.DatabaseClient
 import org.springframework.stereotype.Repository
 import java.time.LocalDate
@@ -33,8 +34,8 @@ class AnalyticsRepository(
                 val count = row.get("cnt", java.lang.Long::class.java)?.toInt() ?: 0
                 day to count
             }.all()
-            .collectList()
-            .awaitSingle()
+            .asFlow()
+            .toList()
             .toMap()
 
     suspend fun findWorkoutDays(userId: UUID): List<LocalDate> =
@@ -50,6 +51,6 @@ class AnalyticsRepository(
             ).bind("userId", userId)
             .map { row, _ -> row.get("day", LocalDate::class.java)!! }
             .all()
-            .collectList()
-            .awaitSingle()
+            .asFlow()
+            .toList()
 }
