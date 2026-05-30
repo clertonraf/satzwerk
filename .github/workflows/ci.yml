@@ -69,11 +69,24 @@ jobs:
     runs-on: ubuntu-latest
     needs: [backend, frontend]
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    outputs:
+      new_tag: ${{ steps.version.outputs.new_tag }}
+      new_version: ${{ steps.version.outputs.new_version }}
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Compute next version
+        id: version
+        if: github.event_name == 'push'
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          dry_run: true
+          default_bump: patch
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
@@ -84,25 +97,101 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Docker metadata — backend
+        id: meta_backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/clertonraf/satzwerk-backend
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ steps.version.outputs.new_version }},enable=${{ steps.version.outputs.new_version != '' }}
       - name: Build and push backend
         uses: docker/build-push-action@v6
         with:
           context: ./backend
           platforms: linux/arm64
           push: true
-          tags: ghcr.io/clertonraf/satzwerk-backend:latest
+          tags: ${{ steps.meta_backend.outputs.tags }}
+      - name: Docker metadata — frontend
+        id: meta_frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/clertonraf/satzwerk-frontend
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ steps.version.outputs.new_version }},enable=${{ steps.version.outputs.new_version != '' }}
       - name: Build and push frontend
         uses: docker/build-push-action@v6
         with:
           context: ./frontend
           platforms: linux/arm64
           push: true
-          tags: ghcr.io/clertonraf/satzwerk-frontend:latest
+          tags: ${{ steps.meta_frontend.outputs.tags }}
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [publish]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.publish.outputs.new_tag != ''
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Capture previous tag
+        id: prev_tag
+        run: echo "tag=$(git describe --tags --abbrev=0 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+      - name: Create Git tag
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          custom_tag: ${{ needs.publish.outputs.new_version }}
+      - name: Generate release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_TAG: ${{ needs.publish.outputs.new_tag }}
+          PREV_TAG: ${{ steps.prev_tag.outputs.tag }}
+        run: |
+          if [ -n "$PREV_TAG" ]; then
+            gh api repos/$GITHUB_REPOSITORY/releases/generate-notes \
+              -f tag_name="$NEW_TAG" \
+              -f previous_tag_name="$PREV_TAG" \
+              --jq '.body' > /tmp/release_notes.md
+          else
+            gh api repos/$GITHUB_REPOSITORY/releases/generate-notes \
+              -f tag_name="$NEW_TAG" \
+              --jq '.body' > /tmp/release_notes.md
+          fi
+      - name: Update CHANGELOG.md
+        env:
+          NEW_TAG: ${{ needs.publish.outputs.new_tag }}
+        run: |
+          NOTES=$(cat /tmp/release_notes.md)
+          HEADER="## ${NEW_TAG} ($(date +%Y-%m-%d))"
+          if [ -f CHANGELOG.md ]; then
+            printf '%s\n\n%s\n\n---\n\n' "$HEADER" "$NOTES" | cat - CHANGELOG.md > /tmp/cl.tmp
+            mv /tmp/cl.tmp CHANGELOG.md
+          else
+            printf '# Changelog\n\n%s\n\n%s\n' "$HEADER" "$NOTES" > CHANGELOG.md
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "chore(release): ${NEW_TAG} [skip ci]" || echo "Nothing to commit"
+          git push
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.publish.outputs.new_tag }}
+          name: Release ${{ needs.publish.outputs.new_tag }}
+          body_path: /tmp/release_notes.md
 
   deploy:
     name: Deploy to Portainer
     runs-on: ubuntu-latest
-    needs: [publish]
+    needs: [publish, release]
+    if: always() && needs.publish.result == 'success' && (needs.release.result == 'success' || needs.release.result == 'skipped')
     steps:
       - name: Redeploy stack on Portainer
         env:
