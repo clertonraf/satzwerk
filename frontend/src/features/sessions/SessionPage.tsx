@@ -26,9 +26,6 @@ export default function SessionPage() {
   const setExerciseUnit = (exerciseId: string, unit: 'kg' | 'lb') =>
     setExerciseUnits((prev) => ({ ...prev, [exerciseId]: unit }))
 
-  useEffect(() => {
-    setExerciseUnits({})
-  }, [session?.id])
   const {
     session,
     conflictSession,
@@ -47,6 +44,10 @@ export default function SessionPage() {
     onComplete: () => navigate('/history'),
     onForfeit: () => navigate('/session'),
   })
+
+  useEffect(() => {
+    setExerciseUnits({})
+  }, [session?.id])
   const plansQuery = useQuery({
     queryKey: queryKeys.plans.all(),
     queryFn: () => planService.list(),
