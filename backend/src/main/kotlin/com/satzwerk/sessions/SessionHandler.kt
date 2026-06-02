@@ -2,6 +2,7 @@ package com.satzwerk.sessions
 
 import com.satzwerk.common.currentUserId
 import com.satzwerk.common.handleErrors
+import com.satzwerk.common.parseUuid
 import com.satzwerk.common.validateOrBadRequest
 import jakarta.validation.Validator
 import org.springframework.http.HttpStatus
@@ -11,7 +12,6 @@ import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.awaitBody
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import org.springframework.web.reactive.function.server.buildAndAwait
-import java.util.UUID
 
 @Component
 class SessionHandler(
@@ -40,7 +40,7 @@ class SessionHandler(
                 val response =
                     workoutSessionService.addSetLog(
                         currentUserId(request),
-                        UUID.fromString(request.pathVariable("id")),
+                        parseUuid(request.pathVariable("id")),
                         body,
                     )
                 ServerResponse.status(HttpStatus.CREATED).bodyValueAndAwait(response)
@@ -54,8 +54,8 @@ class SessionHandler(
                 val response =
                     workoutSessionService.updateSetLog(
                         currentUserId(request),
-                        UUID.fromString(request.pathVariable("id")),
-                        UUID.fromString(request.pathVariable("setLogId")),
+                        parseUuid(request.pathVariable("id")),
+                        parseUuid(request.pathVariable("setLogId")),
                         body,
                     )
                 ServerResponse.ok().bodyValueAndAwait(response)
@@ -67,7 +67,7 @@ class SessionHandler(
             val response =
                 workoutSessionService.complete(
                     currentUserId(request),
-                    UUID.fromString(request.pathVariable("id")),
+                    parseUuid(request.pathVariable("id")),
                     request.awaitBody<CompleteSessionRequest>(),
                 )
             ServerResponse.ok().bodyValueAndAwait(response)
@@ -77,7 +77,7 @@ class SessionHandler(
         handleErrors(withConflict = true) {
             workoutSessionService.discard(
                 currentUserId(request),
-                UUID.fromString(request.pathVariable("id")),
+                parseUuid(request.pathVariable("id")),
             )
             ServerResponse.noContent().buildAndAwait()
         }

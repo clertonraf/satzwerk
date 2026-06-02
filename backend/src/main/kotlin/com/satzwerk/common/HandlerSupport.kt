@@ -15,6 +15,13 @@ suspend fun currentUserId(request: ServerRequest): UUID {
     return UUID.fromString(principal.name)
 }
 
+fun parseUuid(value: String): UUID =
+    try {
+        UUID.fromString(value)
+    } catch (_: IllegalArgumentException) {
+        throw BadRequestException("Invalid UUID: $value")
+    }
+
 suspend fun <T : Any> validateOrBadRequest(
     validator: Validator,
     body: T,
@@ -40,8 +47,8 @@ suspend fun handleErrors(
         ServerResponse.status(HttpStatus.FORBIDDEN).bodyValueAndAwait(ErrorResponse("Forbidden"))
     } catch (_: NotFoundException) {
         ServerResponse.status(HttpStatus.NOT_FOUND).bodyValueAndAwait(ErrorResponse("Not found"))
-    } catch (_: IllegalArgumentException) {
-        ServerResponse.badRequest().bodyValueAndAwait(ErrorResponse("Invalid request parameter"))
+    } catch (e: BadRequestException) {
+        ServerResponse.badRequest().bodyValueAndAwait(ErrorResponse(e.message ?: "Bad request"))
     } catch (e: ConflictException) {
         if (withConflict) {
             ServerResponse.status(HttpStatus.CONFLICT).bodyValueAndAwait(ErrorResponse("Conflict"))

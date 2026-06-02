@@ -12,8 +12,8 @@ const schema = z.object({
     .min(1, 'Weight is required')
     .refine((value) => {
       const n = Number(value)
-      return !isNaN(n) && n > 0
-    }, 'Must be a positive number')
+      return !isNaN(n) && n >= 0
+    }, 'Must be a non-negative number')
     .transform((value) => Number(value)),
   reps: z
     .string()

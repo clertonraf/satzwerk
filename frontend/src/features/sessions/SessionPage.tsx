@@ -8,7 +8,7 @@ import ForfeitSessionModal from '@/features/sessions/ForfeitSessionModal'
 import ResumeDiscardModal from '@/features/sessions/ResumeDiscardModal'
 import SetInput from '@/features/sessions/SetInput'
 import WorkoutGroupPreviewModal from '@/features/sessions/WorkoutGroupPreviewModal'
-import { buildWorkoutGroupCatalog, formatDisplayWeight, formatSessionDate } from '@/features/sessions/sessionHelpers'
+import { buildWorkoutGroupCatalog, formatDisplayWeight, formatSessionDate, toPounds } from '@/features/sessions/sessionHelpers'
 import { formatAdvancedTechnique } from '@/features/workouts/advancedTechnique'
 import { useWorkoutSession } from '@/features/sessions/useWorkoutSession'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
@@ -271,7 +271,7 @@ export default function SessionPage() {
                                         isLoading={isUpdateSetPending}
                                         setNumber={log.setNumber}
                                         unit={exerciseUnit}
-                                        defaultWeight={exerciseUnit === 'kg' ? log.weight : log.weight * 2.20462}
+                                        defaultWeight={exerciseUnit === 'kg' ? log.weight : toPounds(log.weight)}
                                         defaultReps={log.reps}
                                         submitLabel="Save"
                                         resetOnSubmit={false}

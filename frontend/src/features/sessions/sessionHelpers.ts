@@ -42,6 +42,10 @@ export function toKilograms(weight: number, unit: 'kg' | 'lb') {
   return Number((weight / 2.20462).toFixed(3))
 }
 
+export function toPounds(weightKg: number) {
+  return weightKg * 2.20462
+}
+
 export function convertWeightHint(rawInput: string, unit: 'kg' | 'lb'): string | null {
   const value = parseFloat(rawInput)
   if (isNaN(value) || value <= 0) return null
