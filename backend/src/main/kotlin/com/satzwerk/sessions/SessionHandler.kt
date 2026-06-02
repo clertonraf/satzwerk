@@ -93,7 +93,7 @@ class SessionHandler(
             val response =
                 workoutSessionService.getById(
                     currentUserId(request),
-                    UUID.fromString(request.pathVariable("id")),
+                    parseUuid(request.pathVariable("id")),
                 )
             ServerResponse.ok().bodyValueAndAwait(response)
         }

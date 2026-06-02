@@ -33,6 +33,7 @@ function SessionHistoryItem({ session, groupTitle, planName, exerciseMap }: Sess
     queryKey: queryKeys.sessions.detail(session.id),
     queryFn: () => sessionService.getById(session.id),
     enabled: isOpen,
+    staleTime: Infinity,
   })
 
   const groupedSetLogs = useMemo(() => {
