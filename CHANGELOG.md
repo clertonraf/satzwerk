@@ -1,3 +1,15 @@
+## v0.1.0 (2026-06-02)
+
+## What's Changed
+* feat(sessions): per-exercise kg/lb unit toggle with live conversion hint by @clertonraf in https://github.com/clertonraf/satzwerk/pull/11
+* fix: silent session restore on page reload by @clertonraf in https://github.com/clertonraf/satzwerk/pull/12
+* feat(sessions): allow editing a logged set during active session by @clertonraf in https://github.com/clertonraf/satzwerk/pull/13
+
+
+**Full Changelog**: https://github.com/clertonraf/satzwerk/compare/v0.0.3...v0.1.0
+
+---
+
 ## v0.0.3 (2026-05-30)
 
 ## What's Changed
