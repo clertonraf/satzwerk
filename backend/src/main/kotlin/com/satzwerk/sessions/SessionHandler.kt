@@ -72,4 +72,14 @@ class SessionHandler(
             val response = workoutSessionService.history(currentUserId(request))
             ServerResponse.ok().bodyValueAndAwait(response)
         }
+
+    suspend fun getById(request: ServerRequest): ServerResponse =
+        handleErrors {
+            val response =
+                workoutSessionService.getById(
+                    currentUserId(request),
+                    UUID.fromString(request.pathVariable("id")),
+                )
+            ServerResponse.ok().bodyValueAndAwait(response)
+        }
 }

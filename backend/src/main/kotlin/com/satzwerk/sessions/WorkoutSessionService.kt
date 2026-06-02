@@ -89,6 +89,14 @@ class WorkoutSessionService(
         workoutSessionRepository.findAllByUserIdAndCompletedAtIsNotNullOrderByCompletedAtDesc(userId)
             .map { it.toResponse(emptyList()) }
 
+    suspend fun getById(
+        userId: UUID,
+        sessionId: UUID,
+    ): WorkoutSessionResponse {
+        val session = getOwnedSession(userId, sessionId)
+        return session.toResponse(loadSetLogs(requireNotNull(session.id)))
+    }
+
     private suspend fun validateOwnedWorkoutGroup(
         userId: UUID,
         workoutGroupId: UUID,
