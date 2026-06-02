@@ -62,4 +62,63 @@ describe('SetInput', () => {
 
     expect(await screen.findByText(/≈.*kg/i)).toBeInTheDocument()
   })
+
+  it('pre-fills weight and reps when defaultWeight and defaultReps are provided', () => {
+    render(<SetInput onLog={vi.fn()} setNumber={2} unit="kg" defaultWeight={80} defaultReps={5} />)
+
+    expect(screen.getByLabelText(/weight/i)).toHaveValue(80)
+    expect(screen.getByLabelText(/reps/i)).toHaveValue(5)
+  })
+
+  it('renders cancel button and calls onCancel when clicked', async () => {
+    const user = userEvent.setup()
+    const onCancel = vi.fn()
+
+    render(<SetInput onLog={vi.fn()} setNumber={1} unit="kg" onCancel={onCancel} />)
+
+    const cancelButton = screen.getByRole('button', { name: /cancel/i })
+    expect(cancelButton).toBeInTheDocument()
+
+    await user.click(cancelButton)
+
+    expect(onCancel).toHaveBeenCalledOnce()
+  })
+
+  it('does not render cancel button when onCancel is not provided', () => {
+    render(<SetInput onLog={vi.fn()} setNumber={1} unit="kg" />)
+
+    expect(screen.queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument()
+  })
+
+  it('keeps form values after submit when resetOnSubmit is false', async () => {
+    const user = userEvent.setup()
+    const onLog = vi.fn()
+
+    render(<SetInput onLog={onLog} setNumber={1} unit="kg" resetOnSubmit={false} submitLabel="Save" />)
+
+    await user.type(screen.getByLabelText(/weight/i), '90')
+    await user.type(screen.getByLabelText(/reps/i), '8')
+    await user.click(screen.getByRole('button', { name: /save/i }))
+
+    await waitFor(() => expect(onLog).toHaveBeenCalled())
+
+    expect(screen.getByLabelText(/weight/i)).toHaveValue(90)
+    expect(screen.getByLabelText(/reps/i)).toHaveValue(8)
+  })
+
+  it('clears form values after submit when resetOnSubmit is true (default)', async () => {
+    const user = userEvent.setup()
+    const onLog = vi.fn()
+
+    render(<SetInput onLog={onLog} setNumber={1} unit="kg" />)
+
+    await user.type(screen.getByLabelText(/weight/i), '90')
+    await user.type(screen.getByLabelText(/reps/i), '8')
+    await user.click(screen.getByRole('button', { name: /log set/i }))
+
+    await waitFor(() => expect(onLog).toHaveBeenCalled())
+
+    expect(screen.getByLabelText(/weight/i)).toHaveValue(null)
+    expect(screen.getByLabelText(/reps/i)).toHaveValue(null)
+  })
 })

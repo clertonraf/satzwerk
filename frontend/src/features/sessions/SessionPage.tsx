@@ -267,6 +267,7 @@ export default function SessionPage() {
                                   <li key={log.id} className="rounded-lg border border-border px-3 py-2">
                                     {editingSetLogId === log.id ? (
                                       <SetInput
+                                        key={`${log.id}-${exerciseUnit}`}
                                         isLoading={isUpdateSetPending}
                                         setNumber={log.setNumber}
                                         unit={exerciseUnit}
@@ -275,9 +276,11 @@ export default function SessionPage() {
                                         submitLabel="Save"
                                         resetOnSubmit={false}
                                         onLog={({ weight, reps }) => {
-                                          void handleUpdateSetLog(log.id, weight, reps, exerciseUnit).then(() =>
-                                            setEditingSetLogId(null)
-                                          )
+                                          handleUpdateSetLog(log.id, weight, reps, exerciseUnit)
+                                            .then(() => setEditingSetLogId(null))
+                                            .catch(() => {
+                                              /* stay in edit mode so the user can retry */
+                                            })
                                         }}
                                         onCancel={() => setEditingSetLogId(null)}
                                       />
