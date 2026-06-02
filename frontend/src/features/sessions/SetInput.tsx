@@ -35,6 +35,7 @@ interface SetInputProps {
   defaultWeight?: number
   defaultReps?: number
   submitLabel?: string
+  resetOnSubmit?: boolean
 }
 
 export default function SetInput({
@@ -46,6 +47,7 @@ export default function SetInput({
   defaultWeight,
   defaultReps,
   submitLabel = 'Log Set',
+  resetOnSubmit = true,
 }: SetInputProps) {
   const {
     register,
@@ -69,7 +71,7 @@ export default function SetInput({
       className="grid gap-3 rounded-lg border border-border p-4"
       onSubmit={handleSubmit((values) => {
         onLog({ ...values, setNumber })
-        reset()
+        if (resetOnSubmit) reset()
       })}
     >
       <p className="text-sm font-medium">Set {setNumber}</p>

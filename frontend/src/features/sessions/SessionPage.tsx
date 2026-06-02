@@ -273,6 +273,7 @@ export default function SessionPage() {
                                         defaultWeight={exerciseUnit === 'kg' ? log.weight : log.weight * 2.20462}
                                         defaultReps={log.reps}
                                         submitLabel="Save"
+                                        resetOnSubmit={false}
                                         onLog={({ weight, reps }) => {
                                           void handleUpdateSetLog(log.id, weight, reps, exerciseUnit).then(() =>
                                             setEditingSetLogId(null)
@@ -289,6 +290,7 @@ export default function SessionPage() {
                                           type="button"
                                           size="sm"
                                           variant="ghost"
+                                          disabled={!isOnline || log.id.startsWith('queued-')}
                                           onClick={() => setEditingSetLogId(log.id)}
                                         >
                                           Edit

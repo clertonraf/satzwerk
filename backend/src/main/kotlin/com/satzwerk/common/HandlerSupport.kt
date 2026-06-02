@@ -40,6 +40,8 @@ suspend fun handleErrors(
         ServerResponse.status(HttpStatus.FORBIDDEN).bodyValueAndAwait(ErrorResponse("Forbidden"))
     } catch (_: NotFoundException) {
         ServerResponse.status(HttpStatus.NOT_FOUND).bodyValueAndAwait(ErrorResponse("Not found"))
+    } catch (_: IllegalArgumentException) {
+        ServerResponse.badRequest().bodyValueAndAwait(ErrorResponse("Invalid request parameter"))
     } catch (e: ConflictException) {
         if (withConflict) {
             ServerResponse.status(HttpStatus.CONFLICT).bodyValueAndAwait(ErrorResponse("Conflict"))

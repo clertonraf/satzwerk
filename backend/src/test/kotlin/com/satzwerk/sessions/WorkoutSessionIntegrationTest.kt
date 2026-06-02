@@ -289,7 +289,7 @@ class WorkoutSessionIntegrationTest {
     }
 
     @Test
-    fun `update set log returns not found for wrong session`() {
+    fun `update set log returns not found for nonexistent set log`() {
         val session = startSession()
         addSetLog(session.id, BigDecimal("80.0"))
 
