@@ -15,11 +15,22 @@ const formatDate = (date: Date) => {
   return `${year}-${month}-${day}`
 }
 
+const subtractUtcMonths = (date: Date, months: number): Date => {
+  const y = date.getUTCFullYear()
+  const m = date.getUTCMonth()
+  const d = date.getUTCDate()
+  const targetMonth = m - months
+  // Day 0 of the month after targetMonth gives the last day of targetMonth,
+  // handling negative months and year boundaries via JS Date rollover.
+  const lastDayOfTarget = new Date(Date.UTC(y, targetMonth + 1, 0)).getUTCDate()
+  return new Date(Date.UTC(y, targetMonth, Math.min(d, lastDayOfTarget)))
+}
+
 export default function DashboardPage() {
-  const today = new Date()
-  const threeMonthsAgo = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 3, today.getUTCDate()))
-  const fromDate = formatDate(threeMonthsAgo)
-  const toDate = formatDate(today)
+  const now = new Date()
+  const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  const fromDate = formatDate(subtractUtcMonths(todayUtc, 3))
+  const toDate = formatDate(todayUtc)
 
   const { data: heatmapEntries = [] } = useQuery({
     queryKey: queryKeys.analytics.heatmap(fromDate, toDate),
@@ -41,7 +52,7 @@ export default function DashboardPage() {
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">Activity</h2>
         <div className="overflow-x-auto rounded-xl border border-border bg-card p-4">
-          <ContributionHeatmap entries={heatmapEntries} />
+          <ContributionHeatmap entries={heatmapEntries} from={fromDate} to={toDate} />
         </div>
       </section>
 

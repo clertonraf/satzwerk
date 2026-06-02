@@ -1,9 +1,9 @@
 const CELL = 11
 const GAP = 2
 const STEP = CELL + GAP
-const COLS = 14
 const ROWS = 7
 const TOP_PAD = 20
+const MS_PER_DAY = 1000 * 60 * 60 * 24
 
 interface HeatmapEntry {
   date: string
@@ -22,7 +22,7 @@ const formatDate = (date: Date) => {
   return `${year}-${month}-${day}`
 }
 
-const startOfUtcDay = (date: Date) => new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+const startOfUtcDay = (date: Date) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
 
 const addUtcDays = (date: Date, days: number) => {
   const copy = new Date(date)
@@ -30,28 +30,33 @@ const addUtcDays = (date: Date, days: number) => {
   return copy
 }
 
-export default function ContributionHeatmap({ entries }: { entries: HeatmapEntry[] }) {
+export default function ContributionHeatmap({ entries, from, to }: { entries: HeatmapEntry[]; from: string; to: string }) {
   if (entries.length === 0) {
     return <p className="text-sm text-muted-foreground">No activity yet.</p>
   }
 
   const byDate = new Map(entries.map((entry) => [entry.date, entry]))
   const today = startOfUtcDay(new Date())
-  const start = addUtcDays(today, -13 * 7)
-  const dayOfWeek = start.getUTCDay()
+  const startDate = startOfUtcDay(new Date(`${from}T00:00:00Z`))
+  const endDate = startOfUtcDay(new Date(`${to}T00:00:00Z`))
+
+  const dayOfWeek = startDate.getUTCDay()
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
-  const alignedStart = addUtcDays(start, mondayOffset)
+  const alignedStart = addUtcDays(startDate, mondayOffset)
+
+  const totalDays = Math.round((endDate.getTime() - alignedStart.getTime()) / MS_PER_DAY) + 1
+  const cols = Math.ceil(totalDays / ROWS)
 
   const cells: Array<{ dateStr: string; col: number; row: number; entry: HeatmapEntry | null }> = []
   const monthLabels: Array<{ key: string; label: string; x: number }> = []
 
-  for (let index = 0; index < COLS * ROWS; index += 1) {
+  for (let index = 0; index < cols * ROWS; index += 1) {
     const date = addUtcDays(alignedStart, index)
     const dateStr = formatDate(date)
     const col = Math.floor(index / ROWS)
     const row = index % ROWS
 
-    if (col >= COLS) {
+    if (col >= cols) {
       break
     }
 
@@ -80,7 +85,7 @@ export default function ContributionHeatmap({ entries }: { entries: HeatmapEntry
     <svg
       aria-label="Contribution heatmap"
       role="img"
-      viewBox={`0 0 ${COLS * STEP} ${TOP_PAD + ROWS * STEP}`}
+      viewBox={`0 0 ${cols * STEP} ${TOP_PAD + ROWS * STEP}`}
       className="min-w-[182px]"
     >
       {monthLabels.map(({ key, label, x }) => (
