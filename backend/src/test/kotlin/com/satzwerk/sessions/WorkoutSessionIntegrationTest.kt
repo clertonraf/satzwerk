@@ -245,6 +245,44 @@ class WorkoutSessionIntegrationTest {
     }
 
     @Test
+    fun `get session by id returns session with set logs`() {
+        val session = startSession()
+        addSetLog(session.id, BigDecimal("100.0"))
+        val completedSession = completeSession(session.id)
+
+        client
+            .get()
+            .uri("/api/sessions/${completedSession.id}")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.id").isEqualTo(completedSession.id.toString())
+            .jsonPath("$.workoutGroupId").isEqualTo(workoutGroupId.toString())
+            .jsonPath("$.completedAt").isNotEmpty
+            .jsonPath("$.notes").isEqualTo("Great session")
+            .jsonPath("$.setLogs.length()").isEqualTo(1)
+            .jsonPath("$.setLogs[0].exerciseId").isEqualTo(exerciseId.toString())
+            .jsonPath("$.setLogs[0].weight").isEqualTo(100)
+            .jsonPath("$.setLogs[0].reps").isEqualTo(5)
+    }
+
+    @Test
+    fun `get session by id for another user returns not found`() {
+        val session = startSession()
+        completeSession(session.id)
+
+        val otherToken = registerAndLogin("other-${UUID.randomUUID()}@test.com", "password123", "Other User")
+
+        client
+            .get()
+            .uri("/api/sessions/${session.id}")
+            .header("Authorization", "Bearer $otherToken")
+            .exchange()
+            .expectStatus().isNotFound
+    }
+
+    @Test
     fun `start session without authentication returns unauthorized`() {
         client
             .post()
