@@ -11,9 +11,11 @@ import DashboardPage from '@/pages/DashboardPage'
 import HistoryPage from '@/pages/HistoryPage'
 import ProfilePage from '@/pages/ProfilePage'
 import { useOfflineSync } from '@/hooks/useOfflineSync'
+import { useRestoreSession } from '@/hooks/useRestoreSession'
 
 export default function App() {
   useOfflineSync()
+  useRestoreSession()
 
   return (
     <Routes>
