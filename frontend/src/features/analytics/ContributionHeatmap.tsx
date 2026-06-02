@@ -40,12 +40,21 @@ export default function ContributionHeatmap({ entries, from, to }: { entries: He
   const startDate = startOfUtcDay(new Date(`${from}T00:00:00Z`))
   const endDate = startOfUtcDay(new Date(`${to}T00:00:00Z`))
 
+  // Align start back to Monday
   const dayOfWeek = startDate.getUTCDay()
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
   const alignedStart = addUtcDays(startDate, mondayOffset)
 
-  const totalDays = Math.round((endDate.getTime() - alignedStart.getTime()) / MS_PER_DAY) + 1
-  const cols = Math.ceil(totalDays / ROWS)
+  // Align end forward to Sunday so every column is a complete week
+  const endDayOfWeek = endDate.getUTCDay()
+  const sundayOffset = endDayOfWeek === 0 ? 0 : 7 - endDayOfWeek
+  const alignedEnd = addUtcDays(endDate, sundayOffset)
+
+  // Clamp today to endDate: cells beyond `to` are out-of-range, not "0 sets"
+  const cutoff = today < endDate ? today : endDate
+
+  const totalDays = Math.round((alignedEnd.getTime() - alignedStart.getTime()) / MS_PER_DAY) + 1
+  const cols = totalDays / ROWS
 
   const cells: Array<{ dateStr: string; col: number; row: number; entry: HeatmapEntry | null }> = []
   const monthLabels: Array<{ key: string; label: string; x: number }> = []
@@ -73,7 +82,7 @@ export default function ContributionHeatmap({ entries, from, to }: { entries: He
       dateStr,
       col,
       row,
-      entry: date > today ? null : (byDate.get(dateStr) ?? null),
+      entry: date > cutoff ? null : (byDate.get(dateStr) ?? null),
     })
   }
 
