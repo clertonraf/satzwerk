@@ -50,15 +50,11 @@ export default function ContributionHeatmap({ entries, from, to }: { entries: He
   const cells: Array<{ dateStr: string; col: number; row: number; entry: HeatmapEntry | null }> = []
   const monthLabels: Array<{ key: string; label: string; x: number }> = []
 
-  for (let index = 0; index < cols * ROWS; index += 1) {
+  for (let index = 0; index < totalDays; index += 1) {
     const date = addUtcDays(alignedStart, index)
     const dateStr = formatDate(date)
     const col = Math.floor(index / ROWS)
     const row = index % ROWS
-
-    if (col >= cols) {
-      break
-    }
 
     if (row === 0) {
       const label = MONTH_LABELS[date.getUTCMonth()]
