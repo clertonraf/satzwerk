@@ -209,6 +209,9 @@ class AnalyticsIntegrationTest {
 
     @Test
     fun `heatmap defaults date range when query params are omitted`() {
+        val today = LocalDate.now(ZoneOffset.UTC)
+        val expectedDays = today.minusMonths(3).datesUntil(today.plusDays(1)).count().toInt()
+
         client
             .get()
             .uri("/api/analytics/heatmap")
@@ -216,7 +219,7 @@ class AnalyticsIntegrationTest {
             .exchange()
             .expectStatus().isOk
             .expectBody()
-            .jsonPath("$.length()").isEqualTo(365)
+            .jsonPath("$.length()").isEqualTo(expectedDays)
     }
 
     @Test

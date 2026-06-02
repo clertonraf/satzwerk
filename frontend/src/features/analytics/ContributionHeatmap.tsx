@@ -1,7 +1,7 @@
 const CELL = 11
 const GAP = 2
 const STEP = CELL + GAP
-const COLS = 53
+const COLS = 14
 const ROWS = 7
 const TOP_PAD = 20
 
@@ -37,7 +37,7 @@ export default function ContributionHeatmap({ entries }: { entries: HeatmapEntry
 
   const byDate = new Map(entries.map((entry) => [entry.date, entry]))
   const today = startOfUtcDay(new Date())
-  const start = addUtcDays(today, -52 * 7)
+  const start = addUtcDays(today, -13 * 7)
   const dayOfWeek = start.getUTCDay()
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
   const alignedStart = addUtcDays(start, mondayOffset)
@@ -81,7 +81,7 @@ export default function ContributionHeatmap({ entries }: { entries: HeatmapEntry
       aria-label="Contribution heatmap"
       role="img"
       viewBox={`0 0 ${COLS * STEP} ${TOP_PAD + ROWS * STEP}`}
-      className="min-w-[689px]"
+      className="min-w-[182px]"
     >
       {monthLabels.map(({ key, label, x }) => (
         <text key={key} x={x} y={10} className="fill-muted-foreground text-[10px]">

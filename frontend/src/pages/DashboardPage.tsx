@@ -8,10 +8,22 @@ import { analyticsService } from '@/services/analyticsService'
 import { queryKeys } from '@/services/queryKeys'
 import { sessionService } from '@/services/sessionService'
 
+const formatDate = (date: Date) => {
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export default function DashboardPage() {
+  const today = new Date()
+  const threeMonthsAgo = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 3, today.getUTCDate()))
+  const fromDate = formatDate(threeMonthsAgo)
+  const toDate = formatDate(today)
+
   const { data: heatmapEntries = [] } = useQuery({
-    queryKey: queryKeys.analytics.heatmap(),
-    queryFn: () => analyticsService.heatmap(),
+    queryKey: queryKeys.analytics.heatmap(fromDate, toDate),
+    queryFn: () => analyticsService.heatmap(fromDate, toDate),
   })
   const { data: streakData } = useQuery({
     queryKey: queryKeys.analytics.streak(),

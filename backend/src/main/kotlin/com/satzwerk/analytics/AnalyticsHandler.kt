@@ -8,7 +8,7 @@ import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import java.time.LocalDate
 import java.time.ZoneOffset
 
-private const val DEFAULT_HEATMAP_WEEKS = 52L
+private const val DEFAULT_HEATMAP_MONTHS = 3L
 
 @Component
 class AnalyticsHandler(
@@ -16,7 +16,7 @@ class AnalyticsHandler(
 ) {
     suspend fun heatmap(request: ServerRequest): ServerResponse {
         val today = LocalDate.now(ZoneOffset.UTC)
-        val from = request.queryParam("from").map(LocalDate::parse).orElse(today.minusWeeks(DEFAULT_HEATMAP_WEEKS))
+        val from = request.queryParam("from").map(LocalDate::parse).orElse(today.minusMonths(DEFAULT_HEATMAP_MONTHS))
         val to = request.queryParam("to").map(LocalDate::parse).orElse(today)
         val userId = currentUserId(request)
         return ServerResponse.ok().bodyValueAndAwait(analyticsService.heatmap(userId, from, to))

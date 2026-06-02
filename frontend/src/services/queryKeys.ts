@@ -11,7 +11,7 @@ export const queryKeys = {
     history: () => ['session-history'] as const,
   },
   analytics: {
-    heatmap: () => ['heatmap'] as const,
+    heatmap: (from?: string, to?: string) => ['heatmap', from, to] as const,
     streak: () => ['streak'] as const,
   },
 } as const
