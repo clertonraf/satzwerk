@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toKilograms } from '@/features/sessions/sessionHelpers'
 import { useSessionTransport } from '@/features/sessions/useSessionTransport'
 import { queryKeys } from '@/services/queryKeys'
-import type { AddSetLogRequest, WorkoutSession } from '@/services/sessionService'
+import type { AddSetLogRequest, UpdateSetLogRequest, WorkoutSession } from '@/services/sessionService'
 import { sessionService } from '@/services/sessionService'
 
 export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () => void; onForfeit?: () => void }) {
@@ -36,6 +36,11 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
     mutationFn: (sessionId: string) => sessionService.discard(sessionId),
   })
 
+  const updateSetLogMutation = useMutation({
+    mutationFn: ({ sessionId, setLogId, payload }: { sessionId: string; setLogId: string; payload: UpdateSetLogRequest }) =>
+      sessionService.updateSetLog(sessionId, setLogId, payload),
+  })
+
   const session = openSessionQuery.data ?? null
 
   async function handleLogSet(exerciseId: string, setNumber: number, weight: number, reps: number, unit: 'kg' | 'lb') {
@@ -52,6 +57,24 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
 
     const loggedSet = await transport.logSet(session.id, payload)
     const updatedSession = { ...session, setLogs: [...session.setLogs, loggedSet] }
+    queryClient.setQueryData(queryKeys.sessions.open(), updatedSession)
+  }
+
+  async function handleUpdateSetLog(setLogId: string, weight: number, reps: number, unit: 'kg' | 'lb') {
+    if (!session) {
+      return
+    }
+
+    const payload: UpdateSetLogRequest = {
+      weight: toKilograms(weight, unit),
+      reps,
+    }
+
+    const updatedLog = await updateSetLogMutation.mutateAsync({ sessionId: session.id, setLogId, payload })
+    const updatedSession = {
+      ...session,
+      setLogs: session.setLogs.map((log) => (log.id === setLogId ? updatedLog : log)),
+    }
     queryClient.setQueryData(queryKeys.sessions.open(), updatedSession)
   }
 
@@ -80,12 +103,14 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
     session,
     isSessionLoading: openSessionQuery.isLoading,
     handleLogSet,
+    handleUpdateSetLog,
     handleCompleteSession,
     handleForfeitSession,
     startMutateAsync: startMutation.mutateAsync,
     discardMutateAsync: discardMutation.mutateAsync,
     isStartPending: startMutation.isPending,
     isAddSetPending: transport.isLogSetPending,
+    isUpdateSetPending: updateSetLogMutation.isPending,
     isCompletePending: completeMutation.isPending,
     isForfeitPending: discardMutation.isPending,
   }

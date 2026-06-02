@@ -41,6 +41,13 @@ data class AddSetLogRequest(
     val reps: Int,
 )
 
+data class UpdateSetLogRequest(
+    @field:DecimalMin("0.0")
+    val weight: BigDecimal,
+    @field:Min(1)
+    val reps: Int,
+)
+
 data class CompleteSessionRequest(
     val notes: String? = null,
 )

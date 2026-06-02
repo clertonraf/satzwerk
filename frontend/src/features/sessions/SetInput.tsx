@@ -12,8 +12,8 @@ const schema = z.object({
     .min(1, 'Weight is required')
     .refine((value) => {
       const n = Number(value)
-      return !isNaN(n) && n > 0
-    }, 'Must be a positive number')
+      return !isNaN(n) && n >= 0
+    }, 'Must be a non-negative number')
     .transform((value) => Number(value)),
   reps: z
     .string()
@@ -28,12 +28,27 @@ type SetInputValues = z.output<typeof schema>
 
 interface SetInputProps {
   onLog: (data: { weight: number; reps: number; setNumber: number }) => void
+  onCancel?: () => void
   setNumber: number
   isLoading?: boolean
   unit: 'kg' | 'lb'
+  defaultWeight?: number
+  defaultReps?: number
+  submitLabel?: string
+  resetOnSubmit?: boolean
 }
 
-export default function SetInput({ onLog, setNumber, isLoading = false, unit }: SetInputProps) {
+export default function SetInput({
+  onLog,
+  onCancel,
+  setNumber,
+  isLoading = false,
+  unit,
+  defaultWeight,
+  defaultReps,
+  submitLabel = 'Log Set',
+  resetOnSubmit = true,
+}: SetInputProps) {
   const {
     register,
     handleSubmit,
@@ -43,8 +58,8 @@ export default function SetInput({ onLog, setNumber, isLoading = false, unit }: 
   } = useForm<SetInputFormValues, undefined, SetInputValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      weight: '',
-      reps: '',
+      weight: defaultWeight != null ? String(Number(defaultWeight.toFixed(3))) : '',
+      reps: defaultReps != null ? String(defaultReps) : '',
     },
   })
 
@@ -56,7 +71,7 @@ export default function SetInput({ onLog, setNumber, isLoading = false, unit }: 
       className="grid gap-3 rounded-lg border border-border p-4"
       onSubmit={handleSubmit((values) => {
         onLog({ ...values, setNumber })
-        reset()
+        if (resetOnSubmit) reset()
       })}
     >
       <p className="text-sm font-medium">Set {setNumber}</p>
@@ -84,8 +99,13 @@ export default function SetInput({ onLog, setNumber, isLoading = false, unit }: 
       </div>
 
       <Button className="justify-self-start" type="submit" disabled={isLoading}>
-        Log Set
+        {submitLabel}
       </Button>
+      {onCancel ? (
+        <Button className="justify-self-start" type="button" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      ) : null}
     </form>
   )
 }

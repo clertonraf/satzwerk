@@ -8,7 +8,7 @@ import ForfeitSessionModal from '@/features/sessions/ForfeitSessionModal'
 import ResumeDiscardModal from '@/features/sessions/ResumeDiscardModal'
 import SetInput from '@/features/sessions/SetInput'
 import WorkoutGroupPreviewModal from '@/features/sessions/WorkoutGroupPreviewModal'
-import { buildWorkoutGroupCatalog, formatDisplayWeight, formatSessionDate } from '@/features/sessions/sessionHelpers'
+import { buildWorkoutGroupCatalog, formatDisplayWeight, formatSessionDate, toPounds } from '@/features/sessions/sessionHelpers'
 import { formatAdvancedTechnique } from '@/features/workouts/advancedTechnique'
 import { useWorkoutSession } from '@/features/sessions/useWorkoutSession'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
@@ -22,6 +22,7 @@ export default function SessionPage() {
   const isOnline = useOnlineStatus()
   const [isForfeitModalOpen, setIsForfeitModalOpen] = useState(false)
   const [previewGroup, setPreviewGroup] = useState<{ group: WorkoutGroupDetail; planName: string } | null>(null)
+  const [editingSetLogId, setEditingSetLogId] = useState<string | null>(null)
 
   const {
     session,
@@ -29,12 +30,14 @@ export default function SessionPage() {
     isSessionLoading,
     handleStartSession,
     handleLogSet,
+    handleUpdateSetLog,
     handleCompleteSession,
     handleForfeitSession,
     handleDiscardConflict,
     clearConflictState,
     isStartPending,
     isAddSetPending,
+    isUpdateSetPending,
     isCompletePending,
     isForfeitPending,
   } = useWorkoutSession({
@@ -262,7 +265,41 @@ export default function SessionPage() {
                               <ul className="space-y-2 text-sm text-muted-foreground">
                                 {exerciseLogs.map((log) => (
                                   <li key={log.id} className="rounded-lg border border-border px-3 py-2">
-                                    Set {log.setNumber}: {formatDisplayWeight(log.weight, exerciseUnit)} × {log.reps}
+                                    {editingSetLogId === log.id ? (
+                                      <SetInput
+                                        key={`${log.id}-${exerciseUnit}`}
+                                        isLoading={isUpdateSetPending}
+                                        setNumber={log.setNumber}
+                                        unit={exerciseUnit}
+                                        defaultWeight={exerciseUnit === 'kg' ? log.weight : toPounds(log.weight)}
+                                        defaultReps={log.reps}
+                                        submitLabel="Save"
+                                        resetOnSubmit={false}
+                                        onLog={({ weight, reps }) => {
+                                          handleUpdateSetLog(log.id, weight, reps, exerciseUnit)
+                                            .then(() => setEditingSetLogId(null))
+                                            .catch(() => {
+                                              /* stay in edit mode so the user can retry */
+                                            })
+                                        }}
+                                        onCancel={() => setEditingSetLogId(null)}
+                                      />
+                                    ) : (
+                                      <div className="flex items-center justify-between">
+                                        <span>
+                                          Set {log.setNumber}: {formatDisplayWeight(log.weight, exerciseUnit)} × {log.reps}
+                                        </span>
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="ghost"
+                                          disabled={!isOnline || log.id.startsWith('queued-')}
+                                          onClick={() => setEditingSetLogId(log.id)}
+                                        >
+                                          Edit
+                                        </Button>
+                                      </div>
+                                    )}
                                   </li>
                                 ))}
                               </ul>
