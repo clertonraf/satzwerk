@@ -245,6 +245,7 @@ class WorkoutSessionIntegrationTest {
     }
 
     @Test
+    @Test
     fun `get session by id returns session with set logs`() {
         val session = startSession()
         addSetLog(session.id, BigDecimal("100.0"))
@@ -279,6 +280,69 @@ class WorkoutSessionIntegrationTest {
             .uri("/api/sessions/${session.id}")
             .header("Authorization", "Bearer $otherToken")
             .exchange()
+            .expectStatus().isNotFound
+    }
+
+    @Test
+    fun `update set log returns updated set log`() {
+        val session = startSession()
+        val setLog = addSetLog(session.id, BigDecimal("80.0"))
+
+        client
+            .patch()
+            .uri("/api/sessions/${session.id}/set-logs/${setLog.id}")
+            .header("Authorization", "Bearer $authToken")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "weight" to BigDecimal("90.0"),
+                    "reps" to 8,
+                ),
+            ).exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.id").isEqualTo(setLog.id.toString())
+            .jsonPath("$.weight").isEqualTo(90)
+            .jsonPath("$.reps").isEqualTo(8)
+            .jsonPath("$.setNumber").isEqualTo(1)
+    }
+
+    @Test
+    fun `cannot update set log on completed session`() {
+        val session = startSession()
+        val setLog = addSetLog(session.id, BigDecimal("80.0"))
+        completeSession(session.id)
+
+        client
+            .patch()
+            .uri("/api/sessions/${session.id}/set-logs/${setLog.id}")
+            .header("Authorization", "Bearer $authToken")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "weight" to BigDecimal("90.0"),
+                    "reps" to 8,
+                ),
+            ).exchange()
+            .expectStatus().isEqualTo(409)
+    }
+
+    @Test
+    fun `update set log returns not found for nonexistent set log`() {
+        val session = startSession()
+        addSetLog(session.id, BigDecimal("80.0"))
+
+        client
+            .patch()
+            .uri("/api/sessions/${session.id}/set-logs/${UUID.randomUUID()}")
+            .header("Authorization", "Bearer $authToken")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "weight" to BigDecimal("90.0"),
+                    "reps" to 8,
+                ),
+            ).exchange()
             .expectStatus().isNotFound
     }
 

@@ -1,17 +1,20 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useSessionStore } from '@/store/session'
+import { convertWeightHint } from '@/features/sessions/sessionHelpers'
 
 const schema = z.object({
   weight: z
     .string()
     .trim()
     .min(1, 'Weight is required')
-    .transform((value) => Number(value))
-    .refine((value) => value > 0, 'Must be positive'),
+    .refine((value) => {
+      const n = Number(value)
+      return !isNaN(n) && n >= 0
+    }, 'Must be a non-negative number')
+    .transform((value) => Number(value)),
   reps: z
     .string()
     .trim()
@@ -25,31 +28,50 @@ type SetInputValues = z.output<typeof schema>
 
 interface SetInputProps {
   onLog: (data: { weight: number; reps: number; setNumber: number }) => void
+  onCancel?: () => void
   setNumber: number
   isLoading?: boolean
+  unit: 'kg' | 'lb'
+  defaultWeight?: number
+  defaultReps?: number
+  submitLabel?: string
+  resetOnSubmit?: boolean
 }
 
-export default function SetInput({ onLog, setNumber, isLoading = false }: SetInputProps) {
-  const weightUnit = useSessionStore((state) => state.weightUnit)
+export default function SetInput({
+  onLog,
+  onCancel,
+  setNumber,
+  isLoading = false,
+  unit,
+  defaultWeight,
+  defaultReps,
+  submitLabel = 'Log Set',
+  resetOnSubmit = true,
+}: SetInputProps) {
   const {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<SetInputFormValues, undefined, SetInputValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      weight: '',
-      reps: '',
+      weight: defaultWeight != null ? String(Number(defaultWeight.toFixed(3))) : '',
+      reps: defaultReps != null ? String(defaultReps) : '',
     },
   })
+
+  const weightValue = useWatch({ control, name: 'weight' })
+  const hint = convertWeightHint(weightValue, unit)
 
   return (
     <form
       className="grid gap-3 rounded-lg border border-border p-4"
       onSubmit={handleSubmit((values) => {
         onLog({ ...values, setNumber })
-        reset()
+        if (resetOnSubmit) reset()
       })}
     >
       <p className="text-sm font-medium">Set {setNumber}</p>
@@ -57,10 +79,14 @@ export default function SetInput({ onLog, setNumber, isLoading = false }: SetInp
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">
           <label className="text-sm font-medium" htmlFor={`weight-${setNumber}`}>
-            Weight ({weightUnit})
+            Weight ({unit})
           </label>
-          <Input id={`weight-${setNumber}`} type="number" inputMode="decimal" step="any" {...register('weight')} />
-          {errors.weight ? <p className="text-sm text-destructive">{errors.weight.message}</p> : null}
+          <Input id={`weight-${setNumber}`} type="number" inputMode="decimal" step="0.001" {...register('weight')} />
+          {errors.weight ? (
+            <p className="text-sm text-destructive">{errors.weight.message}</p>
+          ) : hint ? (
+            <p className="text-sm text-muted-foreground">{hint}</p>
+          ) : null}
         </div>
 
         <div className="space-y-2">
@@ -73,8 +99,13 @@ export default function SetInput({ onLog, setNumber, isLoading = false }: SetInp
       </div>
 
       <Button className="justify-self-start" type="submit" disabled={isLoading}>
-        Log Set
+        {submitLabel}
       </Button>
+      {onCancel ? (
+        <Button className="justify-self-start" type="button" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      ) : null}
     </form>
   )
 }

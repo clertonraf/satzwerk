@@ -13,6 +13,7 @@ class SessionRouter {
                 POST("", handler::start)
                 GET("/open", handler::getOpen)
                 POST("/{id}/set-logs", handler::addSetLog)
+                PATCH("/{id}/set-logs/{setLogId}", handler::updateSetLog)
                 POST("/{id}/complete", handler::complete)
                 DELETE("/{id}", handler::discard)
                 GET("/history", handler::history)

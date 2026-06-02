@@ -55,6 +55,27 @@ class WorkoutSessionService(
         ).toResponse()
     }
 
+    suspend fun updateSetLog(
+        userId: UUID,
+        sessionId: UUID,
+        setLogId: UUID,
+        request: UpdateSetLogRequest,
+    ): SetLogResponse {
+        val session = getOwnedSession(userId, sessionId)
+        requireOpenSession(session)
+
+        val setLog =
+            setLogRepository.findByIdAndWorkoutSessionId(setLogId, sessionId)
+                ?: throw NotFoundException("Set log not found")
+
+        return setLogRepository.save(
+            setLog.copy(
+                weight = request.weight,
+                reps = request.reps,
+            ),
+        ).toResponse()
+    }
+
     suspend fun complete(
         userId: UUID,
         sessionId: UUID,
