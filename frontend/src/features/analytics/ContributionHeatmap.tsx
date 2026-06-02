@@ -86,7 +86,7 @@ export default function ContributionHeatmap({ entries, from, to }: { entries: He
       aria-label="Contribution heatmap"
       role="img"
       viewBox={`0 0 ${cols * STEP} ${TOP_PAD + ROWS * STEP}`}
-      className="min-w-[182px]"
+      style={{ minWidth: `${cols * STEP}px` }}
     >
       {monthLabels.map(({ key, label, x }) => (
         <text key={key} x={x} y={10} className="fill-muted-foreground text-[10px]">

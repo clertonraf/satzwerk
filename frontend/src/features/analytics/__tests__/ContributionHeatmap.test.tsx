@@ -33,14 +33,13 @@ describe('ContributionHeatmap', () => {
     expect(screen.getByText(/no activity/i)).toBeInTheDocument()
   })
 
-  it('SVG has min-w to preserve grid size for horizontal scrolling', () => {
+  it('SVG has inline minWidth to preserve grid size for horizontal scrolling', () => {
     render(<ContributionHeatmap entries={makeEntries(7)} from={FROM} to={TO} />)
-    const svg = document.querySelector('svg')
-    // The SVG must have a fixed minimum width so the grid cells remain readable.
-    // Horizontal overflow is handled by the overflow-x-auto wrapper in DashboardPage,
-    // not by shrinking the SVG. This test ensures the min-w class is not accidentally removed.
-    // SVGAnimatedString.baseVal gives the actual class string in jsdom.
-    expect(svg?.className.baseVal).toMatch(/min-w-/)
+    const svg = document.querySelector('svg') as SVGSVGElement | null
+    // minWidth must be set as an inline style (computed from cols * STEP) so it
+    // adapts to any date range and prevents cells from shrinking below readable size.
+    // Horizontal overflow is handled by the overflow-x-auto wrapper in DashboardPage.
+    expect(svg?.style.minWidth).toMatch(/^\d+px$/)
   })
 })
 
