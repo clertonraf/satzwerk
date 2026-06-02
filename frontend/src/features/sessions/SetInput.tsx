@@ -28,12 +28,25 @@ type SetInputValues = z.output<typeof schema>
 
 interface SetInputProps {
   onLog: (data: { weight: number; reps: number; setNumber: number }) => void
+  onCancel?: () => void
   setNumber: number
   isLoading?: boolean
   unit: 'kg' | 'lb'
+  defaultWeight?: number
+  defaultReps?: number
+  submitLabel?: string
 }
 
-export default function SetInput({ onLog, setNumber, isLoading = false, unit }: SetInputProps) {
+export default function SetInput({
+  onLog,
+  onCancel,
+  setNumber,
+  isLoading = false,
+  unit,
+  defaultWeight,
+  defaultReps,
+  submitLabel = 'Log Set',
+}: SetInputProps) {
   const {
     register,
     handleSubmit,
@@ -43,8 +56,8 @@ export default function SetInput({ onLog, setNumber, isLoading = false, unit }: 
   } = useForm<SetInputFormValues, undefined, SetInputValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      weight: '',
-      reps: '',
+      weight: defaultWeight != null ? String(Number(defaultWeight.toFixed(3))) : '',
+      reps: defaultReps != null ? String(defaultReps) : '',
     },
   })
 
@@ -84,8 +97,13 @@ export default function SetInput({ onLog, setNumber, isLoading = false, unit }: 
       </div>
 
       <Button className="justify-self-start" type="submit" disabled={isLoading}>
-        Log Set
+        {submitLabel}
       </Button>
+      {onCancel ? (
+        <Button className="justify-self-start" type="button" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      ) : null}
     </form>
   )
 }

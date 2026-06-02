@@ -245,6 +245,69 @@ class WorkoutSessionIntegrationTest {
     }
 
     @Test
+    fun `update set log returns updated set log`() {
+        val session = startSession()
+        val setLog = addSetLog(session.id, BigDecimal("80.0"))
+
+        client
+            .patch()
+            .uri("/api/sessions/${session.id}/set-logs/${setLog.id}")
+            .header("Authorization", "Bearer $authToken")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "weight" to BigDecimal("90.0"),
+                    "reps" to 8,
+                ),
+            ).exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.id").isEqualTo(setLog.id.toString())
+            .jsonPath("$.weight").isEqualTo(90)
+            .jsonPath("$.reps").isEqualTo(8)
+            .jsonPath("$.setNumber").isEqualTo(1)
+    }
+
+    @Test
+    fun `cannot update set log on completed session`() {
+        val session = startSession()
+        val setLog = addSetLog(session.id, BigDecimal("80.0"))
+        completeSession(session.id)
+
+        client
+            .patch()
+            .uri("/api/sessions/${session.id}/set-logs/${setLog.id}")
+            .header("Authorization", "Bearer $authToken")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "weight" to BigDecimal("90.0"),
+                    "reps" to 8,
+                ),
+            ).exchange()
+            .expectStatus().isEqualTo(409)
+    }
+
+    @Test
+    fun `update set log returns not found for wrong session`() {
+        val session = startSession()
+        addSetLog(session.id, BigDecimal("80.0"))
+
+        client
+            .patch()
+            .uri("/api/sessions/${session.id}/set-logs/${UUID.randomUUID()}")
+            .header("Authorization", "Bearer $authToken")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "weight" to BigDecimal("90.0"),
+                    "reps" to 8,
+                ),
+            ).exchange()
+            .expectStatus().isNotFound
+    }
+
+    @Test
     fun `start session without authentication returns unauthorized`() {
         client
             .post()

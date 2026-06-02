@@ -47,6 +47,21 @@ class SessionHandler(
             }
         }
 
+    suspend fun updateSetLog(request: ServerRequest): ServerResponse =
+        handleErrors(withConflict = true) {
+            val body = request.awaitBody<UpdateSetLogRequest>()
+            validateOrBadRequest(validator, body) {
+                val response =
+                    workoutSessionService.updateSetLog(
+                        currentUserId(request),
+                        UUID.fromString(request.pathVariable("id")),
+                        UUID.fromString(request.pathVariable("setLogId")),
+                        body,
+                    )
+                ServerResponse.ok().bodyValueAndAwait(response)
+            }
+        }
+
     suspend fun complete(request: ServerRequest): ServerResponse =
         handleErrors(withConflict = true) {
             val response =

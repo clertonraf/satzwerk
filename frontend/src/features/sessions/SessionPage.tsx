@@ -22,6 +22,7 @@ export default function SessionPage() {
   const isOnline = useOnlineStatus()
   const [isForfeitModalOpen, setIsForfeitModalOpen] = useState(false)
   const [previewGroup, setPreviewGroup] = useState<{ group: WorkoutGroupDetail; planName: string } | null>(null)
+  const [editingSetLogId, setEditingSetLogId] = useState<string | null>(null)
 
   const {
     session,
@@ -29,12 +30,14 @@ export default function SessionPage() {
     isSessionLoading,
     handleStartSession,
     handleLogSet,
+    handleUpdateSetLog,
     handleCompleteSession,
     handleForfeitSession,
     handleDiscardConflict,
     clearConflictState,
     isStartPending,
     isAddSetPending,
+    isUpdateSetPending,
     isCompletePending,
     isForfeitPending,
   } = useWorkoutSession({
@@ -262,7 +265,36 @@ export default function SessionPage() {
                               <ul className="space-y-2 text-sm text-muted-foreground">
                                 {exerciseLogs.map((log) => (
                                   <li key={log.id} className="rounded-lg border border-border px-3 py-2">
-                                    Set {log.setNumber}: {formatDisplayWeight(log.weight, exerciseUnit)} × {log.reps}
+                                    {editingSetLogId === log.id ? (
+                                      <SetInput
+                                        isLoading={isUpdateSetPending}
+                                        setNumber={log.setNumber}
+                                        unit={exerciseUnit}
+                                        defaultWeight={exerciseUnit === 'kg' ? log.weight : log.weight * 2.20462}
+                                        defaultReps={log.reps}
+                                        submitLabel="Save"
+                                        onLog={({ weight, reps }) => {
+                                          void handleUpdateSetLog(log.id, weight, reps, exerciseUnit).then(() =>
+                                            setEditingSetLogId(null)
+                                          )
+                                        }}
+                                        onCancel={() => setEditingSetLogId(null)}
+                                      />
+                                    ) : (
+                                      <div className="flex items-center justify-between">
+                                        <span>
+                                          Set {log.setNumber}: {formatDisplayWeight(log.weight, exerciseUnit)} × {log.reps}
+                                        </span>
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => setEditingSetLogId(log.id)}
+                                        >
+                                          Edit
+                                        </Button>
+                                      </div>
+                                    )}
                                   </li>
                                 ))}
                               </ul>
