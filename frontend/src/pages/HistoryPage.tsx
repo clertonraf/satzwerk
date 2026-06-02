@@ -1,10 +1,112 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { buildWorkoutGroupCatalog, formatSessionDate } from '@/features/sessions/sessionHelpers'
+import type { WorkoutSession, SetLog } from '@/services/sessionService'
+import { exerciseService, type Exercise } from '@/services/exerciseService'
 import { planService } from '@/services/planService'
 import { queryKeys } from '@/services/queryKeys'
 import { sessionService } from '@/services/sessionService'
+
+function formatDuration(startedAt: string, completedAt: string | null): string | null {
+  if (!completedAt) return null
+  const ms = new Date(completedAt).getTime() - new Date(startedAt).getTime()
+  const minutes = Math.round(ms / 60000)
+  if (minutes < 60) return `${minutes} min`
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m > 0 ? `${h}h ${m}m` : `${h}h`
+}
+
+interface SessionHistoryItemProps {
+  session: WorkoutSession
+  groupTitle: string
+  planName: string
+  exerciseMap: Record<string, Exercise>
+}
+
+function SessionHistoryItem({ session, groupTitle, planName, exerciseMap }: SessionHistoryItemProps) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  const detailQuery = useQuery({
+    queryKey: queryKeys.sessions.detail(session.id),
+    queryFn: () => sessionService.getById(session.id),
+    enabled: isOpen,
+  })
+
+  const groupedSetLogs = useMemo(() => {
+    if (!detailQuery.data?.setLogs.length) return {} as Record<string, SetLog[]>
+    return detailQuery.data.setLogs.reduce<Record<string, SetLog[]>>((acc, log) => {
+      if (!acc[log.exerciseId]) acc[log.exerciseId] = []
+      acc[log.exerciseId].push(log)
+      return acc
+    }, {})
+  }, [detailQuery.data])
+
+  const duration = formatDuration(session.startedAt, session.completedAt)
+
+  return (
+    <li className="rounded-lg border border-border">
+      <button
+        type="button"
+        className="flex w-full flex-col gap-1 px-4 py-4 text-left sm:flex-row sm:items-center sm:justify-between"
+        onClick={() => setIsOpen((v) => !v)}
+        aria-expanded={isOpen}
+      >
+        <div>
+          <p className="font-medium">{groupTitle}</p>
+          <p className="text-sm text-muted-foreground">{planName}</p>
+        </div>
+        <div className="flex items-center gap-3 sm:flex-col sm:items-end">
+          <div className="text-right">
+            <p className="text-sm text-muted-foreground">{formatSessionDate(session.completedAt ?? session.startedAt)}</p>
+            {duration ? <p className="text-xs text-muted-foreground">{duration}</p> : null}
+          </div>
+          {isOpen ? (
+            <ChevronUp className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          ) : (
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          )}
+        </div>
+      </button>
+
+      {isOpen ? (
+        <div className="border-t border-border px-4 py-4">
+          {detailQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading sets...</p>
+          ) : detailQuery.error ? (
+            <p className="text-sm text-destructive">Could not load set details.</p>
+          ) : (
+            <>
+              {session.notes ? (
+                <p className="mb-3 text-sm italic text-muted-foreground">"{session.notes}"</p>
+              ) : null}
+              {Object.keys(groupedSetLogs).length === 0 ? (
+                <p className="text-sm text-muted-foreground">No sets logged.</p>
+              ) : (
+                <div className="space-y-4">
+                  {Object.entries(groupedSetLogs).map(([exerciseId, logs]) => (
+                    <div key={exerciseId}>
+                      <p className="mb-1 text-sm font-semibold">{exerciseMap[exerciseId]?.name ?? 'Unknown exercise'}</p>
+                      <div className="space-y-1">
+                        {logs.map((log) => (
+                          <p key={log.id} className="text-sm text-muted-foreground">
+                            Set {log.setNumber} — {log.weight} kg × {log.reps} reps
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      ) : null}
+    </li>
+  )
+}
 
 export default function HistoryPage() {
   const historyQuery = useQuery({
@@ -21,9 +123,17 @@ export default function HistoryPage() {
       queryFn: () => planService.get(plan.id),
     })),
   })
+  const exercisesQuery = useQuery({
+    queryKey: queryKeys.exercises.all(),
+    queryFn: () => exerciseService.list(),
+  })
 
   const planDetails = planDetailsQueries.flatMap((query) => (query.data ? [query.data] : []))
   const groupCatalog = useMemo(() => buildWorkoutGroupCatalog(planDetails), [planDetails])
+  const exerciseMap = useMemo(
+    () => Object.fromEntries((exercisesQuery.data ?? []).map((e) => [e.id, e])),
+    [exercisesQuery.data],
+  )
 
   if (historyQuery.error || plansQuery.error || planDetailsQueries.some((query) => query.error)) {
     return <p className="text-sm text-destructive">Could not load workout history.</p>
@@ -46,18 +156,14 @@ export default function HistoryPage() {
           <ul className="space-y-3">
             {historyQuery.data!.map((session) => {
               const groupEntry = groupCatalog[session.workoutGroupId]
-
               return (
-                <li
+                <SessionHistoryItem
                   key={session.id}
-                  className="flex flex-col gap-1 rounded-lg border border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div>
-                    <p className="font-medium">{groupEntry?.group.title ?? 'Workout group'}</p>
-                    <p className="text-sm text-muted-foreground">{groupEntry?.plan.name ?? 'Workout plan'}</p>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{formatSessionDate(session.completedAt ?? session.startedAt)}</p>
-                </li>
+                  session={session}
+                  groupTitle={groupEntry?.group.title ?? 'Workout group'}
+                  planName={groupEntry?.plan.name ?? 'Workout plan'}
+                  exerciseMap={exerciseMap}
+                />
               )
             })}
           </ul>
