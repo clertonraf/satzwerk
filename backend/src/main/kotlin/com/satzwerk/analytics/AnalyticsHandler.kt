@@ -20,7 +20,9 @@ class AnalyticsHandler(
     suspend fun heatmap(request: ServerRequest): ServerResponse =
         handleErrors {
             val today = LocalDate.now(ZoneOffset.UTC)
-            val from = request.queryParam("from").map { parseDate("from", it) }.orElse(today.minusMonths(DEFAULT_HEATMAP_MONTHS))
+            val from =
+                request.queryParam("from").map { parseDate("from", it) }
+                    .orElse(today.minusMonths(DEFAULT_HEATMAP_MONTHS))
             val to = request.queryParam("to").map { parseDate("to", it) }.orElse(today)
             val userId = currentUserId(request)
             ServerResponse.ok().bodyValueAndAwait(analyticsService.heatmap(userId, from, to))
