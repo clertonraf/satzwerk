@@ -1,3 +1,16 @@
+## v0.4.0 (2026-06-03)
+
+## What's Changed
+* docs: add pre-push backend checklist to copilot instructions by @clertonraf in https://github.com/clertonraf/satzwerk/pull/16
+* feat(sessions): show advanced technique description on badge tap by @clertonraf in https://github.com/clertonraf/satzwerk/pull/17
+* docs: prefer npm test -- over npx vitest run for targeted test runs by @clertonraf in https://github.com/clertonraf/satzwerk/pull/18
+* feat(analytics): responsive heatmap dashboard with extended intensity tiers by @clertonraf in https://github.com/clertonraf/satzwerk/pull/19
+
+
+**Full Changelog**: https://github.com/clertonraf/satzwerk/compare/v0.3.0...v0.4.0
+
+---
+
 ## v0.3.0 (2026-06-03)
 
 ## What's Changed
