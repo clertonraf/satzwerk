@@ -1,3 +1,13 @@
+## v0.2.0 (2026-06-03)
+
+## What's Changed
+* feat(history): session drill-down with set logs in HistoryPage by @clertonraf in https://github.com/clertonraf/satzwerk/pull/15
+
+
+**Full Changelog**: https://github.com/clertonraf/satzwerk/compare/v0.1.0...v0.2.0
+
+---
+
 ## v0.1.0 (2026-06-02)
 
 ## What's Changed
