@@ -10,6 +10,9 @@ backend/build/
 frontend/node_modules/
 frontend/dist/
 
+# Agent session artifacts
+.copilot/
+
 # IDE
 .idea/
 *.iml
