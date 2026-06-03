@@ -39,8 +39,6 @@ describe('ContributionHeatmap', () => {
   it('SVG fills its container width to be fully responsive', () => {
     render(<ContributionHeatmap entries={makeEntries(7)} from={FROM} to={TO} />)
     const svg = document.querySelector('svg') as SVGSVGElement | null
-    // width="100%" makes the SVG fill the container so it scales proportionally
-    // on all screen sizes without adding a vertical scrollbar.
     expect(svg?.getAttribute('width')).toBe('100%')
   })
 
@@ -53,14 +51,11 @@ describe('ContributionHeatmap', () => {
   it('SVG has a CSS aspectRatio style so height tracks the viewBox ratio in all layout contexts', () => {
     render(<ContributionHeatmap entries={makeEntries(7)} from={FROM} to={TO} />)
     const svg = document.querySelector('svg') as SVGSVGElement | null
-    // aspectRatio prevents the browser-default 150px height when SVG is
-    // inside flex/grid containers that don't honour intrinsic SVG sizing.
     expect(svg?.style.aspectRatio).toBeTruthy()
   })
 
   it('renders all month labels visible in the date range', () => {
     render(<ContributionHeatmap entries={makeEntries(7)} from={FROM} to={TO} />)
-    // Sep, Oct, Nov, Dec, Jan are all visible in the Oct–Jan range
     const texts = Array.from(document.querySelectorAll('text'))
     const labels = texts.map((t) => t.textContent)
     expect(labels).toContain('Oct')
@@ -72,8 +67,6 @@ describe('ContributionHeatmap', () => {
   it('month label text uses SVG fontSize attribute so it scales with the grid', () => {
     render(<ContributionHeatmap entries={makeEntries(7)} from={FROM} to={TO} />)
     const firstText = document.querySelector('text')
-    // fontSize must be set as an SVG attribute (not CSS class) so it scales
-    // proportionally when the SVG is displayed at different sizes.
     expect(firstText?.getAttribute('font-size')).toBeTruthy()
   })
 
@@ -82,8 +75,6 @@ describe('ContributionHeatmap', () => {
     render(<ContributionHeatmap entries={highEntry} from='2026-01-01' to='2026-01-07' />)
     const rects = Array.from(document.querySelectorAll('rect'))
     const activeRect = rects.find((r) => r.getAttribute('fill') === '#f0fdf4')
-    // intensity 10 must map specifically to the tier-10 colour, not just any non-zero colour
     expect(activeRect).toBeTruthy()
   })
 })
-

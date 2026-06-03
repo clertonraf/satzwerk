@@ -12,6 +12,9 @@ class AnalyticsRouter {
             "/api/analytics".nest {
                 GET("/heatmap", handler::heatmap)
                 GET("/streak", handler::streak)
+                GET("/summary", handler::dashboardSummary)
+                GET("/weekly-trend", handler::weeklyTrend)
+                GET("/personal-records", handler::personalRecords)
             }
         }
 }

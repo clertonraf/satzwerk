@@ -36,4 +36,6 @@ data class SetLog(
     val reps: Int,
     @Column("logged_at")
     val loggedAt: Instant = Instant.now(),
+    @Column("is_pr")
+    val isPr: Boolean = false,
 )

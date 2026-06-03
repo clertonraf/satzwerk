@@ -3,18 +3,22 @@ import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import ContributionHeatmap from '@/features/analytics/ContributionHeatmap'
-import StreakCard from '@/features/analytics/StreakCard'
+import DashboardSummaryGrid from '@/features/analytics/DashboardSummaryGrid'
+import RecentPRsCard from '@/features/analytics/RecentPRsCard'
+import WeeklyTrendChart from '@/features/analytics/WeeklyTrendChart'
+import LastSessionCard from '@/features/sessions/LastSessionCard'
 import { analyticsService } from '@/services/analyticsService'
 import { queryKeys } from '@/services/queryKeys'
 import { sessionService } from '@/services/sessionService'
+
+const TREND_WEEKS = 8
+const PR_LIMIT = 5
 
 const subtractUtcMonths = (date: Date, months: number): Date => {
   const y = date.getUTCFullYear()
   const m = date.getUTCMonth()
   const d = date.getUTCDate()
   const targetMonth = m - months
-  // Day 0 of the month after targetMonth gives the last day of targetMonth,
-  // handling negative months and year boundaries via JS Date rollover.
   const lastDayOfTarget = new Date(Date.UTC(y, targetMonth + 1, 0)).getUTCDate()
   return new Date(Date.UTC(y, targetMonth, Math.min(d, lastDayOfTarget)))
 }
@@ -29,9 +33,17 @@ export default function DashboardPage() {
     queryKey: queryKeys.analytics.heatmap(fromDate, toDate),
     queryFn: () => analyticsService.heatmap(fromDate, toDate),
   })
-  const { data: streakData } = useQuery({
-    queryKey: queryKeys.analytics.streak(),
-    queryFn: analyticsService.streak,
+  const { data: summary, isLoading: summaryLoading } = useQuery({
+    queryKey: queryKeys.analytics.summary(),
+    queryFn: analyticsService.summary,
+  })
+  const { data: weeklyTrend = [] } = useQuery({
+    queryKey: queryKeys.analytics.weeklyTrend(TREND_WEEKS),
+    queryFn: () => analyticsService.weeklyTrend(TREND_WEEKS),
+  })
+  const { data: personalRecords = [] } = useQuery({
+    queryKey: queryKeys.analytics.personalRecords(PR_LIMIT),
+    queryFn: () => analyticsService.personalRecords(PR_LIMIT),
   })
   const { data: history = [] } = useQuery({
     queryKey: queryKeys.sessions.history(),
@@ -42,26 +54,31 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <DashboardSummaryGrid data={summary} isLoading={summaryLoading} />
+
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">Activity</h2>
-        <div className="overflow-x-auto rounded-xl border border-border bg-card p-4">
+        <div className="rounded-xl border border-border bg-card p-4">
           {heatmapLoading ? null : <ContributionHeatmap entries={heatmapEntries} from={fromDate} to={toDate} />}
         </div>
       </section>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {streakData ? <StreakCard currentStreak={streakData.currentStreak} longestStreak={streakData.longestStreak} /> : null}
-        {lastSession ? (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Last Session</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">{new Date(lastSession.completedAt ?? lastSession.startedAt).toLocaleDateString()}</p>
-            </CardContent>
-          </Card>
-        ) : null}
+        {lastSession ? <LastSessionCard session={lastSession} /> : null}
+        <RecentPRsCard records={personalRecords} />
       </div>
+
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">Weekly Trend</h2>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Sets per week</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <WeeklyTrendChart entries={weeklyTrend} />
+          </CardContent>
+        </Card>
+      </section>
 
       <div className="flex gap-3">
         <Button asChild>
@@ -74,3 +91,4 @@ export default function DashboardPage() {
     </div>
   )
 }
+

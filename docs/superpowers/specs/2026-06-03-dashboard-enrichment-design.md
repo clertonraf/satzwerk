@@ -1,7 +1,19 @@
 # Dashboard Enrichment Design
 
 **Date:** 2026-06-03  
-**Status:** Approved
+**Status:** Approved — implementation decisions locked (grilling complete)
+
+## Implementation Decisions
+
+| # | Decision |
+|---|----------|
+| 1 | `WorkoutSessionResponse` gets a `setCount: Int` field. The `setLogs` array stays empty in history/list responses. `getById` populates it via `setLogs.size`. |
+| 2 | A new `SessionQueryRepository` (DatabaseClient-based, parallel to `AnalyticsRepository`) handles the enriched history JOIN. |
+| 3 | Single V8 migration: add `is_pr BOOLEAN NOT NULL DEFAULT FALSE` to `set_logs` and immediately backfill. |
+| 4 | `isPr` is computed on both `addSetLog` and `updateSetLog` (updated row only, no cascading). |
+| 5 | `WeeklyTrendChart` is pure SVG — no chart library introduced. |
+| 6 | "Sets this week" = current ISO week (Monday 00:00 UTC → now), matching the weekly trend chart buckets. |
+| 7 | Recent PRs endpoint includes SetLogs from open sessions (not filtered to completed sessions only). |
 
 ## Overview
 

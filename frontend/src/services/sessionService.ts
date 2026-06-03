@@ -3,10 +3,12 @@ import { api } from './api'
 export interface WorkoutSession {
   id: string
   workoutGroupId: string
+  workoutGroupTitle: string
   startedAt: string
   completedAt: string | null
   notes: string | null
   setLogs: SetLog[]
+  setCount: number
 }
 
 export interface SetLog {

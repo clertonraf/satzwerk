@@ -5,6 +5,9 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.UUID
 
+private const val DEFAULT_PR_LIMIT = 5
+private const val DEFAULT_TREND_WEEKS = 8
+
 @Service
 class AnalyticsService(
     private val analyticsRepository: AnalyticsRepository,
@@ -41,4 +44,38 @@ class AnalyticsService(
 
         return StreakResponse(currentStreak = current, longestStreak = longest)
     }
+
+    suspend fun dashboardSummary(userId: UUID): DashboardSummary {
+        val streakResponse = streak(userId)
+        val summaryRow = analyticsRepository.findDashboardSummary(userId)
+        return DashboardSummary(
+            currentStreak = streakResponse.currentStreak,
+            longestStreak = streakResponse.longestStreak,
+            sessionsThisMonth = summaryRow.sessionsThisMonth,
+            setsThisWeek = summaryRow.setsThisWeek,
+            totalSessions = summaryRow.totalSessions,
+            prsThisMonth = summaryRow.prsThisMonth,
+        )
+    }
+
+    suspend fun weeklyTrend(
+        userId: UUID,
+        weeks: Int = DEFAULT_TREND_WEEKS,
+    ): List<WeeklyTrendEntry> =
+        analyticsRepository.findWeeklyTrend(userId, weeks).map { row ->
+            WeeklyTrendEntry(week = row.week, setCount = row.setCount, sessionCount = row.sessionCount)
+        }
+
+    suspend fun personalRecords(
+        userId: UUID,
+        limit: Int = DEFAULT_PR_LIMIT,
+    ): List<PersonalRecord> =
+        analyticsRepository.findRecentPersonalRecords(userId, limit).map { row ->
+            PersonalRecord(
+                exerciseId = row.exerciseId,
+                exerciseName = row.exerciseName,
+                weightKg = row.weightKg,
+                achievedAt = row.achievedAt,
+            )
+        }
 }

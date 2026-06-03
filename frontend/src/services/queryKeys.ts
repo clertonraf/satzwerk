@@ -14,5 +14,8 @@ export const queryKeys = {
   analytics: {
     heatmap: (from?: string, to?: string) => ['heatmap', from, to] as const,
     streak: () => ['streak'] as const,
+    summary: () => ['analytics-summary'] as const,
+    weeklyTrend: (weeks?: number) => ['analytics-weekly-trend', weeks] as const,
+    personalRecords: (limit?: number) => ['analytics-personal-records', limit] as const,
   },
 } as const

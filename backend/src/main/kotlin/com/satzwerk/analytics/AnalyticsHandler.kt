@@ -12,6 +12,8 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeParseException
 
 private const val DEFAULT_HEATMAP_MONTHS = 3L
+private const val DEFAULT_TREND_WEEKS = 8
+private const val DEFAULT_PR_LIMIT = 5
 
 @Component
 class AnalyticsHandler(
@@ -32,6 +34,29 @@ class AnalyticsHandler(
         val userId = currentUserId(request)
         return ServerResponse.ok().bodyValueAndAwait(analyticsService.streak(userId))
     }
+
+    suspend fun dashboardSummary(request: ServerRequest): ServerResponse {
+        val userId = currentUserId(request)
+        return ServerResponse.ok().bodyValueAndAwait(analyticsService.dashboardSummary(userId))
+    }
+
+    suspend fun weeklyTrend(request: ServerRequest): ServerResponse =
+        handleErrors {
+            val userId = currentUserId(request)
+            val weeks = request.queryParam("weeks")
+                .map { it.toIntOrNull() ?: DEFAULT_TREND_WEEKS }
+                .orElse(DEFAULT_TREND_WEEKS)
+            ServerResponse.ok().bodyValueAndAwait(analyticsService.weeklyTrend(userId, weeks))
+        }
+
+    suspend fun personalRecords(request: ServerRequest): ServerResponse =
+        handleErrors {
+            val userId = currentUserId(request)
+            val limit = request.queryParam("limit")
+                .map { it.toIntOrNull() ?: DEFAULT_PR_LIMIT }
+                .orElse(DEFAULT_PR_LIMIT)
+            ServerResponse.ok().bodyValueAndAwait(analyticsService.personalRecords(userId, limit))
+        }
 
     private fun parseDate(
         param: String,
