@@ -130,6 +130,27 @@ class AnalyticsIntegrationTest {
     }
 
     @Test
+    fun `heatmap reaches intensity tier ten at thirty-seven sets`() {
+        val session = startSession(authToken, workoutGroupId)
+        repeat(37) { index ->
+            addSetLog(authToken, session.id, exerciseId, index + 1)
+        }
+        completeSession(authToken, session.id)
+
+        val today = LocalDate.now(ZoneOffset.UTC)
+
+        client
+            .get()
+            .uri("/api/analytics/heatmap?from=$today&to=$today")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$[0].count").isEqualTo(37)
+            .jsonPath("$[0].intensity").isEqualTo(10)
+    }
+
+    @Test
     fun `heatmap is scoped to authenticated user`() {
         val otherToken = registerAndLogin("other-${UUID.randomUUID()}@test.com", "password123", "Other User")
         val otherExerciseId = createExercise(otherToken, "Squat", "LEGS")

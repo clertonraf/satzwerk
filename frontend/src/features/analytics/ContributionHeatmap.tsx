@@ -11,7 +11,19 @@ interface HeatmapEntry {
   intensity: number
 }
 
-const INTENSITY_COLORS = ['#1e293b', '#166534', '#15803d', '#16a34a', '#22c55e']
+const INTENSITY_COLORS = [
+  '#1e293b', // 0: no activity
+  '#14532d', // 1: 1-4 sets
+  '#166534', // 2: 5-8 sets
+  '#15803d', // 3: 9-12 sets
+  '#16a34a', // 4: 13-16 sets
+  '#22c55e', // 5: 17-20 sets
+  '#4ade80', // 6: 21-24 sets
+  '#86efac', // 7: 25-28 sets
+  '#bbf7d0', // 8: 29-32 sets
+  '#dcfce7', // 9: 33-36 sets
+  '#f0fdf4', // 10: 37+ sets
+]
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 const formatDate = (date: Date) => {
@@ -92,11 +104,11 @@ export default function ContributionHeatmap({ entries, from, to }: { entries: He
     <svg
       aria-label="Contribution heatmap"
       role="img"
+      width="100%"
       viewBox={`0 0 ${cols * STEP} ${TOP_PAD + ROWS * STEP}`}
-      style={{ minWidth: `${cols * STEP}px` }}
     >
       {monthLabels.map(({ key, label, x }) => (
-        <text key={key} x={x} y={10} className="fill-muted-foreground text-[10px]">
+        <text key={key} x={x} y={10} className="fill-muted-foreground" fontSize={10}>
           {label}
         </text>
       ))}

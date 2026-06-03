@@ -3,13 +3,8 @@ package com.satzwerk.analytics
 import java.time.LocalDate
 
 private const val NO_INTENSITY = 0
-private const val LOW_INTENSITY = 1
-private const val MEDIUM_INTENSITY = 2
-private const val HIGH_INTENSITY = 3
-private const val MAX_INTENSITY = 4
-private const val TIER_ONE_MAX = 4
-private const val TIER_TWO_MAX = 9
-private const val TIER_THREE_MAX = 14
+private const val MAX_INTENSITY = 10
+private const val TIER_STEP = 4
 
 data class HeatmapEntry(
     val date: LocalDate,
@@ -25,8 +20,5 @@ data class StreakResponse(
 fun intensityTier(count: Int): Int =
     when {
         count == NO_INTENSITY -> NO_INTENSITY
-        count <= TIER_ONE_MAX -> LOW_INTENSITY
-        count <= TIER_TWO_MAX -> MEDIUM_INTENSITY
-        count <= TIER_THREE_MAX -> HIGH_INTENSITY
-        else -> MAX_INTENSITY
+        else -> minOf(MAX_INTENSITY, ((count - 1) / TIER_STEP) + 1)
     }
