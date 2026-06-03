@@ -18,3 +18,4 @@ frontend/dist/
 *.iml
 .vscode/
 .DS_Store
+.superpowers/
