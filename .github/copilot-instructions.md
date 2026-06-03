@@ -73,6 +73,12 @@ npm run lint                # ESLint
 npm run format              # Prettier
 ```
 
+## Session hygiene
+
+Start a **fresh `/new` session** before invoking end-of-session workflows (`/retrospecting`, `/handoff`). These skills inject large context blocks (retrospecting: ~16K chars) — running them at the tail of a long feature session multiplies that cost across all prior turns. Starting clean keeps the skill context as the baseline, not an addition.
+
+Never re-invoke the same skill twice in one session. If a skill invocation didn't give the right result, use `/new` before retrying — re-invoking re-sends the full skill context and it persists in the window for every subsequent turn.
+
 ## Pre-push gate (mandatory)
 
 Before every `git push`, run all of the following locally. **Do not push if any step fails.**
