@@ -1,3 +1,13 @@
+## v0.3.0 (2026-06-03)
+
+## What's Changed
+* feat(analytics): limit dashboard heatmap to last 3 months by @clertonraf in https://github.com/clertonraf/satzwerk/pull/14
+
+
+**Full Changelog**: https://github.com/clertonraf/satzwerk/compare/v0.2.0...v0.3.0
+
+---
+
 ## v0.2.0 (2026-06-03)
 
 ## What's Changed
