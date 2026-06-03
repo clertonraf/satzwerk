@@ -20,7 +20,10 @@ class WorkoutSessionService(
         userId: UUID,
         workoutGroupId: UUID,
     ): WorkoutSessionResponse {
-        validateOwnedWorkoutGroup(userId, workoutGroupId)
+        val group =
+            workoutGroupRepository.findById(workoutGroupId)
+                ?: throw NotFoundException("Workout group not found")
+        workoutPlanService.getOwnedPlan(userId, group.workoutPlanId)
         workoutSessionRepository.findByUserIdAndCompletedAtIsNull(userId)?.let {
             throw ConflictException("User already has an open workout session")
         }
@@ -110,14 +113,12 @@ class WorkoutSessionService(
         workoutSessionRepository.findAllByUserIdAndCompletedAtIsNotNullOrderByCompletedAtDesc(userId)
             .map { it.toResponse(emptyList()) }
 
-    private suspend fun validateOwnedWorkoutGroup(
+    suspend fun getById(
         userId: UUID,
-        workoutGroupId: UUID,
-    ) {
-        val group =
-            workoutGroupRepository.findById(workoutGroupId)
-                ?: throw NotFoundException("Workout group not found")
-        workoutPlanService.getOwnedPlan(userId, group.workoutPlanId)
+        sessionId: UUID,
+    ): WorkoutSessionResponse {
+        val session = getOwnedSession(userId, sessionId)
+        return session.toResponse(loadSetLogs(sessionId))
     }
 
     private suspend fun getOwnedSession(

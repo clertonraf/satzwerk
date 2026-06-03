@@ -41,4 +41,5 @@ export const sessionService = {
     api.post<WorkoutSession>(`/sessions/${sessionId}/complete`, { notes }).then((response) => response.data),
   discard: (sessionId: string) => api.delete(`/sessions/${sessionId}`).then(() => undefined),
   history: () => api.get<WorkoutSession[]>('/sessions/history').then((response) => response.data),
+  getById: (id: string) => api.get<WorkoutSession>(`/sessions/${id}`).then((response) => response.data),
 }

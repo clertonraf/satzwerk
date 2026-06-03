@@ -9,6 +9,7 @@ export const queryKeys = {
   sessions: {
     open: () => ['open-session'] as const,
     history: () => ['session-history'] as const,
+    detail: (id: string) => ['session', id] as const,
   },
   analytics: {
     heatmap: () => ['heatmap'] as const,
