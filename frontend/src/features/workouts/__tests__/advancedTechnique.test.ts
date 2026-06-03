@@ -20,7 +20,7 @@ describe('formatAdvancedTechnique', () => {
     ['GVT', 'GVT'],
     ['FST_7', 'FST-7'],
     ['GIRONDA', 'GIRONDA'],
-  ])('returns label %s for value %s', (value, expected) => {
+  ])('formats value "%s" as label "%s"', (value, expected) => {
     expect(formatAdvancedTechnique(value)).toBe(expected)
   })
 

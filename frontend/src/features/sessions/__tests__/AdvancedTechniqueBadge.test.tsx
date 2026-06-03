@@ -25,7 +25,7 @@ describe('AdvancedTechniqueBadge', () => {
     ['GVT', 'GVT'],
     ['FST_7', 'FST-7'],
     ['GIRONDA', 'GIRONDA'],
-  ])('renders label "%s" for technique %s', async (technique, label) => {
+  ])('renders technique "%s" with label "%s"', async (technique, label) => {
     render(<AdvancedTechniqueBadge technique={technique} />)
     expect(screen.getByRole('button', { name: new RegExp(label, 'i') })).toBeInTheDocument()
   })
