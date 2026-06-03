@@ -5,11 +5,14 @@ import ContributionHeatmap from '../ContributionHeatmap'
 const FROM = '2025-10-01'
 const TO = '2026-01-31'
 
+// Mirror the backend intensityTier formula: min(10, floor((count-1)/4)+1)
+const toIntensity = (count: number) => (count === 0 ? 0 : Math.min(10, Math.floor((count - 1) / 4) + 1))
+
 const makeEntries = (n: number) =>
   Array.from({ length: n }, (_, i) => ({
     date: `2026-01-${String(i + 1).padStart(2, '0')}`,
     count: i,
-    intensity: Math.min(10, Math.floor(i / 4)),
+    intensity: toIntensity(i),
   }))
 
 describe('ContributionHeatmap', () => {
@@ -66,12 +69,12 @@ describe('ContributionHeatmap', () => {
     expect(firstText?.getAttribute('font-size')).toBeTruthy()
   })
 
-  it('applies a colour for intensity level 10 (37+ sets)', () => {
+  it('applies the tier-10 colour (#f0fdf4) for intensity level 10 (37+ sets)', () => {
     const highEntry = [{ date: '2026-01-01', count: 40, intensity: 10 }]
     render(<ContributionHeatmap entries={highEntry} from='2026-01-01' to='2026-01-07' />)
     const rects = Array.from(document.querySelectorAll('rect'))
-    const activeRect = rects.find((r) => r.getAttribute('fill') !== '#1e293b')
-    // intensity 10 must map to a distinct non-zero-activity colour
+    const activeRect = rects.find((r) => r.getAttribute('fill') === '#f0fdf4')
+    // intensity 10 must map specifically to the tier-10 colour, not just any non-zero colour
     expect(activeRect).toBeTruthy()
   })
 })
