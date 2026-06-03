@@ -5,7 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { formatAdvancedTechnique } from '@/features/workouts/advancedTechnique'
+import AdvancedTechniqueBadge from '@/features/sessions/AdvancedTechniqueBadge'
 import type { WorkoutGroupDetail } from '@/services/planService'
 
 interface WorkoutGroupPreviewModalProps {
@@ -44,10 +44,8 @@ export default function WorkoutGroupPreviewModal({
                     ? `${exercise.sets} sets × to failure`
                     : `${exercise.sets} sets × ${exercise.reps} reps`}
                 </p>
-                {formatAdvancedTechnique(exercise.advancedTechnique) ? (
-                  <span className="inline-flex w-fit rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
-                    {formatAdvancedTechnique(exercise.advancedTechnique)}
-                  </span>
+                {exercise.advancedTechnique ? (
+                  <AdvancedTechniqueBadge technique={exercise.advancedTechnique} />
                 ) : null}
               </li>
             ))}

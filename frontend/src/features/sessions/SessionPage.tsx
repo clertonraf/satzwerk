@@ -9,7 +9,7 @@ import ResumeDiscardModal from '@/features/sessions/ResumeDiscardModal'
 import SetInput from '@/features/sessions/SetInput'
 import WorkoutGroupPreviewModal from '@/features/sessions/WorkoutGroupPreviewModal'
 import { buildWorkoutGroupCatalog, formatDisplayWeight, formatSessionDate, toPounds } from '@/features/sessions/sessionHelpers'
-import { formatAdvancedTechnique } from '@/features/workouts/advancedTechnique'
+import AdvancedTechniqueBadge from '@/features/sessions/AdvancedTechniqueBadge'
 import { useWorkoutSession } from '@/features/sessions/useWorkoutSession'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { exerciseService } from '@/services/exerciseService'
@@ -222,10 +222,8 @@ export default function SessionPage() {
                               <CardDescription>
                                 Target {exercise.sets} sets × {exercise.reps} reps
                               </CardDescription>
-                              {formatAdvancedTechnique(exercise.advancedTechnique) ? (
-                                <span className="inline-flex w-fit rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
-                                  {formatAdvancedTechnique(exercise.advancedTechnique)}
-                                </span>
+                              {exercise.advancedTechnique ? (
+                                <AdvancedTechniqueBadge technique={exercise.advancedTechnique} />
                               ) : null}
                             </div>
                             <div className="flex shrink-0 items-center gap-1 rounded-lg border border-border p-1">
