@@ -56,7 +56,7 @@ export default function ContributionHeatmap({ entries, from, to }: { entries: He
   const totalDays = Math.round((alignedEnd.getTime() - alignedStart.getTime()) / MS_PER_DAY) + 1
   const cols = totalDays / ROWS
 
-  const cells: Array<{ dateStr: string; col: number; row: number; entry: HeatmapEntry | null }> = []
+  const cells: Array<{ dateStr: string; col: number; row: number; entry: HeatmapEntry | null; outOfRange: boolean }> = []
   const monthLabels: Array<{ key: string; label: string; x: number }> = []
 
   for (let index = 0; index < totalDays; index += 1) {
@@ -78,11 +78,13 @@ export default function ContributionHeatmap({ entries, from, to }: { entries: He
       }
     }
 
+    const outOfRange = date > cutoff
     cells.push({
       dateStr,
       col,
       row,
-      entry: date > cutoff ? null : (byDate.get(dateStr) ?? null),
+      entry: outOfRange ? null : (byDate.get(dateStr) ?? null),
+      outOfRange,
     })
   }
 
@@ -98,7 +100,7 @@ export default function ContributionHeatmap({ entries, from, to }: { entries: He
           {label}
         </text>
       ))}
-      {cells.map(({ dateStr, col, row, entry }) => (
+      {cells.map(({ dateStr, col, row, entry, outOfRange }) => (
         <rect
           key={dateStr}
           x={col * STEP}
@@ -108,7 +110,7 @@ export default function ContributionHeatmap({ entries, from, to }: { entries: He
           rx={2}
           fill={INTENSITY_COLORS[entry?.intensity ?? 0] ?? INTENSITY_COLORS[0]}
         >
-          <title>{`${dateStr}: ${entry?.count ?? 0} sets`}</title>
+          <title>{outOfRange ? dateStr : `${dateStr}: ${entry?.count ?? 0} sets`}</title>
         </rect>
       ))}
     </svg>

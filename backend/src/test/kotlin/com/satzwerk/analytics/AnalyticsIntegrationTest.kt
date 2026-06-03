@@ -231,6 +231,26 @@ class AnalyticsIntegrationTest {
             .expectStatus().isUnauthorized
     }
 
+    @Test
+    fun `heatmap returns 400 for invalid from date`() {
+        client
+            .get()
+            .uri("/api/analytics/heatmap?from=2026-99-99")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isBadRequest
+    }
+
+    @Test
+    fun `heatmap returns 400 for invalid to date`() {
+        client
+            .get()
+            .uri("/api/analytics/heatmap?to=not-a-date")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isBadRequest
+    }
+
     private fun startSession(
         token: String,
         groupId: UUID,
