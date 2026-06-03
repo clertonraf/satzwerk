@@ -12,7 +12,7 @@ export const queryKeys = {
     detail: (id: string) => ['session', id] as const,
   },
   analytics: {
-    heatmap: () => ['heatmap'] as const,
+    heatmap: (from?: string, to?: string) => ['heatmap', from, to] as const,
     streak: () => ['streak'] as const,
   },
 } as const

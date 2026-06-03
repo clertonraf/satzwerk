@@ -6,6 +6,7 @@ import com.satzwerk.sessions.WorkoutSessionResponse
 import com.satzwerk.workouts.ExerciseResponse
 import com.satzwerk.workouts.WorkoutGroupResponse
 import com.satzwerk.workouts.WorkoutPlanResponse
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -209,14 +210,21 @@ class AnalyticsIntegrationTest {
 
     @Test
     fun `heatmap defaults date range when query params are omitted`() {
-        client
-            .get()
-            .uri("/api/analytics/heatmap")
-            .header("Authorization", "Bearer $authToken")
-            .exchange()
-            .expectStatus().isOk
-            .expectBody()
-            .jsonPath("$.length()").isEqualTo(365)
+        val entries =
+            client
+                .get()
+                .uri("/api/analytics/heatmap")
+                .header("Authorization", "Bearer $authToken")
+                .exchange()
+                .expectStatus().isOk
+                .expectBodyList(HeatmapEntry::class.java)
+                .returnResult()
+                .responseBody!!
+
+        // Derive `to` from the response so the test is not sensitive to UTC midnight
+        val toDate = entries.last().date
+        val expectedDays = toDate.minusMonths(3).datesUntil(toDate.plusDays(1)).count().toInt()
+        assertEquals(expectedDays, entries.size)
     }
 
     @Test
@@ -226,6 +234,26 @@ class AnalyticsIntegrationTest {
             .uri("/api/analytics/heatmap")
             .exchange()
             .expectStatus().isUnauthorized
+    }
+
+    @Test
+    fun `heatmap returns 400 for invalid from date`() {
+        client
+            .get()
+            .uri("/api/analytics/heatmap?from=2026-99-99")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isBadRequest
+    }
+
+    @Test
+    fun `heatmap returns 400 for invalid to date`() {
+        client
+            .get()
+            .uri("/api/analytics/heatmap?to=not-a-date")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isBadRequest
     }
 
     private fun startSession(
