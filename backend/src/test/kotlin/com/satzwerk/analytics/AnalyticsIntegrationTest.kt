@@ -6,6 +6,7 @@ import com.satzwerk.sessions.WorkoutSessionResponse
 import com.satzwerk.workouts.ExerciseResponse
 import com.satzwerk.workouts.WorkoutGroupResponse
 import com.satzwerk.workouts.WorkoutPlanResponse
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -19,7 +20,6 @@ import org.springframework.test.web.reactive.server.WebTestClient
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
-import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.UUID
@@ -209,17 +209,21 @@ class AnalyticsIntegrationTest {
 
     @Test
     fun `heatmap defaults date range when query params are omitted`() {
-        val today = LocalDate.now(ZoneOffset.UTC)
-        val expectedDays = today.minusMonths(3).datesUntil(today.plusDays(1)).count().toInt()
+        val entries =
+            client
+                .get()
+                .uri("/api/analytics/heatmap")
+                .header("Authorization", "Bearer $authToken")
+                .exchange()
+                .expectStatus().isOk
+                .expectBodyList(HeatmapEntry::class.java)
+                .returnResult()
+                .responseBody!!
 
-        client
-            .get()
-            .uri("/api/analytics/heatmap")
-            .header("Authorization", "Bearer $authToken")
-            .exchange()
-            .expectStatus().isOk
-            .expectBody()
-            .jsonPath("$.length()").isEqualTo(expectedDays)
+        // Derive `to` from the response so the test is not sensitive to UTC midnight
+        val toDate = entries.last().date
+        val expectedDays = toDate.minusMonths(3).datesUntil(toDate.plusDays(1)).count().toInt()
+        assertEquals(expectedDays, entries.size)
     }
 
     @Test

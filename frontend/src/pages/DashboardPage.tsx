@@ -8,13 +8,6 @@ import { analyticsService } from '@/services/analyticsService'
 import { queryKeys } from '@/services/queryKeys'
 import { sessionService } from '@/services/sessionService'
 
-const formatDate = (date: Date) => {
-  const year = date.getUTCFullYear()
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(date.getUTCDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
 const subtractUtcMonths = (date: Date, months: number): Date => {
   const y = date.getUTCFullYear()
   const m = date.getUTCMonth()
@@ -29,10 +22,10 @@ const subtractUtcMonths = (date: Date, months: number): Date => {
 export default function DashboardPage() {
   const now = new Date()
   const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-  const fromDate = formatDate(subtractUtcMonths(todayUtc, 3))
-  const toDate = formatDate(todayUtc)
+  const fromDate = subtractUtcMonths(todayUtc, 3).toISOString().slice(0, 10)
+  const toDate = todayUtc.toISOString().slice(0, 10)
 
-  const { data: heatmapEntries = [] } = useQuery({
+  const { data: heatmapEntries = [], isLoading: heatmapLoading } = useQuery({
     queryKey: queryKeys.analytics.heatmap(fromDate, toDate),
     queryFn: () => analyticsService.heatmap(fromDate, toDate),
   })
@@ -52,7 +45,7 @@ export default function DashboardPage() {
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">Activity</h2>
         <div className="overflow-x-auto rounded-xl border border-border bg-card p-4">
-          <ContributionHeatmap entries={heatmapEntries} from={fromDate} to={toDate} />
+          {heatmapLoading ? null : <ContributionHeatmap entries={heatmapEntries} from={fromDate} to={toDate} />}
         </div>
       </section>
 
