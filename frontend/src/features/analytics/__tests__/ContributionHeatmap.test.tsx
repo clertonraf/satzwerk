@@ -5,11 +5,14 @@ import ContributionHeatmap from '../ContributionHeatmap'
 const FROM = '2025-10-01'
 const TO = '2026-01-31'
 
+// Mirror the backend intensityTier formula: min(10, floor((count-1)/4)+1)
+const toIntensity = (count: number) => (count === 0 ? 0 : Math.min(10, Math.floor((count - 1) / 4) + 1))
+
 const makeEntries = (n: number) =>
   Array.from({ length: n }, (_, i) => ({
     date: `2026-01-${String(i + 1).padStart(2, '0')}`,
     count: i,
-    intensity: Math.min(4, Math.floor(i / 4)),
+    intensity: toIntensity(i),
   }))
 
 describe('ContributionHeatmap', () => {
@@ -33,13 +36,54 @@ describe('ContributionHeatmap', () => {
     expect(screen.getByText(/no activity/i)).toBeInTheDocument()
   })
 
-  it('SVG has inline minWidth to preserve grid size for horizontal scrolling', () => {
+  it('SVG fills its container width to be fully responsive', () => {
     render(<ContributionHeatmap entries={makeEntries(7)} from={FROM} to={TO} />)
     const svg = document.querySelector('svg') as SVGSVGElement | null
-    // minWidth must be set as an inline style (computed from cols * STEP) so it
-    // adapts to any date range and prevents cells from shrinking below readable size.
-    // Horizontal overflow is handled by the overflow-x-auto wrapper in DashboardPage.
-    expect(svg?.style.minWidth).toMatch(/^\d+px$/)
+    // width="100%" makes the SVG fill the container so it scales proportionally
+    // on all screen sizes without adding a vertical scrollbar.
+    expect(svg?.getAttribute('width')).toBe('100%')
+  })
+
+  it('SVG has no inline minWidth that would force horizontal overflow', () => {
+    render(<ContributionHeatmap entries={makeEntries(7)} from={FROM} to={TO} />)
+    const svg = document.querySelector('svg') as SVGSVGElement | null
+    expect(svg?.style.minWidth).toBeFalsy()
+  })
+
+  it('SVG has a CSS aspectRatio style so height tracks the viewBox ratio in all layout contexts', () => {
+    render(<ContributionHeatmap entries={makeEntries(7)} from={FROM} to={TO} />)
+    const svg = document.querySelector('svg') as SVGSVGElement | null
+    // aspectRatio prevents the browser-default 150px height when SVG is
+    // inside flex/grid containers that don't honour intrinsic SVG sizing.
+    expect(svg?.style.aspectRatio).toBeTruthy()
+  })
+
+  it('renders all month labels visible in the date range', () => {
+    render(<ContributionHeatmap entries={makeEntries(7)} from={FROM} to={TO} />)
+    // Sep, Oct, Nov, Dec, Jan are all visible in the Oct–Jan range
+    const texts = Array.from(document.querySelectorAll('text'))
+    const labels = texts.map((t) => t.textContent)
+    expect(labels).toContain('Oct')
+    expect(labels).toContain('Nov')
+    expect(labels).toContain('Dec')
+    expect(labels).toContain('Jan')
+  })
+
+  it('month label text uses SVG fontSize attribute so it scales with the grid', () => {
+    render(<ContributionHeatmap entries={makeEntries(7)} from={FROM} to={TO} />)
+    const firstText = document.querySelector('text')
+    // fontSize must be set as an SVG attribute (not CSS class) so it scales
+    // proportionally when the SVG is displayed at different sizes.
+    expect(firstText?.getAttribute('font-size')).toBeTruthy()
+  })
+
+  it('applies the tier-10 colour (#f0fdf4) for intensity level 10 (37+ sets)', () => {
+    const highEntry = [{ date: '2026-01-01', count: 40, intensity: 10 }]
+    render(<ContributionHeatmap entries={highEntry} from='2026-01-01' to='2026-01-07' />)
+    const rects = Array.from(document.querySelectorAll('rect'))
+    const activeRect = rects.find((r) => r.getAttribute('fill') === '#f0fdf4')
+    // intensity 10 must map specifically to the tier-10 colour, not just any non-zero colour
+    expect(activeRect).toBeTruthy()
   })
 })
 
