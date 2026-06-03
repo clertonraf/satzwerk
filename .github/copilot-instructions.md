@@ -73,6 +73,41 @@ npm run lint                # ESLint
 npm run format              # Prettier
 ```
 
+## Pre-push gate (mandatory)
+
+Before every `git push`, run all of the following locally. **Do not push if any step fails.**
+
+```bash
+# Backend
+cd backend && ./gradlew ktlintCheck && ./gradlew detekt
+
+# Frontend
+cd frontend && npm run lint
+```
+
+This prevents CI failures that require extra fix-and-push cycles. The backend checks are fast enough to run on every push.
+
+## Before creating a PR
+
+Run a rubber-duck review against your implementation before opening the PR. For changes touching SVG, CSS layout, or any frontend component, this is **mandatory** — browser rendering edge cases are the most common source of review comments in this repo.
+
+Always surface the PR URL immediately after `gh pr create` so the user doesn't have to ask.
+
+## Worktree cleanup
+
+After a PR is merged, proactively remove the associated worktree and local branch without waiting to be asked:
+
+```bash
+git worktree remove /path/to/worktree --force
+git branch -D feat/branch-name
+```
+
+If multiple stale worktrees exist for this repo, clean them all up in the same step.
+
+## Session artifacts
+
+Files under `.copilot/` (retrospective reports, session state) are local-only artifacts. **Never commit them or include them in a PR.** They are gitignored.
+
 ## Issue tracker
 
 Issues live as markdown files under `docs/issues/` (not GitHub Issues). Filename convention: `docs/issues/<NN>-<slug>.md`, numbered sequentially. Triage labels are defined in `docs/agents/triage-labels.md`.
