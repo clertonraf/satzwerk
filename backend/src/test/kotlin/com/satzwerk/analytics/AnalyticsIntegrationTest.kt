@@ -131,17 +131,12 @@ class AnalyticsIntegrationTest {
 
     @Test
     fun `heatmap reaches intensity tier ten at thirty-seven sets`() {
-        val session = startSession(authToken, workoutGroupId)
-        repeat(37) { index ->
-            addSetLog(authToken, session.id, exerciseId, index + 1)
-        }
-        completeSession(authToken, session.id)
-
-        val today = LocalDate.now(ZoneOffset.UTC)
+        val fixedDate = LocalDate.of(2025, 6, 1)
+        logSetsOnDate(authToken, workoutGroupId, exerciseId, fixedDate, 37)
 
         client
             .get()
-            .uri("/api/analytics/heatmap?from=$today&to=$today")
+            .uri("/api/analytics/heatmap?from=$fixedDate&to=$fixedDate")
             .header("Authorization", "Bearer $authToken")
             .exchange()
             .expectStatus().isOk

@@ -50,6 +50,14 @@ describe('ContributionHeatmap', () => {
     expect(svg?.style.minWidth).toBeFalsy()
   })
 
+  it('SVG has a CSS aspectRatio style so height tracks the viewBox ratio in all layout contexts', () => {
+    render(<ContributionHeatmap entries={makeEntries(7)} from={FROM} to={TO} />)
+    const svg = document.querySelector('svg') as SVGSVGElement | null
+    // aspectRatio prevents the browser-default 150px height when SVG is
+    // inside flex/grid containers that don't honour intrinsic SVG sizing.
+    expect(svg?.style.aspectRatio).toBeTruthy()
+  })
+
   it('renders all month labels visible in the date range', () => {
     render(<ContributionHeatmap entries={makeEntries(7)} from={FROM} to={TO} />)
     // Sep, Oct, Nov, Dec, Jan are all visible in the Oct–Jan range

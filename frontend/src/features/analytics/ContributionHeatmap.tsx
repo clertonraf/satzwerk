@@ -106,6 +106,7 @@ export default function ContributionHeatmap({ entries, from, to }: { entries: He
       role="img"
       width="100%"
       viewBox={`0 0 ${cols * STEP} ${TOP_PAD + ROWS * STEP}`}
+      style={{ display: 'block', aspectRatio: `${cols * STEP} / ${TOP_PAD + ROWS * STEP}` }}
     >
       {monthLabels.map(({ key, label, x }) => (
         <text key={key} x={x} y={10} className="fill-muted-foreground" fontSize={10}>
