@@ -60,7 +60,7 @@ Always use the constants from `services/queryKeys.ts` when writing TanStack Quer
 cd frontend
 npm run dev                 # start Vite dev server (http://localhost:5173)
 npm test                    # run all tests (Vitest, jsdom)
-npx vitest run src/features/workouts/__tests__/PlansPage.test.tsx  # single test file
+npm test -- src/features/workouts/__tests__/PlansPage.test.tsx  # single test file (use npm test --, not npx vitest run)
 npm run lint                # ESLint
 npm run format              # Prettier
 ```
