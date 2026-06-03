@@ -45,6 +45,14 @@ cd backend
 
 Integration tests use **Testcontainers** (real PostgreSQL, not H2). Tests run serially (`maxParallelForks = 1`).
 
+**Pre-push checklist (backend — run before every push):**
+```bash
+./gradlew ktlintCheck detekt compileTestKotlin --no-daemon
+```
+- `ktlintCheck` and `detekt` catch different things — always run both together. detekt enforces `MaxLineLength` (120 chars); ktlint does not.
+- After any import block modification (including after running `ktlintFormat`), run `compileTestKotlin` to confirm no imports were accidentally dropped. `ktlintFormat` silently reorders imports and can cause edit collisions.
+- Use the rubber-duck agent (`task(rubber-duck)`) before the first push of any non-trivial change to front-load edge-case discovery and reduce Copilot review round-trips.
+
 ## Frontend (React + TypeScript + Vite)
 
 **Feature-based structure** under `src/`:
