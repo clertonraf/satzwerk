@@ -245,7 +245,6 @@ class WorkoutSessionIntegrationTest {
     }
 
     @Test
-    @Test
     fun `get session by id returns session with set logs`() {
         val session = startSession()
         addSetLog(session.id, BigDecimal("100.0"))
