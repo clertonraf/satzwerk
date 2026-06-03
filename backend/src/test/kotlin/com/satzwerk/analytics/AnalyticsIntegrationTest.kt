@@ -20,6 +20,7 @@ import org.springframework.test.web.reactive.server.WebTestClient
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.UUID
