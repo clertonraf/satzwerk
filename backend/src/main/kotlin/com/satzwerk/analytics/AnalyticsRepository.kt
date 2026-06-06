@@ -81,7 +81,11 @@ class AnalyticsRepository(
                      WHERE ws.user_id = :userId
                        AND sl.is_pr = TRUE
                        AND DATE_TRUNC('month', sl.logged_at AT TIME ZONE 'UTC')
-                           = DATE_TRUNC('month', NOW() AT TIME ZONE 'UTC')) AS prs_this_month
+                           = DATE_TRUNC('month', NOW() AT TIME ZONE 'UTC')) AS prs_this_month,
+                    (SELECT EXTRACT(DAY FROM NOW() - activated_at)::INT
+                     FROM workout_plans
+                     WHERE user_id = :userId AND is_active = TRUE
+                     LIMIT 1) AS active_plan_days
                 """.trimIndent(),
             ).bind("userId", userId)
             .map { row, _ ->
@@ -90,6 +94,7 @@ class AnalyticsRepository(
                     sessionsThisMonth = row.get("sessions_this_month", java.lang.Long::class.java)?.toInt() ?: 0,
                     setsThisWeek = row.get("sets_this_week", java.lang.Long::class.java)?.toInt() ?: 0,
                     prsThisMonth = row.get("prs_this_month", java.lang.Long::class.java)?.toInt() ?: 0,
+                    activePlanDays = row.get("active_plan_days", java.lang.Integer::class.java)?.toInt(),
                 )
             }.one()
             .awaitSingle()
@@ -183,6 +188,7 @@ data class DashboardSummaryRow(
     val sessionsThisMonth: Int,
     val setsThisWeek: Int,
     val prsThisMonth: Int,
+    val activePlanDays: Int?,
 )
 
 data class WeeklyTrendRow(

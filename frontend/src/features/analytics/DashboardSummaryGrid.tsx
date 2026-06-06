@@ -44,6 +44,9 @@ export default function DashboardSummaryGrid({ data, isLoading }: DashboardSumma
       <StatTile label="Longest streak" value={`${data.longestStreak}d`} />
       <StatTile label="Total sessions" value={data.totalSessions} />
       <StatTile label="Sets this week" value={data.setsThisWeek} />
+      {data.activePlanDays != null && (
+        <StatTile label="Plan age" value={`${data.activePlanDays}d`} />
+      )}
     </div>
   )
 }

@@ -18,6 +18,7 @@ export interface DashboardSummary {
   prsThisMonth: number
   totalSessions: number
   setsThisWeek: number
+  activePlanDays?: number
 }
 
 export interface WeeklyTrendEntry {

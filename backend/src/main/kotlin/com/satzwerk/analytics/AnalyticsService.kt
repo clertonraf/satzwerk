@@ -55,6 +55,7 @@ class AnalyticsService(
             setsThisWeek = summaryRow.setsThisWeek,
             totalSessions = summaryRow.totalSessions,
             prsThisMonth = summaryRow.prsThisMonth,
+            activePlanDays = summaryRow.activePlanDays,
         )
     }
 
