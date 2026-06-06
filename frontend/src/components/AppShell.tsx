@@ -42,10 +42,13 @@ export default function AppShell({ children }: AppShellProps) {
 
   useEffect(() => {
     document.title = pageTitle === 'Satzwerk' ? 'Satzwerk' : `${pageTitle} | Satzwerk`
+  }, [pageTitle])
+
+  useEffect(() => {
     return () => {
       document.title = 'Satzwerk'
     }
-  }, [pageTitle])
+  }, [])
 
   return (
     <div className="min-h-screen bg-background text-foreground">
