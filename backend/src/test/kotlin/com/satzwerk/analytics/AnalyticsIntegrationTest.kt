@@ -308,6 +308,7 @@ class AnalyticsIntegrationTest {
         val session = startSession(authToken, workoutGroupId)
         repeat(3) { index -> addSetLog(authToken, session.id, exerciseId, index + 1) }
         completeSession(authToken, session.id)
+        alignSessionToNow(session.id)
 
         client
             .get()
@@ -368,6 +369,7 @@ class AnalyticsIntegrationTest {
         val session = startSession(authToken, workoutGroupId)
         repeat(5) { index -> addSetLog(authToken, session.id, exerciseId, index + 1) }
         completeSession(authToken, session.id)
+        alignSessionToNow(session.id)
 
         val entries =
             client
@@ -524,6 +526,17 @@ class AnalyticsIntegrationTest {
             .block()
 
         completeSession(token, session.id)
+    }
+
+    private fun alignSessionToNow(sessionId: UUID) {
+        databaseClient
+            .sql("UPDATE set_logs SET logged_at = NOW() WHERE workout_session_id = :sessionId")
+            .bind("sessionId", sessionId)
+            .fetch().rowsUpdated().block()
+        databaseClient
+            .sql("UPDATE workout_sessions SET completed_at = NOW(), started_at = NOW() WHERE id = :sessionId")
+            .bind("sessionId", sessionId)
+            .fetch().rowsUpdated().block()
     }
 
     private fun createExercise(

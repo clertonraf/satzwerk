@@ -172,9 +172,9 @@ personalRecords: (limit?: number) => api.get<PersonalRecord[]>('/analytics/perso
 
 Add to `analytics` namespace:
 ```ts
-summary: () => [...analytics(), 'summary'] as const
-weeklyTrend: (weeks: number) => [...analytics(), 'weekly-trend', weeks] as const
-personalRecords: (limit: number) => [...analytics(), 'personal-records', limit] as const
+summary: () => ['summary'] as const,
+weeklyTrend: (weeks?: number) => ['weekly-trend', weeks] as const,
+personalRecords: (limit?: number) => ['personal-records', limit] as const,
 ```
 
 ### Updated: `sessionService`
