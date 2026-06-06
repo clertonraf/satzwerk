@@ -10,6 +10,7 @@ const mockData: DashboardSummary = {
   prsThisMonth: 3,
   totalSessions: 42,
   setsThisWeek: 24,
+  activePlanDays: null,
 }
 
 describe('DashboardSummaryGrid', () => {
