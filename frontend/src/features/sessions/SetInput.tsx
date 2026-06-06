@@ -11,10 +11,10 @@ const schema = z.object({
     .trim()
     .min(1, 'Weight is required')
     .refine((value) => {
-      const n = Number(value)
-      return !isNaN(n) && n >= 0
+      const n = Number(value.replace(',', '.'))
+      return Number.isFinite(n) && n >= 0
     }, 'Must be a non-negative number')
-    .transform((value) => Number(value)),
+    .transform((value) => Number(value.replace(',', '.'))),
   reps: z
     .string()
     .trim()
@@ -81,7 +81,7 @@ export default function SetInput({
           <label className="text-sm font-medium" htmlFor={`weight-${setNumber}`}>
             Weight ({unit})
           </label>
-          <Input id={`weight-${setNumber}`} type="number" inputMode="decimal" step="0.001" {...register('weight')} />
+          <Input id={`weight-${setNumber}`} type="text" inputMode="decimal" {...register('weight')} />
           {errors.weight ? (
             <p className="text-sm text-destructive">{errors.weight.message}</p>
           ) : hint ? (

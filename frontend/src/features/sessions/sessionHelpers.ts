@@ -76,8 +76,8 @@ export function toPounds(weightKg: number) {
 }
 
 export function convertWeightHint(rawInput: string, unit: 'kg' | 'lb'): string | null {
-  const value = parseFloat(rawInput)
-  if (isNaN(value) || value <= 0) return null
+  const value = Number(rawInput.replace(',', '.'))
+  if (!Number.isFinite(value) || value <= 0) return null
   if (unit === 'kg') {
     return `≈ ${Number((value * 2.20462).toFixed(3))} lb`
   }
