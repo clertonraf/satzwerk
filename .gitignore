@@ -18,3 +18,7 @@ frontend/dist/
 *.iml
 .vscode/
 .DS_Store
+.superpowers/
+
+# Session artifacts (retrospectives, state — local only)
+.copilot/

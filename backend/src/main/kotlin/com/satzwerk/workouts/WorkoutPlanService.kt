@@ -80,9 +80,9 @@ class WorkoutPlanService(
         workoutPlanRepository.findAllByUserIdAndIsActive(userId, true)
             .filter { it.id != plan.id }
             .forEach { activePlan ->
-                workoutPlanRepository.save(activePlan.copy(isActive = false, updatedAt = now))
+                workoutPlanRepository.save(activePlan.copy(isActive = false, activatedAt = null, updatedAt = now))
             }
-        workoutPlanRepository.save(plan.copy(isActive = true, updatedAt = now))
+        workoutPlanRepository.save(plan.copy(isActive = true, activatedAt = now, updatedAt = now))
     }
 
     suspend fun getOwnedPlan(

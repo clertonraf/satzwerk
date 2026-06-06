@@ -36,6 +36,8 @@ data class WorkoutPlan(
     val source: String = WorkoutSource.MANUAL.name,
     @Column("is_active")
     val isActive: Boolean = false,
+    @Column("activated_at")
+    val activatedAt: Instant? = null,
     @Column("created_at")
     val createdAt: Instant = Instant.now(),
     @Column("updated_at")

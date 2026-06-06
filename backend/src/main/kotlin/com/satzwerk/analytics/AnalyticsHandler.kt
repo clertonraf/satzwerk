@@ -12,6 +12,12 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeParseException
 
 private const val DEFAULT_HEATMAP_MONTHS = 3L
+private const val DEFAULT_TREND_WEEKS = 8
+private const val MIN_TREND_WEEKS = 1
+private const val MAX_TREND_WEEKS = 52
+private const val DEFAULT_PR_LIMIT = 5
+private const val MIN_PR_LIMIT = 1
+private const val MAX_PR_LIMIT = 20
 
 @Component
 class AnalyticsHandler(
@@ -32,6 +38,37 @@ class AnalyticsHandler(
         val userId = currentUserId(request)
         return ServerResponse.ok().bodyValueAndAwait(analyticsService.streak(userId))
     }
+
+    suspend fun dashboardSummary(request: ServerRequest): ServerResponse {
+        val userId = currentUserId(request)
+        return ServerResponse.ok().bodyValueAndAwait(analyticsService.dashboardSummary(userId))
+    }
+
+    suspend fun weeklyTrend(request: ServerRequest): ServerResponse =
+        handleErrors {
+            val userId = currentUserId(request)
+            val weeks =
+                request.queryParam("weeks")
+                    .map { it.toIntOrNull() ?: throw BadRequestException("'weeks' must be a valid integer") }
+                    .orElse(DEFAULT_TREND_WEEKS)
+            if (weeks !in MIN_TREND_WEEKS..MAX_TREND_WEEKS) {
+                throw BadRequestException("'weeks' must be between $MIN_TREND_WEEKS and $MAX_TREND_WEEKS")
+            }
+            ServerResponse.ok().bodyValueAndAwait(analyticsService.weeklyTrend(userId, weeks))
+        }
+
+    suspend fun personalRecords(request: ServerRequest): ServerResponse =
+        handleErrors {
+            val userId = currentUserId(request)
+            val limit =
+                request.queryParam("limit")
+                    .map { it.toIntOrNull() ?: throw BadRequestException("'limit' must be a valid integer") }
+                    .orElse(DEFAULT_PR_LIMIT)
+            if (limit !in MIN_PR_LIMIT..MAX_PR_LIMIT) {
+                throw BadRequestException("'limit' must be between $MIN_PR_LIMIT and $MAX_PR_LIMIT")
+            }
+            ServerResponse.ok().bodyValueAndAwait(analyticsService.personalRecords(userId, limit))
+        }
 
     private fun parseDate(
         param: String,

@@ -6,6 +6,7 @@ How the engineering skills should consume this repo's domain documentation when 
 
 - **`CONTEXT.md`** at the repo root — defines the domain language for Satzwerk (WorkoutPlan, WorkoutGroup, WorkoutExercise, Exercise, WorkoutSession, SetLog, Heatmap, PlanImport, etc.)
 - **`docs/adr/`** — read ADRs that touch the area you're about to work in.
+- **`docs/agents/implementation-checklist.md`** — pre-submit checks for SVG sizing, test helpers, colour assertions, and deterministic dates.
 
 If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The producer skill (`/grill-with-docs`) creates them lazily when terms or decisions actually get resolved.
 

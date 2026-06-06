@@ -10,10 +10,12 @@ import java.util.UUID
 data class WorkoutSessionResponse(
     val id: UUID,
     val workoutGroupId: UUID,
+    val workoutGroupTitle: String,
     val startedAt: Instant,
     val completedAt: Instant?,
     val notes: String?,
     val setLogs: List<SetLogResponse>,
+    val setCount: Int,
 )
 
 data class SetLogResponse(
