@@ -1,9 +1,96 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import AppShell from '../AppShell'
 
 describe('AppShell', () => {
+  afterEach(() => {
+    document.title = ''
+    document.documentElement.classList.remove('dark')
+  })
+
+  it('shows Dashboard as page title in mobile header when on root route', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <AppShell>
+          <div>content</div>
+        </AppShell>
+      </MemoryRouter>
+    )
+    const header = screen.getByRole('banner')
+    expect(header).toHaveTextContent('Dashboard')
+  })
+
+  it('shows History as page title in mobile header when on /history', () => {
+    render(
+      <MemoryRouter initialEntries={['/history']}>
+        <AppShell>
+          <div>content</div>
+        </AppShell>
+      </MemoryRouter>
+    )
+    const header = screen.getByRole('banner')
+    expect(header).toHaveTextContent('History')
+  })
+
+  it('shows Plan Builder as page title in mobile header when on /plans/:planId', () => {
+    render(
+      <MemoryRouter initialEntries={['/plans/abc-123']}>
+        <AppShell>
+          <div>content</div>
+        </AppShell>
+      </MemoryRouter>
+    )
+    const header = screen.getByRole('banner')
+    expect(header).toHaveTextContent('Plan Builder')
+  })
+
+  it('sets document.title to "Dashboard | Satzwerk" on root route', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <AppShell>
+          <div>content</div>
+        </AppShell>
+      </MemoryRouter>
+    )
+    expect(document.title).toBe('Dashboard | Satzwerk')
+  })
+
+  it('sets document.title to "History | Satzwerk" on /history', () => {
+    render(
+      <MemoryRouter initialEntries={['/history']}>
+        <AppShell>
+          <div>content</div>
+        </AppShell>
+      </MemoryRouter>
+    )
+    expect(document.title).toBe('History | Satzwerk')
+  })
+
+  it('sets document.title to "Plan Builder | Satzwerk" on /plans/:planId', () => {
+    render(
+      <MemoryRouter initialEntries={['/plans/abc-123']}>
+        <AppShell>
+          <div>content</div>
+        </AppShell>
+      </MemoryRouter>
+    )
+    expect(document.title).toBe('Plan Builder | Satzwerk')
+  })
+
+  it('resets document.title to "Satzwerk" when AppShell unmounts', () => {
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/history']}>
+        <AppShell>
+          <div>content</div>
+        </AppShell>
+      </MemoryRouter>
+    )
+    expect(document.title).toBe('History | Satzwerk')
+    unmount()
+    expect(document.title).toBe('Satzwerk')
+  })
+
   it('renders mobile bottom navigation', () => {
     render(
       <MemoryRouter>
