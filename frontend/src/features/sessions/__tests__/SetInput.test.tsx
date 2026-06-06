@@ -66,7 +66,7 @@ describe('SetInput', () => {
   it('pre-fills weight and reps when defaultWeight and defaultReps are provided', () => {
     render(<SetInput onLog={vi.fn()} setNumber={2} unit="kg" defaultWeight={80} defaultReps={5} />)
 
-    expect(screen.getByLabelText(/weight/i)).toHaveValue(80)
+    expect(screen.getByLabelText(/weight/i)).toHaveValue('80')
     expect(screen.getByLabelText(/reps/i)).toHaveValue(5)
   })
 
@@ -102,7 +102,7 @@ describe('SetInput', () => {
 
     await waitFor(() => expect(onLog).toHaveBeenCalled())
 
-    expect(screen.getByLabelText(/weight/i)).toHaveValue(90)
+    expect(screen.getByLabelText(/weight/i)).toHaveValue('90')
     expect(screen.getByLabelText(/reps/i)).toHaveValue(8)
   })
 
@@ -118,7 +118,60 @@ describe('SetInput', () => {
 
     await waitFor(() => expect(onLog).toHaveBeenCalled())
 
-    expect(screen.getByLabelText(/weight/i)).toHaveValue(null)
+    expect(screen.getByLabelText(/weight/i)).toHaveValue('')
     expect(screen.getByLabelText(/reps/i)).toHaveValue(null)
+  })
+
+  it('accepts comma as decimal separator and submits correct numeric weight', async () => {
+    const user = userEvent.setup()
+    const onLog = vi.fn()
+
+    render(<SetInput onLog={onLog} setNumber={1} unit="kg" />)
+
+    await user.type(screen.getByLabelText(/weight/i), '10,5')
+    await user.type(screen.getByLabelText(/reps/i), '5')
+    await user.click(screen.getByRole('button', { name: /log set/i }))
+
+    await waitFor(() =>
+      expect(onLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          weight: 10.5,
+          reps: 5,
+          setNumber: 1,
+        })
+      )
+    )
+  })
+
+  it('shows conversion hint when comma decimal separator is used', async () => {
+    const user = userEvent.setup()
+
+    render(<SetInput onLog={vi.fn()} setNumber={1} unit="kg" />)
+
+    await user.type(screen.getByLabelText(/weight/i), '10,5')
+
+    expect(await screen.findByText(/≈.*lb/i)).toBeInTheDocument()
+  })
+
+  it('shows validation error when a negative weight is entered', async () => {
+    const user = userEvent.setup()
+
+    render(<SetInput onLog={vi.fn()} setNumber={1} unit="kg" />)
+
+    await user.type(screen.getByLabelText(/weight/i), '-5')
+    await user.click(screen.getByRole('button', { name: /log set/i }))
+
+    expect(await screen.findByText(/non-negative/i)).toBeInTheDocument()
+  })
+
+  it('shows validation error for malformed comma input', async () => {
+    const user = userEvent.setup()
+
+    render(<SetInput onLog={vi.fn()} setNumber={1} unit="kg" />)
+
+    await user.type(screen.getByLabelText(/weight/i), '10,,5')
+    await user.click(screen.getByRole('button', { name: /log set/i }))
+
+    expect(await screen.findByText(/non-negative/i)).toBeInTheDocument()
   })
 })
