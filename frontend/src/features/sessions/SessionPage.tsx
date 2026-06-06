@@ -191,9 +191,9 @@ export default function SessionPage() {
                           {plan.name} · {group.exercises.length} exercises ·{' '}
                           {historyQuery.isLoading
                             ? '…'
-                            : historyQuery.isError
-                              ? 'Stats unavailable'
-                              : formatGroupStats(stats?.count ?? 0, stats?.lastCompletedAt ?? null)}
+                            : historyQuery.data !== undefined
+                              ? formatGroupStats(stats?.count ?? 0, stats?.lastCompletedAt ?? null)
+                              : 'Stats unavailable'}
                         </span>
                       </span>
                       <span className="flex items-center gap-2">
