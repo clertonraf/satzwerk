@@ -77,7 +77,7 @@ export default function SessionPage() {
   const historyQuery = useQuery({
     queryKey: queryKeys.sessions.history(),
     queryFn: () => sessionService.history(),
-    enabled: !session,
+    enabled: !session && !isSessionLoading,
   })
   const planDetailsQueries = useQueries({
     queries: (plansQuery.data ?? []).map((plan) => ({

@@ -63,14 +63,14 @@ describe('buildGroupStatsMap', () => {
     )
   })
 
-  it('does not overwrite a valid lastCompletedAt with null', () => {
+  it('skips sessions with null completedAt entirely — they do not increment the count', () => {
     const stats = buildGroupStatsMap([
       makeSession({ completedAt: '2026-06-08T12:00:00.000Z' }),
       makeSession({ id: 'session-2', completedAt: null }),
     ])
 
     expect(stats.get('group-1')).toEqual({
-      count: 2,
+      count: 1,
       lastCompletedAt: '2026-06-08T12:00:00.000Z',
     })
   })

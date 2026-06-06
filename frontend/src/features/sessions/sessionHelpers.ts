@@ -22,6 +22,8 @@ export function buildGroupStatsMap(sessions: WorkoutSession[]) {
   const stats = new Map<string, { count: number; lastCompletedAt: string | null }>()
 
   sessions.forEach((session) => {
+    if (!session.completedAt) return
+
     const existing = stats.get(session.workoutGroupId)
 
     if (!existing) {
@@ -34,9 +36,8 @@ export function buildGroupStatsMap(sessions: WorkoutSession[]) {
 
     stats.set(session.workoutGroupId, {
       count: existing.count + 1,
-      lastCompletedAt: !session.completedAt
-        ? existing.lastCompletedAt
-        : !existing.lastCompletedAt || new Date(existing.lastCompletedAt) < new Date(session.completedAt)
+      lastCompletedAt:
+        !existing.lastCompletedAt || new Date(existing.lastCompletedAt) < new Date(session.completedAt)
           ? session.completedAt
           : existing.lastCompletedAt,
     })
