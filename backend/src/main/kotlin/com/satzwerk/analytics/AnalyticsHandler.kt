@@ -13,7 +13,11 @@ import java.time.format.DateTimeParseException
 
 private const val DEFAULT_HEATMAP_MONTHS = 3L
 private const val DEFAULT_TREND_WEEKS = 8
+private const val MIN_TREND_WEEKS = 1
+private const val MAX_TREND_WEEKS = 52
 private const val DEFAULT_PR_LIMIT = 5
+private const val MIN_PR_LIMIT = 1
+private const val MAX_PR_LIMIT = 20
 
 @Component
 class AnalyticsHandler(
@@ -47,6 +51,9 @@ class AnalyticsHandler(
                 request.queryParam("weeks")
                     .map { it.toIntOrNull() ?: DEFAULT_TREND_WEEKS }
                     .orElse(DEFAULT_TREND_WEEKS)
+            if (weeks !in MIN_TREND_WEEKS..MAX_TREND_WEEKS) {
+                throw BadRequestException("'weeks' must be between $MIN_TREND_WEEKS and $MAX_TREND_WEEKS")
+            }
             ServerResponse.ok().bodyValueAndAwait(analyticsService.weeklyTrend(userId, weeks))
         }
 
@@ -57,6 +64,9 @@ class AnalyticsHandler(
                 request.queryParam("limit")
                     .map { it.toIntOrNull() ?: DEFAULT_PR_LIMIT }
                     .orElse(DEFAULT_PR_LIMIT)
+            if (limit !in MIN_PR_LIMIT..MAX_PR_LIMIT) {
+                throw BadRequestException("'limit' must be between $MIN_PR_LIMIT and $MAX_PR_LIMIT")
+            }
             ServerResponse.ok().bodyValueAndAwait(analyticsService.personalRecords(userId, limit))
         }
 
