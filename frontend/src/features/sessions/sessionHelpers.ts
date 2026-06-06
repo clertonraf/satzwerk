@@ -36,7 +36,7 @@ export function buildGroupStatsMap(sessions: WorkoutSession[]) {
       count: existing.count + 1,
       lastCompletedAt: !session.completedAt
         ? existing.lastCompletedAt
-        : !existing.lastCompletedAt || existing.lastCompletedAt < session.completedAt
+        : !existing.lastCompletedAt || new Date(existing.lastCompletedAt) < new Date(session.completedAt)
           ? session.completedAt
           : existing.lastCompletedAt,
     })
@@ -94,20 +94,11 @@ export function formatGroupStats(count: number, lastCompletedAt: string | null, 
   }
 
   const completedAt = new Date(lastCompletedAt)
-  const yesterday = new Date(now)
-  yesterday.setDate(yesterday.getDate() - 1)
+  const nowUtcDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  const completedUtcDay = Date.UTC(completedAt.getUTCFullYear(), completedAt.getUTCMonth(), completedAt.getUTCDate())
+  const daysAgo = Math.round((nowUtcDay - completedUtcDay) / 86400000)
 
-  if (completedAt.toDateString() === now.toDateString()) {
-    return `Done ${count}×, today`
-  }
-
-  if (completedAt.toDateString() === yesterday.toDateString()) {
-    return `Done ${count}×, yesterday`
-  }
-
-  const completedDay = new Date(completedAt.getFullYear(), completedAt.getMonth(), completedAt.getDate())
-  const currentDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const daysAgo = Math.floor((currentDay.getTime() - completedDay.getTime()) / 86400000)
-
+  if (daysAgo === 0) return `Done ${count}×, today`
+  if (daysAgo === 1) return `Done ${count}×, yesterday`
   return `Done ${count}×, ${daysAgo} days ago`
 }

@@ -77,6 +77,7 @@ export default function SessionPage() {
   const historyQuery = useQuery({
     queryKey: queryKeys.sessions.history(),
     queryFn: () => sessionService.history(),
+    enabled: !session,
   })
   const planDetailsQueries = useQueries({
     queries: (plansQuery.data ?? []).map((plan) => ({
@@ -187,9 +188,11 @@ export default function SessionPage() {
                         <span className="block font-medium">{group.title}</span>
                         <span className="block text-sm text-muted-foreground">
                           {plan.name} · {group.exercises.length} exercises ·{' '}
-                          {historyQuery.isError
-                            ? 'Stats unavailable'
-                            : formatGroupStats(stats?.count ?? 0, stats?.lastCompletedAt ?? null)}
+                          {historyQuery.isLoading
+                            ? '…'
+                            : historyQuery.isError
+                              ? 'Stats unavailable'
+                              : formatGroupStats(stats?.count ?? 0, stats?.lastCompletedAt ?? null)}
                         </span>
                       </span>
                       <span className="flex items-center gap-2">
