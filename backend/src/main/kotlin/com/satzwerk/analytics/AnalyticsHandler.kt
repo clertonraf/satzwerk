@@ -43,18 +43,20 @@ class AnalyticsHandler(
     suspend fun weeklyTrend(request: ServerRequest): ServerResponse =
         handleErrors {
             val userId = currentUserId(request)
-            val weeks = request.queryParam("weeks")
-                .map { it.toIntOrNull() ?: DEFAULT_TREND_WEEKS }
-                .orElse(DEFAULT_TREND_WEEKS)
+            val weeks =
+                request.queryParam("weeks")
+                    .map { it.toIntOrNull() ?: DEFAULT_TREND_WEEKS }
+                    .orElse(DEFAULT_TREND_WEEKS)
             ServerResponse.ok().bodyValueAndAwait(analyticsService.weeklyTrend(userId, weeks))
         }
 
     suspend fun personalRecords(request: ServerRequest): ServerResponse =
         handleErrors {
             val userId = currentUserId(request)
-            val limit = request.queryParam("limit")
-                .map { it.toIntOrNull() ?: DEFAULT_PR_LIMIT }
-                .orElse(DEFAULT_PR_LIMIT)
+            val limit =
+                request.queryParam("limit")
+                    .map { it.toIntOrNull() ?: DEFAULT_PR_LIMIT }
+                    .orElse(DEFAULT_PR_LIMIT)
             ServerResponse.ok().bodyValueAndAwait(analyticsService.personalRecords(userId, limit))
         }
 
