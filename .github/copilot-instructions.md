@@ -95,9 +95,20 @@ cd frontend && npm run lint
 
 This prevents CI failures that require extra fix-and-push cycles. The backend checks are fast enough to run on every push.
 
+Always push the branch **before** calling `gh pr create` — run them as two separate commands so that push failures (auth, upstream conflicts) surface before PR creation:
+```bash
+git push -u origin HEAD
+gh pr create --fill
+```
+
 ## Before creating a PR
 
 Run a rubber-duck review against your implementation before opening the PR. For changes touching SVG, CSS layout, or any frontend component, this is **mandatory** — browser rendering edge cases are the most common source of review comments in this repo.
+
+When the PR touches `useEffect` hooks, run through this checklist before pushing:
+- **Cleanup scope**: Does the cleanup function fire only when intended? A cleanup returned from `useEffect(() => { ...; return () => { cleanup(); }; }, [dep])` runs before every re-execution (on every `dep` change), not only on unmount. For unmount-only cleanup, use a separate effect with an empty deps array: `useEffect(() => { return () => { cleanup(); }; }, [])`.
+- **Fallback composition**: Does the fallback value produce valid output when composed into surrounding strings? (e.g. `"Satzwerk | Satzwerk"` from a fallback of `"Satzwerk"` in `"${title} | Satzwerk"`).
+- **Global state cleanup**: Does `afterEach` in tests reset every piece of global state the component touches (`document.title`, `document.documentElement.classList`, etc.)?
 
 Always surface the PR URL immediately after `gh pr create` so the user doesn't have to ask.
 
