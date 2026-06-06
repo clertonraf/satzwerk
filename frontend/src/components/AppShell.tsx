@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Clock3, Dumbbell, Home, Layers3, MoonStar, SunMedium, User } from 'lucide-react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation, useMatch } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -16,12 +16,33 @@ const navigationItems = [
   { to: '/profile', label: 'Profile', icon: User },
 ] as const
 
+const PAGE_TITLES: Record<string, string> = {
+  '/': 'Dashboard',
+  '/history': 'History',
+  '/plans': 'Plans',
+  '/session': 'Session',
+  '/exercises': 'Exercises',
+  '/profile': 'Profile',
+}
+
+function usePageTitle(): string {
+  const { pathname } = useLocation()
+  const isPlanBuilder = useMatch('/plans/:planId')
+  if (isPlanBuilder) return 'Plan Builder'
+  return PAGE_TITLES[pathname] ?? 'Satzwerk'
+}
+
 export default function AppShell({ children }: AppShellProps) {
   const [isDarkMode, setIsDarkMode] = useState(true)
+  const pageTitle = usePageTitle()
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode)
   }, [isDarkMode])
+
+  useEffect(() => {
+    document.title = `${pageTitle} | Satzwerk`
+  }, [pageTitle])
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -54,7 +75,7 @@ export default function AppShell({ children }: AppShellProps) {
           <header className="flex items-center justify-between border-b border-border px-4 py-4 md:px-8">
             <div>
               <p className="text-base font-semibold tracking-tight md:hidden">Satzwerk</p>
-              <p className="text-sm text-muted-foreground">Frontend bootstrap scaffold</p>
+              <p className="text-sm text-muted-foreground">{pageTitle}</p>
             </div>
             <Button
               type="button"
