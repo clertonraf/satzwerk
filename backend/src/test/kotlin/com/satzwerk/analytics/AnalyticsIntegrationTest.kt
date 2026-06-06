@@ -300,7 +300,7 @@ class AnalyticsIntegrationTest {
             .exchange()
             .expectStatus().isOk
             .expectBody()
-            .jsonPath("$.activePlanDays").isEqualTo(null)
+            .jsonPath("$.activePlanDays").value<Any?> { assertEquals(null, it) }
     }
 
     @Test
