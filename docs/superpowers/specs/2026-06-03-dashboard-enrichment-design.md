@@ -206,7 +206,7 @@ All queries are independent and run in parallel. The dashboard renders each sect
 
 ## Error & Empty States
 
-- **Hero grid**: if `summary` fails, show skeleton tiles (not an error banner — stale data is not critical).
+- **Hero grid**: if `summary` fails and no cached data is available, show a "Stats unavailable." placeholder. If cached data exists, continue showing it (TanStack Query preserves last successful data during a background refetch error).
 - **Last Session card**: if `history` is empty, show "No sessions yet" placeholder and hide the card. If `completedAt` is null (open session edge case), omit duration.
 - **Recent PRs**: if empty, show "No PRs recorded yet."
 - **Weekly Trend**: weeks with zero sets render as a minimal 2px bar so the x-axis label remains visible.

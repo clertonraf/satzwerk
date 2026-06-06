@@ -72,7 +72,7 @@ class SessionQueryRepository(
                 JOIN workout_sessions ws ON sl.workout_session_id = ws.id
                 WHERE ws.user_id = :userId
                   AND sl.exercise_id = :exerciseId
-                  AND sl.logged_at < :beforeInstant
+                  AND sl.logged_at <= :beforeInstant
                 ORDER BY sl.weight DESC
                 LIMIT 1
                 """.trimIndent()

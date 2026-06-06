@@ -35,9 +35,9 @@ export default function DashboardSummaryGrid({ data, isLoading, isError }: Dashb
     )
   }
 
-  if (isError || !data) {
+  if (!data) {
     return (
-      <div className="rounded-xl border border-border bg-card p-4">
+      <div className="rounded-xl border border-border bg-card p-4" role={isError ? 'alert' : undefined}>
         <p className="text-xs text-muted-foreground">Stats unavailable.</p>
       </div>
     )
