@@ -45,7 +45,7 @@ cd backend
 
 Integration tests use **Testcontainers** (real PostgreSQL, not H2). Tests run serially (`maxParallelForks = 1`).
 
-**JSON serialization**: There is no `@JsonInclude(NON_NULL)` at the project level. All null fields are always serialized as `"field": null` — they are never omitted. Frontend types for nullable fields must use `: T | null`, not `?: T | undefined`.
+**JSON serialization**: `@JsonInclude(NON_NULL)` is not used anywhere in the project — not on classes, not on fields. All null fields are always serialized as `"field": null` and never omitted. Frontend types for nullable fields must use `: T | null`, not `?: T | undefined`.
 
 **Pre-push checklist (backend — run before every push):**
 ```bash
