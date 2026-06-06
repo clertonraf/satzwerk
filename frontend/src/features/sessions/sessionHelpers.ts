@@ -1,4 +1,5 @@
 import type { WorkoutPlanDetail } from '@/services/planService'
+import type { WorkoutSession } from '@/services/sessionService'
 
 export interface WorkoutGroupCatalogEntry {
   group: WorkoutPlanDetail['groups'][number]
@@ -15,6 +16,34 @@ export function buildWorkoutGroupCatalog(plans: WorkoutPlanDetail[]) {
   })
 
   return catalog
+}
+
+export function buildGroupStatsMap(sessions: WorkoutSession[]) {
+  const stats = new Map<string, { count: number; lastCompletedAt: string | null }>()
+
+  sessions.forEach((session) => {
+    if (!session.completedAt) return
+
+    const existing = stats.get(session.workoutGroupId)
+
+    if (!existing) {
+      stats.set(session.workoutGroupId, {
+        count: 1,
+        lastCompletedAt: session.completedAt,
+      })
+      return
+    }
+
+    stats.set(session.workoutGroupId, {
+      count: existing.count + 1,
+      lastCompletedAt:
+        !existing.lastCompletedAt || new Date(existing.lastCompletedAt) < new Date(session.completedAt)
+          ? session.completedAt
+          : existing.lastCompletedAt,
+    })
+  })
+
+  return stats
 }
 
 export function formatSessionDate(value: string | null | undefined) {
@@ -58,4 +87,23 @@ export function convertWeightHint(rawInput: string, unit: 'kg' | 'lb'): string |
 export function formatDisplayWeight(weight: number, unit: 'kg' | 'lb') {
   const displayWeight = unit === 'kg' ? weight : weight * 2.20462
   return `${Number(displayWeight.toFixed(1))} ${unit}`
+}
+
+export function formatGroupStats(count: number, lastCompletedAt: string | null, now: Date = new Date()) {
+  if (count === 0 || !lastCompletedAt) {
+    return 'Never'
+  }
+
+  const completedAt = new Date(lastCompletedAt)
+  if (Number.isNaN(completedAt.getTime())) {
+    return `Done ${count}×`
+  }
+
+  const nowUtcDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  const completedUtcDay = Date.UTC(completedAt.getUTCFullYear(), completedAt.getUTCMonth(), completedAt.getUTCDate())
+  const daysAgo = Math.max(0, Math.round((nowUtcDay - completedUtcDay) / 86400000))
+
+  if (daysAgo === 0) return `Done ${count}×, today`
+  if (daysAgo === 1) return `Done ${count}×, yesterday`
+  return `Done ${count}×, ${daysAgo} days ago`
 }
