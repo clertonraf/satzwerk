@@ -166,7 +166,7 @@ class AnalyticsRepository(
                 JOIN exercises e ON sl.exercise_id = e.id
                 WHERE ws.user_id = :userId
                   AND sl.is_pr = TRUE
-                ORDER BY sl.logged_at DESC
+                ORDER BY sl.logged_at DESC, sl.id DESC
                 LIMIT :limit
                 """.trimIndent(),
             ).bind("userId", userId)
