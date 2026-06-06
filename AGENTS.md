@@ -6,7 +6,7 @@ Instructions for AI agents working in this repo.
 
 ### Issue tracker
 
-Issues live as markdown files under `docs/issues/`. See `docs/agents/issue-tracker.md`.
+Issues live in GitHub Issues (clertonraf/satzwerk). See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
