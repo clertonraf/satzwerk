@@ -45,6 +45,8 @@ cd backend
 
 Integration tests use **Testcontainers** (real PostgreSQL, not H2). Tests run serially (`maxParallelForks = 1`).
 
+**JSON serialization**: `@JsonInclude(NON_NULL)` is not used anywhere in the project — not on classes, not on fields. All null fields are always serialized as `"field": null` and never omitted. Frontend types for nullable fields must use `: T | null`, not `?: T | undefined`.
+
 **Pre-push checklist (backend — run before every push):**
 ```bash
 ./gradlew ktlintCheck detekt compileTestKotlin --no-daemon
@@ -61,7 +63,7 @@ Integration tests use **Testcontainers** (real PostgreSQL, not H2). Tests run se
 - `store/` — Zustand stores (`auth.ts` for JWT state)
 - `lib/db.ts` — Dexie (IndexedDB) schema; only `queuedSetLogs` table for offline queue
 
-Always use the constants from `services/queryKeys.ts` when writing TanStack Query calls — never inline string keys.
+Always use the constants from `services/queryKeys.ts` when writing TanStack Query calls — never inline string keys. Keys inside a namespace object use short, unprefixed strings (e.g., `['summary']`, `['weekly-trend', weeks]`) — never prefix the key with the namespace name (e.g., not `['analytics-summary']`).
 
 **Build / run / test:**
 ```bash
