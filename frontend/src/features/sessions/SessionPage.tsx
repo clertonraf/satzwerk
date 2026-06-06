@@ -8,13 +8,21 @@ import ForfeitSessionModal from '@/features/sessions/ForfeitSessionModal'
 import ResumeDiscardModal from '@/features/sessions/ResumeDiscardModal'
 import SetInput from '@/features/sessions/SetInput'
 import WorkoutGroupPreviewModal from '@/features/sessions/WorkoutGroupPreviewModal'
-import { buildWorkoutGroupCatalog, formatDisplayWeight, formatSessionDate, toPounds } from '@/features/sessions/sessionHelpers'
+import {
+  buildGroupStatsMap,
+  buildWorkoutGroupCatalog,
+  formatDisplayWeight,
+  formatGroupStats,
+  formatSessionDate,
+  toPounds,
+} from '@/features/sessions/sessionHelpers'
 import AdvancedTechniqueBadge from '@/features/sessions/AdvancedTechniqueBadge'
 import { useWorkoutSession } from '@/features/sessions/useWorkoutSession'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { exerciseService } from '@/services/exerciseService'
 import { planService } from '@/services/planService'
 import { queryKeys } from '@/services/queryKeys'
+import { sessionService } from '@/services/sessionService'
 import type { WorkoutGroupDetail } from '@/services/planService'
 
 export default function SessionPage() {
@@ -66,6 +74,10 @@ export default function SessionPage() {
     queryKey: queryKeys.exercises.all(),
     queryFn: () => exerciseService.list(),
   })
+  const historyQuery = useQuery({
+    queryKey: queryKeys.sessions.history(),
+    queryFn: () => sessionService.history(),
+  })
   const planDetailsQueries = useQueries({
     queries: (plansQuery.data ?? []).map((plan) => ({
       queryKey: queryKeys.plans.detail(plan.id),
@@ -90,6 +102,7 @@ export default function SessionPage() {
       }),
     [groupCatalog]
   )
+  const groupStatsMap = useMemo(() => buildGroupStatsMap(historyQuery.data ?? []), [historyQuery.data])
   const exercisesById = useMemo(
     () => new Map((exercisesQuery.data ?? []).map((exercise) => [exercise.id, exercise])),
     [exercisesQuery.data]
@@ -162,39 +175,46 @@ export default function SessionPage() {
                     Reconnect to start a new workout. Your current session data stays available offline.
                   </p>
                 ) : null}
-                {groupOptions.map(({ group, plan }) => (
-                  <div
-                    key={group.id}
-                    className="flex w-full items-center justify-between rounded-lg border border-border px-4 py-4"
-                  >
-                    <span>
-                      <span className="block font-medium">{group.title}</span>
-                      <span className="block text-sm text-muted-foreground">
-                        {plan.name} · {group.exercises.length} exercises
+                {groupOptions.map(({ group, plan }) => {
+                  const stats = groupStatsMap.get(group.id)
+
+                  return (
+                    <div
+                      key={group.id}
+                      className="flex w-full items-center justify-between rounded-lg border border-border px-4 py-4"
+                    >
+                      <span>
+                        <span className="block font-medium">{group.title}</span>
+                        <span className="block text-sm text-muted-foreground">
+                          {plan.name} · {group.exercises.length} exercises ·{' '}
+                          {historyQuery.isError
+                            ? 'Stats unavailable'
+                            : formatGroupStats(stats?.count ?? 0, stats?.lastCompletedAt ?? null)}
+                        </span>
                       </span>
-                    </span>
-                    <span className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setPreviewGroup({ group, planName: plan.name })}
-                      >
-                        Preview
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={!isOnline || isStartPending}
-                        onClick={() => {
-                          void handleStartSession(group.id)
-                        }}
-                      >
-                        Start
-                      </Button>
-                    </span>
-                  </div>
-                ))}
+                      <span className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setPreviewGroup({ group, planName: plan.name })}
+                        >
+                          Preview
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={!isOnline || isStartPending}
+                          onClick={() => {
+                            void handleStartSession(group.id)
+                          }}
+                        >
+                          Start
+                        </Button>
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             )
           ) : null}

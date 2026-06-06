@@ -1,4 +1,5 @@
 import type { WorkoutPlanDetail } from '@/services/planService'
+import type { WorkoutSession } from '@/services/sessionService'
 
 export interface WorkoutGroupCatalogEntry {
   group: WorkoutPlanDetail['groups'][number]
@@ -15,6 +16,33 @@ export function buildWorkoutGroupCatalog(plans: WorkoutPlanDetail[]) {
   })
 
   return catalog
+}
+
+export function buildGroupStatsMap(sessions: WorkoutSession[]) {
+  const stats = new Map<string, { count: number; lastCompletedAt: string | null }>()
+
+  sessions.forEach((session) => {
+    const existing = stats.get(session.workoutGroupId)
+
+    if (!existing) {
+      stats.set(session.workoutGroupId, {
+        count: 1,
+        lastCompletedAt: session.completedAt,
+      })
+      return
+    }
+
+    stats.set(session.workoutGroupId, {
+      count: existing.count + 1,
+      lastCompletedAt: !session.completedAt
+        ? existing.lastCompletedAt
+        : !existing.lastCompletedAt || existing.lastCompletedAt < session.completedAt
+          ? session.completedAt
+          : existing.lastCompletedAt,
+    })
+  })
+
+  return stats
 }
 
 export function formatSessionDate(value: string | null | undefined) {
@@ -58,4 +86,28 @@ export function convertWeightHint(rawInput: string, unit: 'kg' | 'lb'): string |
 export function formatDisplayWeight(weight: number, unit: 'kg' | 'lb') {
   const displayWeight = unit === 'kg' ? weight : weight * 2.20462
   return `${Number(displayWeight.toFixed(1))} ${unit}`
+}
+
+export function formatGroupStats(count: number, lastCompletedAt: string | null, now: Date = new Date()) {
+  if (count === 0 || !lastCompletedAt) {
+    return 'Never'
+  }
+
+  const completedAt = new Date(lastCompletedAt)
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+
+  if (completedAt.toDateString() === now.toDateString()) {
+    return `Done ${count}×, today`
+  }
+
+  if (completedAt.toDateString() === yesterday.toDateString()) {
+    return `Done ${count}×, yesterday`
+  }
+
+  const completedDay = new Date(completedAt.getFullYear(), completedAt.getMonth(), completedAt.getDate())
+  const currentDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const daysAgo = Math.floor((currentDay.getTime() - completedDay.getTime()) / 86400000)
+
+  return `Done ${count}×, ${daysAgo} days ago`
 }
