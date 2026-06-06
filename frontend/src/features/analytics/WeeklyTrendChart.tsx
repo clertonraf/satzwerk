@@ -32,6 +32,7 @@ export default function WeeklyTrendChart({ entries }: WeeklyTrendChartProps) {
         viewBox={`0 0 ${svgWidth} ${totalHeight}`}
         width="100%"
         style={{ display: 'block', aspectRatio: `${svgWidth} / ${totalHeight}` }}
+        role="img"
         aria-label="Weekly sets trend"
       >
         {entries.map((entry, i) => {
@@ -53,7 +54,7 @@ export default function WeeklyTrendChart({ entries }: WeeklyTrendChartProps) {
               {entry.sessionCount > 0 && (
                 <text
                   x={x + barWidth / 2}
-                  y={y - 3}
+                  y={Math.max(10, y - 3)}
                   textAnchor="middle"
                   fontSize={9}
                   fill="currentColor"
