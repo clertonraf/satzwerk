@@ -26,10 +26,10 @@ export default function RecentPRsCard({ records }: RecentPRsCardProps) {
       </CardHeader>
       <CardContent className="space-y-2">
         {records.map((pr) => (
-          <div key={`${pr.exerciseId}-${pr.achievedAt}`} className="flex items-center justify-between">
+          <div key={`${pr.exerciseId}-${pr.loggedAt}`} className="flex items-center justify-between">
             <span className="text-sm font-medium">{pr.exerciseName}</span>
             <span className="text-sm tabular-nums text-muted-foreground">
-              {pr.weightKg} kg
+              {pr.weight} kg × {pr.reps}
             </span>
           </div>
         ))}

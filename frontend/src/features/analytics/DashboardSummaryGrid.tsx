@@ -21,10 +21,9 @@ function SkeletonTile() {
 interface DashboardSummaryGridProps {
   data: DashboardSummary | undefined
   isLoading: boolean
-  isError?: boolean
 }
 
-export default function DashboardSummaryGrid({ data, isLoading, isError }: DashboardSummaryGridProps) {
+export default function DashboardSummaryGrid({ data, isLoading }: DashboardSummaryGridProps) {
   if (isLoading) {
     return (
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -35,13 +34,7 @@ export default function DashboardSummaryGrid({ data, isLoading, isError }: Dashb
     )
   }
 
-  if (isError || !data) {
-    return (
-      <div className="rounded-xl border border-border bg-card p-4">
-        <p className="text-xs text-muted-foreground">Stats unavailable.</p>
-      </div>
-    )
-  }
+  if (!data) return null
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

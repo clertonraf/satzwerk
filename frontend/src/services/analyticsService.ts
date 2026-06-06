@@ -18,7 +18,7 @@ export interface DashboardSummary {
   prsThisMonth: number
   totalSessions: number
   setsThisWeek: number
-  activePlanDays?: number | null
+  activePlanDays?: number
 }
 
 export interface WeeklyTrendEntry {
@@ -30,8 +30,9 @@ export interface WeeklyTrendEntry {
 export interface PersonalRecord {
   exerciseId: string
   exerciseName: string
-  weightKg: number
-  achievedAt: string
+  weight: number
+  reps: number
+  loggedAt: string
 }
 
 export const analyticsService = {

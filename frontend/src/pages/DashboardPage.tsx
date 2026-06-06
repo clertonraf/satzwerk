@@ -33,7 +33,7 @@ export default function DashboardPage() {
     queryKey: queryKeys.analytics.heatmap(fromDate, toDate),
     queryFn: () => analyticsService.heatmap(fromDate, toDate),
   })
-  const { data: summary, isLoading: summaryLoading, isError: summaryError } = useQuery({
+  const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: queryKeys.analytics.summary(),
     queryFn: analyticsService.summary,
   })
@@ -54,7 +54,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <DashboardSummaryGrid data={summary} isLoading={summaryLoading} isError={summaryError} />
+      <DashboardSummaryGrid data={summary} isLoading={summaryLoading} />
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">Activity</h2>
