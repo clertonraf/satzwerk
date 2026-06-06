@@ -42,6 +42,9 @@ export default function AppShell({ children }: AppShellProps) {
 
   useEffect(() => {
     document.title = pageTitle === 'Satzwerk' ? 'Satzwerk' : `${pageTitle} | Satzwerk`
+    return () => {
+      document.title = 'Satzwerk'
+    }
   }, [pageTitle])
 
   return (

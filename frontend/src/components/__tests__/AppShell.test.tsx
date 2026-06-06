@@ -78,6 +78,19 @@ describe('AppShell', () => {
     expect(document.title).toBe('Plan Builder | Satzwerk')
   })
 
+  it('resets document.title to "Satzwerk" when AppShell unmounts', () => {
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/history']}>
+        <AppShell>
+          <div>content</div>
+        </AppShell>
+      </MemoryRouter>
+    )
+    expect(document.title).toBe('History | Satzwerk')
+    unmount()
+    expect(document.title).toBe('Satzwerk')
+  })
+
   it('renders mobile bottom navigation', () => {
     render(
       <MemoryRouter>
