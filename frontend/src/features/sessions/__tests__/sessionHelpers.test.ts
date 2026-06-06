@@ -30,6 +30,14 @@ describe('formatGroupStats', () => {
   it('formats completions from earlier days', () => {
     expect(formatGroupStats(3, '2026-06-08T12:00:00.000Z', new Date('2026-06-10T12:00:00.000Z'))).toBe('Done 3×, 2 days ago')
   })
+
+  it('omits the day label for an invalid date string', () => {
+    expect(formatGroupStats(2, 'not-a-date')).toBe('Done 2×')
+  })
+
+  it('clamps to today when the client clock is behind the server', () => {
+    expect(formatGroupStats(1, '2026-06-10T12:00:00.000Z', new Date('2026-06-09T12:00:00.000Z'))).toBe('Done 1×, today')
+  })
 })
 
 describe('buildGroupStatsMap', () => {

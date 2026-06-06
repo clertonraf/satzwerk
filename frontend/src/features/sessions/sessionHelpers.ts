@@ -95,9 +95,13 @@ export function formatGroupStats(count: number, lastCompletedAt: string | null, 
   }
 
   const completedAt = new Date(lastCompletedAt)
+  if (Number.isNaN(completedAt.getTime())) {
+    return `Done ${count}×`
+  }
+
   const nowUtcDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
   const completedUtcDay = Date.UTC(completedAt.getUTCFullYear(), completedAt.getUTCMonth(), completedAt.getUTCDate())
-  const daysAgo = Math.round((nowUtcDay - completedUtcDay) / 86400000)
+  const daysAgo = Math.max(0, Math.round((nowUtcDay - completedUtcDay) / 86400000))
 
   if (daysAgo === 0) return `Done ${count}×, today`
   if (daysAgo === 1) return `Done ${count}×, yesterday`
