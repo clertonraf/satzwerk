@@ -49,7 +49,7 @@ class AnalyticsHandler(
             val userId = currentUserId(request)
             val weeks =
                 request.queryParam("weeks")
-                    .map { it.toIntOrNull() ?: DEFAULT_TREND_WEEKS }
+                    .map { it.toIntOrNull() ?: throw BadRequestException("'weeks' must be a valid integer") }
                     .orElse(DEFAULT_TREND_WEEKS)
             if (weeks !in MIN_TREND_WEEKS..MAX_TREND_WEEKS) {
                 throw BadRequestException("'weeks' must be between $MIN_TREND_WEEKS and $MAX_TREND_WEEKS")
@@ -62,7 +62,7 @@ class AnalyticsHandler(
             val userId = currentUserId(request)
             val limit =
                 request.queryParam("limit")
-                    .map { it.toIntOrNull() ?: DEFAULT_PR_LIMIT }
+                    .map { it.toIntOrNull() ?: throw BadRequestException("'limit' must be a valid integer") }
                     .orElse(DEFAULT_PR_LIMIT)
             if (limit !in MIN_PR_LIMIT..MAX_PR_LIMIT) {
                 throw BadRequestException("'limit' must be between $MIN_PR_LIMIT and $MAX_PR_LIMIT")

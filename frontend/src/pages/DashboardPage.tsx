@@ -37,11 +37,11 @@ export default function DashboardPage() {
     queryKey: queryKeys.analytics.summary(),
     queryFn: analyticsService.summary,
   })
-  const { data: weeklyTrend = [] } = useQuery({
+  const { data: weeklyTrend, isLoading: weeklyTrendLoading } = useQuery({
     queryKey: queryKeys.analytics.weeklyTrend(TREND_WEEKS),
     queryFn: () => analyticsService.weeklyTrend(TREND_WEEKS),
   })
-  const { data: personalRecords = [] } = useQuery({
+  const { data: personalRecords, isLoading: personalRecordsLoading } = useQuery({
     queryKey: queryKeys.analytics.personalRecords(PR_LIMIT),
     queryFn: () => analyticsService.personalRecords(PR_LIMIT),
   })
@@ -65,7 +65,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {lastSession ? <LastSessionCard session={lastSession} /> : null}
-        <RecentPRsCard records={personalRecords} />
+        {!personalRecordsLoading && <RecentPRsCard records={personalRecords ?? []} />}
       </div>
 
       <section>
@@ -75,7 +75,7 @@ export default function DashboardPage() {
             <CardTitle className="text-sm">Sets per week</CardTitle>
           </CardHeader>
           <CardContent>
-            <WeeklyTrendChart entries={weeklyTrend} />
+            {!weeklyTrendLoading && <WeeklyTrendChart entries={weeklyTrend ?? []} />}
           </CardContent>
         </Card>
       </section>

@@ -52,13 +52,13 @@ A 2-row × 3-column grid of stat tiles at the top of the dashboard. Stats:
 | 🏆 PRs This Month | Count of personal records set this month | New `/analytics/summary` |
 | ⚡ Longest Streak | All-time best streak | New `/analytics/summary` |
 | 🎯 Total Sessions | All-time completed session count | New `/analytics/summary` |
-| Sets This Week | Total SetLogs in the last 7 days | New `/analytics/summary` |
+| Sets This Week | Total SetLogs in the current ISO week (Monday–Sunday) | New `/analytics/summary` |
 
 The existing `StreakCard` component is retired; streak data is absorbed into the hero grid. `DashboardPage` drops the `useQuery(streak)` call and uses `useQuery(summary)` for all six tiles. The `/analytics/streak` endpoint is not removed (other clients may use it) but is no longer called from `DashboardPage`.
 
 ### 2. Activity Heatmap
 
-Unchanged. The existing `ContributionHeatmap` SVG component stays. It uses 5-shade green intensity (`#1e293b` → `#22c55e`) and fills the full container width via `width="100%"`.
+Unchanged. The existing `ContributionHeatmap` SVG component stays. It uses an 11-tier green intensity palette and fills the full container width via `width="100%"`.
 
 ### 3. Last Session Card
 
@@ -66,7 +66,7 @@ Replaces the current bare date card. Shows:
 - **WorkoutGroup title** (e.g. "Push Day A")
 - **Date** (localised)
 - **Duration** — computed client-side from `startedAt` and `completedAt` (shown as "52 min"; hidden if session has no `completedAt`)
-- **Set count** — `setLogs.length` from the history response
+- **Set count** — `setCount` from the history response (history items always have empty `setLogs` by design; the count comes from a server-side JOIN)
 
 The session history API response must be enriched to include `workoutGroupTitle: String` alongside the existing `workoutGroupId`. This is a denormalised field resolved server-side.
 
@@ -86,7 +86,7 @@ An 8-week bar chart. Each bar represents one ISO week.
 - **Bar height** = total SetLogs logged that week
 - **Number above bar** = WorkoutSessions completed that week
 - X-axis labels = ISO week numbers (e.g. W22)
-- Green bars (`#16a34a`) matching the heatmap palette
+- Green bars (`#22c55e`) matching the heatmap palette
 - Chart label: "Bars = sets logged · Numbers = sessions"
 
 ---
@@ -109,7 +109,7 @@ Returns all hero stat values in one call to minimise round-trips.
 ```
 
 - `sessionsThisMonth`: count of WorkoutSessions with `completedAt` in the current UTC calendar month.
-- `setsThisWeek`: count of SetLogs with `loggedAt` in the last 7 calendar days (UTC).
+- `setsThisWeek`: count of SetLogs with `loggedAt` in the current ISO week (Monday–Sunday UTC).
 - `totalSessions`: count of all completed WorkoutSessions for the user.
 - `prsThisMonth`: count of SetLogs marked as a PR with `loggedAt` in the current UTC calendar month.
 

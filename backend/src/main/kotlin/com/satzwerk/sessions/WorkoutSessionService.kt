@@ -81,7 +81,8 @@ class WorkoutSessionService(
             setLogRepository.findByIdAndWorkoutSessionId(setLogId, sessionId)
                 ?: throw NotFoundException("Set log not found")
 
-        val prevMax = sessionQueryRepository.findMaxWeightForExercise(userId, setLog.exerciseId, setLog.loggedAt)
+        val prevMax =
+            sessionQueryRepository.findMaxWeightForExercise(userId, setLog.exerciseId, setLog.loggedAt, setLog.id)
         val isPr = prevMax == null || request.weight > prevMax
 
         return setLogRepository.save(
