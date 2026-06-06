@@ -17,12 +17,8 @@ const navigationItems = [
 ] as const
 
 const PAGE_TITLES: Record<string, string> = {
-  '/': 'Dashboard',
-  '/history': 'History',
-  '/plans': 'Plans',
+  ...Object.fromEntries(navigationItems.map(({ to, label }) => [to, label])),
   '/session': 'Session',
-  '/exercises': 'Exercises',
-  '/profile': 'Profile',
 }
 
 function usePageTitle(): string {
