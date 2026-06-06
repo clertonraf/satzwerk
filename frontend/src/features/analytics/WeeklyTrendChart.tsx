@@ -30,9 +30,8 @@ export default function WeeklyTrendChart({ entries }: WeeklyTrendChartProps) {
     <div className="w-full overflow-hidden">
       <svg
         viewBox={`0 0 ${svgWidth} ${totalHeight}`}
-        preserveAspectRatio="none"
-        className="w-full"
-        style={{ height: totalHeight }}
+        width="100%"
+        style={{ display: 'block', aspectRatio: `${svgWidth} / ${totalHeight}` }}
         aria-label="Weekly sets trend"
       >
         {entries.map((entry, i) => {
