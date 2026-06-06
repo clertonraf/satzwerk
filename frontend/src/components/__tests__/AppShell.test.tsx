@@ -6,6 +6,7 @@ import AppShell from '../AppShell'
 describe('AppShell', () => {
   afterEach(() => {
     document.title = ''
+    document.documentElement.classList.remove('dark')
   })
 
   it('shows Dashboard as page title in mobile header when on root route', () => {
