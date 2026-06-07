@@ -94,7 +94,7 @@ Before every `git push`, run all of the following locally. **Do not push if any 
 cd backend && ./gradlew ktlintCheck && ./gradlew detekt
 
 # Frontend
-cd frontend && npm install && npm run lint && tsc -b --noEmit
+cd frontend && npm ci && npm run lint && tsc -b --noEmit
 ```
 
 This prevents CI failures that require extra fix-and-push cycles. The backend checks are fast enough to run on every push.
