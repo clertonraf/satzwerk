@@ -21,6 +21,7 @@ import org.testcontainers.junit.jupiter.Testcontainers
 import java.math.BigDecimal
 import java.util.UUID
 
+@Suppress("LargeClass")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @Testcontainers
@@ -418,6 +419,196 @@ class WorkoutSessionIntegrationTest {
             .jsonPath("$.length()").isEqualTo(1)
             .jsonPath("$[0].weightKg").isEqualTo(100.0)
             .jsonPath("$[0].reps").isEqualTo(5)
+    }
+
+    @Test
+    fun `reference weights returns null values when exercise has no history`() {
+        val session = startSession()
+
+        client
+            .get()
+            .uri("/api/sessions/${session.id}/reference-weights")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(1)
+            .jsonPath("$[0].exerciseId").isEqualTo(exerciseId.toString())
+            .jsonPath("$[0].previousWeightKg").isEmpty
+            .jsonPath("$[0].prWeightKg").isEmpty
+            .jsonPath("$[0].estimatedOneRepMaxKg").isEmpty
+    }
+
+    @Test
+    fun `reference weights returns previous weight from most recent completed session`() {
+        val completedSession = startSession()
+        addSetLog(completedSession.id, BigDecimal("85.0"))
+        completeSession(completedSession.id)
+
+        val currentSession = startSession()
+
+        client
+            .get()
+            .uri("/api/sessions/${currentSession.id}/reference-weights")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(1)
+            .jsonPath("$[0].exerciseId").isEqualTo(exerciseId.toString())
+            .jsonPath("$[0].previousWeightKg").isEqualTo(85)
+    }
+
+    @Test
+    fun `reference weights excludes current open session from previous weight`() {
+        val completedSession = startSession()
+        addSetLog(completedSession.id, BigDecimal("90.0"))
+        completeSession(completedSession.id)
+
+        val currentSession = startSession()
+        addSetLog(currentSession.id, BigDecimal("120.0"))
+
+        client
+            .get()
+            .uri("/api/sessions/${currentSession.id}/reference-weights")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(1)
+            .jsonPath("$[0].exerciseId").isEqualTo(exerciseId.toString())
+            .jsonPath("$[0].previousWeightKg").isEqualTo(90)
+            .jsonPath("$[0].prWeightKg").isEqualTo(120)
+    }
+
+    @Test
+    fun `reference weights returns pr as max weight across all sessions`() {
+        val firstCompletedSession = startSession()
+        addSetLog(firstCompletedSession.id, BigDecimal("90.0"))
+        completeSession(firstCompletedSession.id)
+
+        val secondCompletedSession = startSession()
+        addSetLog(secondCompletedSession.id, BigDecimal("110.0"))
+        completeSession(secondCompletedSession.id)
+
+        val currentSession = startSession()
+        addSetLog(currentSession.id, BigDecimal("105.0"))
+
+        client
+            .get()
+            .uri("/api/sessions/${currentSession.id}/reference-weights")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(1)
+            .jsonPath("$[0].exerciseId").isEqualTo(exerciseId.toString())
+            .jsonPath("$[0].prWeightKg").isEqualTo(110)
+    }
+
+    @Test
+    fun `reference weights updates pr from current open session`() {
+        val completedSession = startSession()
+        addSetLog(completedSession.id, BigDecimal("100.0"))
+        completeSession(completedSession.id)
+
+        val currentSession = startSession()
+        addSetLog(currentSession.id, BigDecimal("120.0"))
+
+        client
+            .get()
+            .uri("/api/sessions/${currentSession.id}/reference-weights")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(1)
+            .jsonPath("$[0].exerciseId").isEqualTo(exerciseId.toString())
+            .jsonPath("$[0].previousWeightKg").isEqualTo(100)
+            .jsonPath("$[0].prWeightKg").isEqualTo(120)
+    }
+
+    @Test
+    fun `reference weights calculates estimated one rep max using epley formula`() {
+        val session = startSession()
+        addSetLog(session.id, BigDecimal("100.0"), reps = 5)
+
+        client
+            .get()
+            .uri("/api/sessions/${session.id}/reference-weights")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(1)
+            .jsonPath("$[0].exerciseId").isEqualTo(exerciseId.toString())
+            .jsonPath("$[0].prWeightKg").isEqualTo(100)
+            .jsonPath("$[0].estimatedOneRepMaxKg").isEqualTo(116.67)
+    }
+
+    @Test
+    fun `reference weights uses most recent completed session for previous weight instead of max`() {
+        val firstCompletedSession = startSession()
+        addSetLog(firstCompletedSession.id, BigDecimal("100.0"))
+        completeSession(firstCompletedSession.id)
+
+        val secondCompletedSession = startSession()
+        addSetLog(secondCompletedSession.id, BigDecimal("80.0"))
+        completeSession(secondCompletedSession.id)
+
+        val currentSession = startSession()
+
+        client
+            .get()
+            .uri("/api/sessions/${currentSession.id}/reference-weights")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(1)
+            .jsonPath("$[0].exerciseId").isEqualTo(exerciseId.toString())
+            .jsonPath("$[0].previousWeightKg").isEqualTo(80)
+            .jsonPath("$[0].prWeightKg").isEqualTo(100)
+    }
+
+    @Test
+    fun `reference weights epley formula is accurate for single rep set`() {
+        // 300kg x 1 rep: expected = 300 * (1 + 1/30) = 310.00 exactly
+        val session = startSession()
+        addSetLog(session.id, BigDecimal("300.0"), reps = 1)
+
+        client
+            .get()
+            .uri("/api/sessions/${session.id}/reference-weights")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$[0].estimatedOneRepMaxKg").isEqualTo(310.00)
+    }
+
+    @Test
+    fun `reference weights without authentication returns unauthorized`() {
+        val session = startSession()
+
+        client
+            .get()
+            .uri("/api/sessions/${session.id}/reference-weights")
+            .exchange()
+            .expectStatus().isUnauthorized
+    }
+
+    @Test
+    fun `reference weights for another user session returns not found`() {
+        val session = startSession()
+        val otherToken = registerAndLogin("other-${UUID.randomUUID()}@test.com", "password123", "Other User")
+
+        client
+            .get()
+            .uri("/api/sessions/${session.id}/reference-weights")
+            .header("Authorization", "Bearer $otherToken")
+            .exchange()
+            .expectStatus().isNotFound
     }
 
     private fun startSession(): WorkoutSessionResponse =

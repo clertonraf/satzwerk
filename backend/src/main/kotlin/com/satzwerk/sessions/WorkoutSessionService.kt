@@ -2,6 +2,7 @@ package com.satzwerk.sessions
 
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.NotFoundException
+import com.satzwerk.workouts.WorkoutExerciseRepository
 import com.satzwerk.workouts.WorkoutGroupRepository
 import com.satzwerk.workouts.WorkoutPlanService
 import org.springframework.stereotype.Service
@@ -12,11 +13,13 @@ import java.util.UUID
 
 private const val PR_RATIO_SCALE = 10
 
+@Suppress("TooManyFunctions")
 @Service
 class WorkoutSessionService(
     private val workoutSessionRepository: WorkoutSessionRepository,
     private val setLogRepository: SetLogRepository,
     private val workoutGroupRepository: WorkoutGroupRepository,
+    private val workoutExerciseRepository: WorkoutExerciseRepository,
     private val workoutPlanService: WorkoutPlanService,
     private val sessionQueryRepository: SessionQueryRepository,
 ) {
@@ -178,6 +181,18 @@ class WorkoutSessionService(
                 ?: throw NotFoundException("Workout group not found")
         val setLogs = loadSetLogs(sessionId)
         return session.toResponse(setLogs, group.title)
+    }
+
+    suspend fun getReferenceWeights(
+        userId: UUID,
+        sessionId: UUID,
+    ): List<ExerciseReferenceWeights> {
+        val session = getOwnedSession(userId, sessionId)
+        val exerciseIds =
+            workoutExerciseRepository.findAllByWorkoutGroupIdOrderByOrderIndex(session.workoutGroupId)
+                .map { it.exerciseId }
+
+        return sessionQueryRepository.findReferenceWeights(userId, exerciseIds, sessionId)
     }
 
     private suspend fun getOwnedSession(

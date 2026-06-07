@@ -97,4 +97,14 @@ class SessionHandler(
                 )
             ServerResponse.ok().bodyValueAndAwait(response)
         }
+
+    suspend fun getReferenceWeights(request: ServerRequest): ServerResponse =
+        handleErrors {
+            val response =
+                workoutSessionService.getReferenceWeights(
+                    currentUserId(request),
+                    parseUuid(request.pathVariable("id")),
+                )
+            ServerResponse.ok().bodyValueAndAwait(response)
+        }
 }

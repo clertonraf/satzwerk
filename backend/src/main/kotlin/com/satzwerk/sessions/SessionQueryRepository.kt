@@ -6,6 +6,7 @@ import kotlinx.coroutines.reactor.awaitSingleOrNull
 import org.springframework.r2dbc.core.DatabaseClient
 import org.springframework.stereotype.Repository
 import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.Instant
 import java.util.UUID
 
@@ -18,6 +19,20 @@ data class SessionHistoryRow(
     val notes: String?,
     val setCount: Int,
 )
+
+private data class PreviousWeightRow(
+    val exerciseId: UUID,
+    val previousWeight: BigDecimal?,
+)
+
+private data class PersonalRecordRow(
+    val exerciseId: UUID,
+    val prWeight: BigDecimal?,
+    val prReps: Int?,
+)
+
+private const val EPLEY_DIVISOR = "30"
+private const val EPLEY_DIVISION_SCALE = 10
 
 @Repository
 class SessionQueryRepository(
@@ -57,6 +72,92 @@ class SessionQueryRepository(
             }.all()
             .asFlow()
             .toList()
+
+    suspend fun findReferenceWeights(
+        userId: UUID,
+        exerciseIds: List<UUID>,
+        currentSessionId: UUID,
+    ): List<ExerciseReferenceWeights> {
+        if (exerciseIds.isEmpty()) {
+            return emptyList()
+        }
+
+        val previousWeights = findPreviousWeights(userId, exerciseIds, currentSessionId)
+        val personalRecords = findPersonalRecords(userId, exerciseIds)
+
+        return exerciseIds.map { exerciseId ->
+            val previousWeight = previousWeights[exerciseId]?.previousWeight
+            val personalRecord = personalRecords[exerciseId]
+            ExerciseReferenceWeights(
+                exerciseId = exerciseId,
+                previousWeightKg = previousWeight,
+                prWeightKg = personalRecord?.prWeight,
+                estimatedOneRepMaxKg = personalRecord.toEstimatedOneRepMaxKg(),
+            )
+        }
+    }
+
+    private suspend fun findPreviousWeights(
+        userId: UUID,
+        exerciseIds: List<UUID>,
+        currentSessionId: UUID,
+    ): Map<UUID, PreviousWeightRow> =
+        databaseClient
+            .sql(
+                """
+                SELECT DISTINCT ON (sl.exercise_id)
+                    sl.exercise_id,
+                    sl.weight AS previous_weight
+                FROM set_logs sl
+                JOIN workout_sessions ws ON sl.workout_session_id = ws.id
+                WHERE ws.user_id = :userId
+                  AND sl.exercise_id = ANY(:exerciseIds)
+                  AND ws.completed_at IS NOT NULL
+                  AND ws.id <> :currentSessionId
+                ORDER BY sl.exercise_id, sl.logged_at DESC, sl.id DESC
+                """.trimIndent(),
+            ).bind("userId", userId)
+            .bind("exerciseIds", exerciseIds.toTypedArray())
+            .bind("currentSessionId", currentSessionId)
+            .map { row, _ ->
+                PreviousWeightRow(
+                    exerciseId = row.get("exercise_id", UUID::class.java)!!,
+                    previousWeight = row.get("previous_weight", BigDecimal::class.java),
+                )
+            }.all()
+            .asFlow()
+            .toList()
+            .associateBy(PreviousWeightRow::exerciseId)
+
+    private suspend fun findPersonalRecords(
+        userId: UUID,
+        exerciseIds: List<UUID>,
+    ): Map<UUID, PersonalRecordRow> =
+        databaseClient
+            .sql(
+                """
+                SELECT DISTINCT ON (sl.exercise_id)
+                    sl.exercise_id,
+                    sl.weight AS pr_weight,
+                    sl.reps AS pr_reps
+                FROM set_logs sl
+                JOIN workout_sessions ws ON sl.workout_session_id = ws.id
+                WHERE ws.user_id = :userId
+                  AND sl.exercise_id = ANY(:exerciseIds)
+                ORDER BY sl.exercise_id, sl.weight DESC, sl.logged_at DESC, sl.id DESC
+                """.trimIndent(),
+            ).bind("userId", userId)
+            .bind("exerciseIds", exerciseIds.toTypedArray())
+            .map { row, _ ->
+                PersonalRecordRow(
+                    exerciseId = row.get("exercise_id", UUID::class.java)!!,
+                    prWeight = row.get("pr_weight", BigDecimal::class.java),
+                    prReps = row.get("pr_reps", java.lang.Integer::class.java)?.toInt(),
+                )
+            }.all()
+            .asFlow()
+            .toList()
+            .associateBy(PersonalRecordRow::exerciseId)
 
     suspend fun findMaxRatioForExercise(
         userId: UUID,
@@ -102,4 +203,25 @@ class SessionQueryRepository(
             .one()
             .awaitSingleOrNull()
     }
+
+    private fun PersonalRecordRow?.toEstimatedOneRepMaxKg(): BigDecimal? {
+        if (this?.prWeight == null || prReps == null) {
+            return null
+        }
+        return epley(prWeight, prReps)
+    }
+
+    private fun epley(
+        weight: BigDecimal,
+        reps: Int,
+    ): BigDecimal =
+        weight.multiply(
+            BigDecimal.ONE.add(
+                reps.toBigDecimal().divide(
+                    BigDecimal(EPLEY_DIVISOR),
+                    EPLEY_DIVISION_SCALE,
+                    RoundingMode.HALF_UP,
+                ),
+            ),
+        ).setScale(2, RoundingMode.HALF_UP)
 }

@@ -17,6 +17,7 @@ class SessionRouter {
                 POST("/{id}/complete", handler::complete)
                 DELETE("/{id}", handler::discard)
                 GET("/history", handler::history)
+                GET("/{id}/reference-weights", handler::getReferenceWeights)
                 GET("/{id}", handler::getById)
             }
         }

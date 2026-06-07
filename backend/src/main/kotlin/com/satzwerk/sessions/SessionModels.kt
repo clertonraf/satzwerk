@@ -53,3 +53,10 @@ data class UpdateSetLogRequest(
 data class CompleteSessionRequest(
     val notes: String? = null,
 )
+
+data class ExerciseReferenceWeights(
+    val exerciseId: UUID,
+    val previousWeightKg: BigDecimal?,
+    val prWeightKg: BigDecimal?,
+    val estimatedOneRepMaxKg: BigDecimal?,
+)
