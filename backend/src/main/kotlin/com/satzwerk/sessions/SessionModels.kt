@@ -39,14 +39,14 @@ data class AddSetLogRequest(
     val setNumber: Int,
     @field:DecimalMin("0.0")
     val weight: BigDecimal,
-    @field:Min(1)
+    @field:Min(0)
     val reps: Int,
 )
 
 data class UpdateSetLogRequest(
     @field:DecimalMin("0.0")
     val weight: BigDecimal,
-    @field:Min(1)
+    @field:Min(0)
     val reps: Int,
 )
 

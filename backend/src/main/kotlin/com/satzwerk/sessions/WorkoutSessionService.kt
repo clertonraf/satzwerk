@@ -6,8 +6,11 @@ import com.satzwerk.workouts.WorkoutGroupRepository
 import com.satzwerk.workouts.WorkoutPlanService
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.math.RoundingMode
 import java.time.Instant
 import java.util.UUID
+
+private const val PR_RATIO_SCALE = 10
 
 @Service
 class WorkoutSessionService(
@@ -52,8 +55,16 @@ class WorkoutSessionService(
         requireOpenSession(session)
 
         val now = Instant.now()
-        val prevMax = sessionQueryRepository.findMaxWeightForExercise(userId, request.exerciseId, now)
-        val isPr = prevMax == null || request.weight > prevMax
+        val isPr =
+            if (request.reps <= 0) {
+                false
+            } else {
+                val prevMaxRatio =
+                    sessionQueryRepository.findMaxRatioForExercise(userId, request.exerciseId, now)
+                val currentRatio =
+                    request.weight.divide(request.reps.toBigDecimal(), PR_RATIO_SCALE, RoundingMode.HALF_UP)
+                prevMaxRatio == null || currentRatio > prevMaxRatio
+            }
 
         return setLogRepository.save(
             SetLog(
@@ -81,9 +92,21 @@ class WorkoutSessionService(
             setLogRepository.findByIdAndWorkoutSessionId(setLogId, sessionId)
                 ?: throw NotFoundException("Set log not found")
 
-        val prevMax =
-            sessionQueryRepository.findMaxWeightForExercise(userId, setLog.exerciseId, setLog.loggedAt, setLog.id)
-        val isPr = prevMax == null || request.weight > prevMax
+        val isPr =
+            if (request.reps <= 0) {
+                false
+            } else {
+                val prevMaxRatio =
+                    sessionQueryRepository.findMaxRatioForExercise(
+                        userId,
+                        setLog.exerciseId,
+                        setLog.loggedAt,
+                        setLog.id,
+                    )
+                val currentRatio =
+                    request.weight.divide(request.reps.toBigDecimal(), PR_RATIO_SCALE, RoundingMode.HALF_UP)
+                prevMaxRatio == null || currentRatio > prevMaxRatio
+            }
 
         return setLogRepository.save(
             setLog.copy(

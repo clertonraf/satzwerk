@@ -76,6 +76,7 @@ class AnalyticsService(
                 exerciseId = row.exerciseId,
                 exerciseName = row.exerciseName,
                 weightKg = row.weightKg,
+                reps = row.reps,
                 achievedAt = row.achievedAt,
             )
         }

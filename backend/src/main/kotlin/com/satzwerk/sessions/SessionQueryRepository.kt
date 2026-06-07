@@ -100,4 +100,49 @@ class SessionQueryRepository(
             .one()
             .awaitSingleOrNull()
     }
+
+    suspend fun findMaxRatioForExercise(
+        userId: UUID,
+        exerciseId: UUID,
+        beforeInstant: Instant,
+        currentId: UUID? = null,
+    ): BigDecimal? {
+        val sql =
+            if (currentId == null) {
+                """
+                SELECT (sl.weight / sl.reps) AS max_ratio
+                FROM set_logs sl
+                JOIN workout_sessions ws ON sl.workout_session_id = ws.id
+                WHERE ws.user_id = :userId
+                  AND sl.exercise_id = :exerciseId
+                  AND sl.logged_at <= :beforeInstant
+                  AND sl.reps > 0
+                ORDER BY (sl.weight / sl.reps) DESC, sl.logged_at DESC, sl.id DESC
+                LIMIT 1
+                """.trimIndent()
+            } else {
+                """
+                SELECT (sl.weight / sl.reps) AS max_ratio
+                FROM set_logs sl
+                JOIN workout_sessions ws ON sl.workout_session_id = ws.id
+                WHERE ws.user_id = :userId
+                  AND sl.exercise_id = :exerciseId
+                  AND (sl.logged_at < :beforeInstant
+                       OR (sl.logged_at = :beforeInstant AND sl.id < :currentId))
+                  AND sl.reps > 0
+                ORDER BY (sl.weight / sl.reps) DESC, sl.logged_at DESC, sl.id DESC
+                LIMIT 1
+                """.trimIndent()
+            }
+        var spec =
+            databaseClient.sql(sql)
+                .bind("userId", userId)
+                .bind("exerciseId", exerciseId)
+                .bind("beforeInstant", beforeInstant)
+        if (currentId != null) spec = spec.bind("currentId", currentId)
+        return spec
+            .map { row, _ -> row.get("max_ratio", BigDecimal::class.java) }
+            .one()
+            .awaitSingleOrNull()
+    }
 }

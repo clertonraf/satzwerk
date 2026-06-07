@@ -356,6 +356,66 @@ class WorkoutSessionIntegrationTest {
             .expectStatus().isUnauthorized
     }
 
+    @Test
+    fun `set log with zero reps is not marked as personal record`() {
+        val session = startSession()
+        addSetLog(session.id, BigDecimal("100.0"), reps = 0)
+        completeSession(session.id)
+
+        client
+            .get()
+            .uri("/api/analytics/personal-records")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(0)
+    }
+
+    @Test
+    fun `set log with higher weight to reps ratio is marked as personal record even when absolute weight is lower`() {
+        val firstSession = startSession()
+        addSetLog(firstSession.id, BigDecimal("100.0"), reps = 10)
+        completeSession(firstSession.id)
+
+        val secondSession = startSession()
+        addSetLog(secondSession.id, BigDecimal("60.0"), reps = 3)
+        completeSession(secondSession.id)
+
+        client
+            .get()
+            .uri("/api/analytics/personal-records")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(2)
+            .jsonPath("$[0].weightKg").isEqualTo(60.0)
+            .jsonPath("$[0].reps").isEqualTo(3)
+    }
+
+    @Test
+    fun `set log with lower weight to reps ratio than existing pr is not marked as personal record`() {
+        val firstSession = startSession()
+        addSetLog(firstSession.id, BigDecimal("100.0"), reps = 5)
+        completeSession(firstSession.id)
+
+        val secondSession = startSession()
+        addSetLog(secondSession.id, BigDecimal("80.0"), reps = 5)
+        completeSession(secondSession.id)
+
+        client
+            .get()
+            .uri("/api/analytics/personal-records")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(1)
+            .jsonPath("$[0].weightKg").isEqualTo(100.0)
+            .jsonPath("$[0].reps").isEqualTo(5)
+    }
+
     private fun startSession(): WorkoutSessionResponse =
         client
             .post()
@@ -372,6 +432,13 @@ class WorkoutSessionIntegrationTest {
     private fun addSetLog(
         sessionId: UUID,
         weight: BigDecimal,
+    ): SetLogResponse = addSetLog(sessionId, weight, reps = 5)
+
+    private fun addSetLog(
+        sessionId: UUID,
+        weight: BigDecimal,
+        reps: Int,
+        setNumber: Int = 1,
     ): SetLogResponse =
         client
             .post()
@@ -381,9 +448,9 @@ class WorkoutSessionIntegrationTest {
             .bodyValue(
                 mapOf(
                     "exerciseId" to exerciseId,
-                    "setNumber" to 1,
+                    "setNumber" to setNumber,
                     "weight" to weight,
-                    "reps" to 5,
+                    "reps" to reps,
                 ),
             ).exchange()
             .expectStatus().isCreated
