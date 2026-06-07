@@ -143,7 +143,7 @@ Returns the N most recently achieved PRs, ordered by `achievedAt` descending.
 ]
 ```
 
-PRs are computed by comparing each SetLog's weight/reps ratio against the running max ratio for that exercise at the time of logging, ignoring sets with `reps <= 0`. The result is stored as a boolean flag on SetLog (`isPr`) populated at write time in `SessionService.addSetLog`.
+PRs are computed by comparing each SetLog's weight/reps ratio against the running max ratio for that exercise at the time of logging, ignoring sets with `reps <= 0`. The result is stored as a boolean flag on SetLog (`isPr`) populated at write time in `WorkoutSessionService.addSetLog` and `WorkoutSessionService.updateSetLog`.
 
 A Flyway migration must backfill `isPr` for all existing SetLogs by running the same max-ratio comparison over historical data ordered by `loggedAt`. Until the migration runs, existing users will see an empty PRs card.
 
