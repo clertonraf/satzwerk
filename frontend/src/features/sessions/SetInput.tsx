@@ -81,7 +81,7 @@ export default function SetInput({
           <label className="text-sm font-medium" htmlFor={`weight-${setNumber}`}>
             Weight ({unit})
           </label>
-          <Input id={`weight-${setNumber}`} type="text" inputMode="decimal" {...register('weight')} />
+          <Input id={`weight-${setNumber}`} type="text" inputMode="decimal" disabled={isLoading} {...register('weight')} />
           {errors.weight ? (
             <p className="text-sm text-destructive">{errors.weight.message}</p>
           ) : hint ? (
@@ -93,7 +93,7 @@ export default function SetInput({
           <label className="text-sm font-medium" htmlFor={`reps-${setNumber}`}>
             Reps
           </label>
-          <Input id={`reps-${setNumber}`} type="number" inputMode="numeric" min={1} {...register('reps')} />
+          <Input id={`reps-${setNumber}`} type="number" inputMode="numeric" min={1} disabled={isLoading} {...register('reps')} />
           {errors.reps ? <p className="text-sm text-destructive">{errors.reps.message}</p> : null}
         </div>
       </div>
