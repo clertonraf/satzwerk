@@ -55,6 +55,8 @@ class WorkoutSessionService(
         requireOpenSession(session)
 
         val now = Instant.now()
+        // Defensive guard: @Min(1) on AddSetLogRequest already blocks reps<=0 at the API boundary;
+        // this branch protects against bypassed validation or future callers that skip the handler.
         val isPr =
             if (request.reps <= 0) {
                 false
@@ -92,6 +94,8 @@ class WorkoutSessionService(
             setLogRepository.findByIdAndWorkoutSessionId(setLogId, sessionId)
                 ?: throw NotFoundException("Set log not found")
 
+        // Defensive guard: @Min(1) on UpdateSetLogRequest already blocks reps<=0 at the API boundary;
+        // this branch protects against bypassed validation or future callers that skip the handler.
         val isPr =
             if (request.reps <= 0) {
                 false
