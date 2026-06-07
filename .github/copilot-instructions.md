@@ -65,6 +65,8 @@ Integration tests use **Testcontainers** (real PostgreSQL, not H2). Tests run se
 
 Always use the constants from `services/queryKeys.ts` when writing TanStack Query calls — never inline string keys. Keys inside a namespace object use short, unprefixed strings (e.g., `['summary']`, `['weekly-trend', weeks]`) — never prefix the key with the namespace name (e.g., not `['analytics-summary']`).
 
+When adding `useQuery` for an **existing** `queryKey`, the `queryFn` error-handling semantics must match all other uses of that key — React Query shares one cache entry per key and will use whichever `queryFn` mounted last. Specifically, `queryKeys.sessions.open()` maps 404 → `null` but re-throws all other errors; any new consumer must do the same.
+
 **Build / run / test:**
 ```bash
 cd frontend
@@ -79,6 +81,8 @@ npm run format              # Prettier
 
 Start a **fresh `/new` session** before invoking end-of-session workflows (`/retrospecting`, `/handoff`). These skills inject large context blocks (retrospecting: ~16K chars) — running them at the tail of a long feature session multiplies that cost across all prior turns. Starting clean keeps the skill context as the baseline, not an addition.
 
+After a **planning skill** (`/grill-me`, `/to-prd`) concludes and the plan is agreed, start `/new` before beginning implementation. The Q&A exchange and skill context carry forward otherwise and accumulate input tokens across every subsequent implementation turn.
+
 Never re-invoke the same skill twice in one session. If a skill invocation didn't give the right result, use `/new` before retrying — re-invoking re-sends the full skill context and it persists in the window for every subsequent turn.
 
 ## Pre-push gate (mandatory)
@@ -90,7 +94,7 @@ Before every `git push`, run all of the following locally. **Do not push if any 
 cd backend && ./gradlew ktlintCheck && ./gradlew detekt
 
 # Frontend
-cd frontend && npm run lint
+cd frontend && npm install && npm run lint && tsc -b --noEmit
 ```
 
 This prevents CI failures that require extra fix-and-push cycles. The backend checks are fast enough to run on every push.
@@ -129,7 +133,7 @@ Files under `.copilot/` (retrospective reports, session state) are local-only ar
 
 ## Issue tracker
 
-Issues live as markdown files under `docs/issues/` (not GitHub Issues). Filename convention: `docs/issues/<NN>-<slug>.md`, numbered sequentially. Triage labels are defined in `docs/agents/triage-labels.md`.
+Issues live in **GitHub Issues** (`clertonraf/satzwerk`). Use `gh issue view <number>` to read, `gh issue create` to file new ones. See `docs/agents/issue-tracker.md` for full `gh` CLI conventions and triage labels.
 
 ## Local dev (full stack with Docker)
 
