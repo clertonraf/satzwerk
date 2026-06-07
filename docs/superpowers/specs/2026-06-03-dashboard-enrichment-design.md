@@ -166,8 +166,6 @@ Add `workoutGroupTitle: String` to each `WorkoutSession` in the response. Resolv
 
 ### Updated: `analyticsService`
 
-Add three new service methods.
-
 `PersonalRecord` now includes:
 ```ts
 {

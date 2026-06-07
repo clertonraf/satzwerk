@@ -6,8 +6,8 @@ UPDATE set_logs SET is_pr = FALSE;
 WITH ranked AS (
     SELECT
         sl.id,
-        sl.weight / sl.reps AS ratio,
-        MAX(sl.weight::numeric / sl.reps) OVER (
+        ROUND(sl.weight / sl.reps, 10) AS ratio,
+        MAX(ROUND(sl.weight::numeric / sl.reps, 10)) OVER (
             PARTITION BY sl.exercise_id, ws.user_id
             ORDER BY sl.logged_at, sl.id
             ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING

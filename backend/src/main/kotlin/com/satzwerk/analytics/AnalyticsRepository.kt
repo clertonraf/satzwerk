@@ -176,7 +176,7 @@ class AnalyticsRepository(
                     exerciseId = row.get("exercise_id", UUID::class.java)!!,
                     exerciseName = row.get("exercise_name", String::class.java)!!,
                     weightKg = row.get("weight", BigDecimal::class.java)!!,
-                    reps = row.get("reps", Integer::class.java)?.toInt() ?: 0,
+                    reps = requireNotNull(row.get("reps", Integer::class.java)?.toInt()) { "reps must not be null" },
                     achievedAt = row.get("logged_at", Instant::class.java)!!,
                 )
             }.all()

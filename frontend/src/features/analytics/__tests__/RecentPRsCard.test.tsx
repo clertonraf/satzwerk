@@ -3,13 +3,9 @@ import { render, screen } from '@testing-library/react'
 import RecentPRsCard from '../RecentPRsCard'
 import type { PersonalRecord } from '@/services/analyticsService'
 
-type PersonalRecordWithReps = PersonalRecord & {
-  reps: number
-}
-
 describe('RecentPRsCard', () => {
   it('renders exercise name, weight, reps and ratio for each PR', () => {
-    const mockData: PersonalRecordWithReps[] = [
+    const mockData: PersonalRecord[] = [
       {
         exerciseId: 'ex-1',
         exerciseName: 'Bench Press',
@@ -27,7 +23,7 @@ describe('RecentPRsCard', () => {
   })
 
   it('renders correct ratio rounded to one decimal place', () => {
-    const mockData: PersonalRecordWithReps[] = [
+    const mockData: PersonalRecord[] = [
       {
         exerciseId: 'ex-2',
         exerciseName: 'Deadlift',
@@ -50,7 +46,7 @@ describe('RecentPRsCard', () => {
   })
 
   it('renders multiple personal records', () => {
-    const mockData: PersonalRecordWithReps[] = [
+    const mockData: PersonalRecord[] = [
       {
         exerciseId: 'ex-1',
         exerciseName: 'Bench Press',

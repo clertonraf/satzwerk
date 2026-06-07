@@ -30,7 +30,7 @@ export default function RecentPRsCard({ records }: RecentPRsCardProps) {
             <span className="font-medium">{pr.exerciseName}</span>
             <span className="text-muted-foreground">
               {' — '}
-              {pr.weightKg} kg × {pr.reps} reps (ratio: {(pr.weightKg / pr.reps).toFixed(1)})
+              {pr.weightKg} kg × {pr.reps} reps{pr.reps > 0 ? ` (ratio: ${(pr.weightKg / pr.reps).toFixed(1)})` : ''}
             </span>
           </div>
         ))}
