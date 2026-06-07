@@ -54,7 +54,12 @@ Integration tests use **Testcontainers** (real PostgreSQL, not H2). Tests run se
 - `ktlintCheck` and `detekt` catch different things — always run both together. detekt enforces `MaxLineLength` (120 chars); ktlint does not.
 - After any import block modification (including after running `ktlintFormat`), run `compileTestKotlin` to confirm no imports were accidentally dropped. `ktlintFormat` silently reorders imports and can cause edit collisions.
 - Use the rubber-duck agent (`task(rubber-duck)`) before the first push of any non-trivial change to front-load edge-case discovery and reduce Copilot review round-trips. **If the rubber-duck agent does not complete within 3 minutes, cancel it and perform an inline self-review instead — do not retry the agent.**
-- Before `git push`, inspect your own diff and verify: (a) SQL rounding/precision is consistent with Kotlin/TypeScript logic, (b) no unused methods or imports left from the change, (c) any defensive guards have an explanatory comment if validation already prevents the case at the API boundary, (d) backend validators (`@Min`, `@DecimalMin`, etc.) are aligned with frontend input constraints, (e) no workaround types or TODO stubs remain in test files.
+- Before `git push`, inspect your own diff and verify:
+  - SQL rounding/precision is consistent with Kotlin/TypeScript logic
+  - no unused methods or imports left from the change
+  - any defensive guards have an explanatory comment if validation already prevents the case at the API boundary
+  - backend validators (`@Min`, `@DecimalMin`, etc.) are aligned with frontend input constraints
+  - no workaround types or TODO stubs remain in test files
 
 ## Frontend (React + TypeScript + Vite)
 
