@@ -1,5 +1,5 @@
--- Reset all PR flags
-UPDATE set_logs SET is_pr = FALSE;
+-- Reset PR flags only on rows currently marked as PRs
+UPDATE set_logs SET is_pr = FALSE WHERE is_pr = TRUE;
 
 -- Re-backfill: a set is a PR if its weight/reps ratio exceeds
 -- all prior sets for the same exercise by the same user (reps > 0 only).

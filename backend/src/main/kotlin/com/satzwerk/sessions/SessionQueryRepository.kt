@@ -117,7 +117,7 @@ class SessionQueryRepository(
                   AND sl.exercise_id = :exerciseId
                   AND sl.logged_at <= :beforeInstant
                   AND sl.reps > 0
-                ORDER BY ROUND(sl.weight / sl.reps, 10) DESC, sl.logged_at DESC, sl.id DESC
+                ORDER BY max_ratio DESC, sl.logged_at DESC, sl.id DESC
                 LIMIT 1
                 """.trimIndent()
             } else {
@@ -130,7 +130,7 @@ class SessionQueryRepository(
                   AND (sl.logged_at < :beforeInstant
                        OR (sl.logged_at = :beforeInstant AND sl.id < :currentId))
                   AND sl.reps > 0
-                ORDER BY ROUND(sl.weight / sl.reps, 10) DESC, sl.logged_at DESC, sl.id DESC
+                ORDER BY max_ratio DESC, sl.logged_at DESC, sl.id DESC
                 LIMIT 1
                 """.trimIndent()
             }

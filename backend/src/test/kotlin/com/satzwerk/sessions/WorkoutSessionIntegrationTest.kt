@@ -357,19 +357,23 @@ class WorkoutSessionIntegrationTest {
     }
 
     @Test
-    fun `set log with zero reps is not marked as personal record`() {
+    fun `set log with zero reps is rejected with bad request`() {
         val session = startSession()
-        addSetLog(session.id, BigDecimal("100.0"), reps = 0)
-        completeSession(session.id)
 
         client
-            .get()
-            .uri("/api/analytics/personal-records")
+            .post()
+            .uri("/api/sessions/${session.id}/set-logs")
             .header("Authorization", "Bearer $authToken")
-            .exchange()
-            .expectStatus().isOk
-            .expectBody()
-            .jsonPath("$.length()").isEqualTo(0)
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "exerciseId" to exerciseId,
+                    "setNumber" to 1,
+                    "weight" to BigDecimal("100.0"),
+                    "reps" to 0,
+                ),
+            ).exchange()
+            .expectStatus().isBadRequest
     }
 
     @Test
