@@ -164,6 +164,14 @@ describe('SetInput', () => {
     expect(await screen.findByText(/non-negative/i)).toBeInTheDocument()
   })
 
+  it('disables weight and reps inputs while isLoading is true', () => {
+    render(<SetInput onLog={vi.fn()} setNumber={1} unit="kg" isLoading={true} />)
+
+    expect(screen.getByLabelText(/weight/i)).toBeDisabled()
+    expect(screen.getByLabelText(/reps/i)).toBeDisabled()
+    expect(screen.getByRole('button', { name: /log set/i })).toBeDisabled()
+  })
+
   it('shows validation error for malformed comma input', async () => {
     const user = userEvent.setup()
 
