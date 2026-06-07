@@ -35,7 +35,7 @@ cd backend
 **Frontend**
 ```bash
 cd frontend
-npm run dev
+pnpm dev
 ```
 
 Requires a local PostgreSQL instance. Copy `.env.example` and set `DB_*` variables.
