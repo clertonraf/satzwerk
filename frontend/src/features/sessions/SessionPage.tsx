@@ -17,12 +17,13 @@ import {
   toPounds,
 } from '@/features/sessions/sessionHelpers'
 import AdvancedTechniqueBadge from '@/features/sessions/AdvancedTechniqueBadge'
+import ExerciseReferenceRow from '@/features/sessions/ExerciseReferenceRow'
 import { useWorkoutSession } from '@/features/sessions/useWorkoutSession'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { exerciseService } from '@/services/exerciseService'
 import { planService } from '@/services/planService'
 import { queryKeys } from '@/services/queryKeys'
-import { sessionService } from '@/services/sessionService'
+import { sessionService, type ExerciseReferenceWeights } from '@/services/sessionService'
 import type { WorkoutGroupDetail } from '@/services/planService'
 
 export default function SessionPage() {
@@ -80,6 +81,11 @@ export default function SessionPage() {
     enabled: !session && !isSessionLoading,
     retry: false,
   })
+  const referenceWeightsQuery = useQuery({
+    queryKey: queryKeys.sessions.referenceWeights(session?.id ?? ''),
+    queryFn: () => sessionService.getReferenceWeights(session!.id),
+    enabled: !!session,
+  })
   const planDetailsQueries = useQueries({
     queries: (plansQuery.data ?? []).map((plan) => ({
       queryKey: queryKeys.plans.detail(plan.id),
@@ -108,6 +114,10 @@ export default function SessionPage() {
   const exercisesById = useMemo(
     () => new Map((exercisesQuery.data ?? []).map((exercise) => [exercise.id, exercise])),
     [exercisesQuery.data]
+  )
+  const referenceWeightsMap = useMemo<Map<string, ExerciseReferenceWeights>>(
+    () => new Map((referenceWeightsQuery.data ?? []).map((rw) => [rw.exerciseId, rw])),
+    [referenceWeightsQuery.data]
   )
   const currentGroupEntry = session ? groupCatalog[session.workoutGroupId] : undefined
   const queryError = session
@@ -271,6 +281,11 @@ export default function SessionPage() {
                           </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
+                          <ExerciseReferenceRow
+                            referenceWeights={referenceWeightsMap.get(exercise.exerciseId)}
+                            isLoading={referenceWeightsQuery.isLoading}
+                            unit={exerciseUnit}
+                          />
                           <SetInput
                             isLoading={isAddSetPending}
                             setNumber={nextSetNumber}

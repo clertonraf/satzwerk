@@ -32,6 +32,13 @@ export interface UpdateSetLogRequest {
   reps: number
 }
 
+export interface ExerciseReferenceWeights {
+  exerciseId: string
+  previousWeightKg: number | null
+  prWeightKg: number | null
+  estimatedOneRepMaxKg: number | null
+}
+
 export const sessionService = {
   start: (workoutGroupId: string) => api.post<WorkoutSession>('/sessions', { workoutGroupId }).then((response) => response.data),
   getOpen: () => api.get<WorkoutSession>('/sessions/open').then((response) => response.data),
@@ -44,4 +51,6 @@ export const sessionService = {
   discard: (sessionId: string) => api.delete(`/sessions/${sessionId}`).then(() => undefined),
   history: () => api.get<WorkoutSession[]>('/sessions/history').then((response) => response.data),
   getById: (id: string) => api.get<WorkoutSession>(`/sessions/${id}`).then((response) => response.data),
+  getReferenceWeights: (sessionId: string) =>
+    api.get<ExerciseReferenceWeights[]>(`/sessions/${sessionId}/reference-weights`).then((response) => response.data),
 }

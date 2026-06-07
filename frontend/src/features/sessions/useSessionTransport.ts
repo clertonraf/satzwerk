@@ -1,5 +1,6 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
+import { queryKeys } from '@/services/queryKeys'
 import { offlineQueue } from '@/services/offlineQueue'
 import type { AddSetLogRequest, SetLog } from '@/services/sessionService'
 import { sessionService } from '@/services/sessionService'
@@ -15,6 +16,7 @@ function createQueuedSetLog(sessionId: string, payload: AddSetLogRequest): SetLo
 }
 
 export function useSessionTransport() {
+  const queryClient = useQueryClient()
   const isOnline = useOnlineStatus()
   const addSetLogMutation = useMutation({
     mutationFn: ({
@@ -24,6 +26,9 @@ export function useSessionTransport() {
       sessionId: string
       payload: AddSetLogRequest
     }) => sessionService.addSetLog(sessionId, payload),
+    onSuccess: (_, { sessionId }) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.referenceWeights(sessionId) })
+    },
   })
 
   async function logSet(sessionId: string, payload: AddSetLogRequest): Promise<SetLog> {

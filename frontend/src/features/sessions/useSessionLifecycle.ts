@@ -39,6 +39,9 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
   const updateSetLogMutation = useMutation({
     mutationFn: ({ sessionId, setLogId, payload }: { sessionId: string; setLogId: string; payload: UpdateSetLogRequest }) =>
       sessionService.updateSetLog(sessionId, setLogId, payload),
+    onSuccess: (_, { sessionId }) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.referenceWeights(sessionId) })
+    },
   })
 
   const session = openSessionQuery.data ?? null
