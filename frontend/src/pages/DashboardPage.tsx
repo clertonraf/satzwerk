@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -50,6 +51,20 @@ export default function DashboardPage() {
     queryFn: sessionService.history,
   })
 
+  const { data: openSession = null } = useQuery({
+    queryKey: queryKeys.sessions.open(),
+    queryFn: async () => {
+      try {
+        return await sessionService.getOpen()
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+          return null
+        }
+        throw error
+      }
+    },
+  })
+
   const lastSession = history[0] ?? null
 
   return (
@@ -82,7 +97,7 @@ export default function DashboardPage() {
 
       <div className="flex gap-3">
         <Button asChild>
-          <Link to="/session">Start session</Link>
+          <Link to="/session">{openSession != null ? 'Resume session' : 'Start session'}</Link>
         </Button>
         <Button asChild variant="outline">
           <Link to="/history">View history</Link>
