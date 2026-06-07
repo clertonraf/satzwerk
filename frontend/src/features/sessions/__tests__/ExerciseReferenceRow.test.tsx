@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import ExerciseReferenceRow from '../ExerciseReferenceRow'
-import { toPounds } from '../sessionHelpers'
+import { formatDisplayWeight } from '../sessionHelpers'
 
 describe('ExerciseReferenceRow', () => {
   it('renders nothing when reference weights are undefined and not loading', () => {
@@ -51,9 +51,9 @@ describe('ExerciseReferenceRow', () => {
       />
     )
 
-    expect(screen.getByText('Previous: 80 kg')).toBeInTheDocument()
-    expect(screen.getByText('PR: 100 kg')).toBeInTheDocument()
-    expect(screen.getByText('Est. 1RM: 116.67 kg')).toBeInTheDocument()
+    expect(screen.getByText(`Previous: ${formatDisplayWeight(80, 'kg')}`)).toBeInTheDocument()
+    expect(screen.getByText(`PR: ${formatDisplayWeight(100, 'kg')}`)).toBeInTheDocument()
+    expect(screen.getByText(`Est. 1RM: ${formatDisplayWeight(116.67, 'kg')}`)).toBeInTheDocument()
   })
 
   it('converts reference weights to pounds when unit is lb', () => {
@@ -70,9 +70,9 @@ describe('ExerciseReferenceRow', () => {
       />
     )
 
-    expect(screen.getByText(`Previous: ${toPounds(80)} lb`)).toBeInTheDocument()
-    expect(screen.getByText(`PR: ${toPounds(100)} lb`)).toBeInTheDocument()
-    expect(screen.getByText(`Est. 1RM: ${toPounds(116.67)} lb`)).toBeInTheDocument()
+    expect(screen.getByText(`Previous: ${formatDisplayWeight(80, 'lb')}`)).toBeInTheDocument()
+    expect(screen.getByText(`PR: ${formatDisplayWeight(100, 'lb')}`)).toBeInTheDocument()
+    expect(screen.getByText(`Est. 1RM: ${formatDisplayWeight(116.67, 'lb')}`)).toBeInTheDocument()
   })
 
   it('shows only available reference weight fields', () => {
@@ -90,7 +90,7 @@ describe('ExerciseReferenceRow', () => {
     )
 
     expect(screen.queryByText(/previous/i)).not.toBeInTheDocument()
-    expect(screen.getByText('PR: 100 kg')).toBeInTheDocument()
-    expect(screen.getByText('Est. 1RM: 116.67 kg')).toBeInTheDocument()
+    expect(screen.getByText(`PR: ${formatDisplayWeight(100, 'kg')}`)).toBeInTheDocument()
+    expect(screen.getByText(`Est. 1RM: ${formatDisplayWeight(116.67, 'kg')}`)).toBeInTheDocument()
   })
 })

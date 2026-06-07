@@ -1,14 +1,10 @@
 import type { ExerciseReferenceWeights } from '@/services/sessionService'
-import { toPounds } from './sessionHelpers'
+import { formatDisplayWeight } from './sessionHelpers'
 
 interface ExerciseReferenceRowProps {
   referenceWeights: ExerciseReferenceWeights | undefined
   isLoading: boolean
   unit: 'kg' | 'lb'
-}
-
-function formatWeight(weightKg: number, unit: 'kg' | 'lb') {
-  return String(unit === 'kg' ? weightKg : toPounds(weightKg))
 }
 
 export default function ExerciseReferenceRow({
@@ -32,11 +28,11 @@ export default function ExerciseReferenceRow({
 
   const values = [
     referenceWeights.previousWeightKg != null
-      ? `Previous: ${formatWeight(referenceWeights.previousWeightKg, unit)} ${unit}`
+      ? `Previous: ${formatDisplayWeight(referenceWeights.previousWeightKg, unit)}`
       : null,
-    referenceWeights.prWeightKg != null ? `PR: ${formatWeight(referenceWeights.prWeightKg, unit)} ${unit}` : null,
+    referenceWeights.prWeightKg != null ? `PR: ${formatDisplayWeight(referenceWeights.prWeightKg, unit)}` : null,
     referenceWeights.estimatedOneRepMaxKg != null
-      ? `Est. 1RM: ${formatWeight(referenceWeights.estimatedOneRepMaxKg, unit)} ${unit}`
+      ? `Est. 1RM: ${formatDisplayWeight(referenceWeights.estimatedOneRepMaxKg, unit)}`
       : null,
   ].filter((value): value is string => value !== null)
 

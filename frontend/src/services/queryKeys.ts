@@ -10,7 +10,7 @@ export const queryKeys = {
     open: () => ['open-session'] as const,
     history: () => ['session-history'] as const,
     detail: (id: string) => ['session', id] as const,
-    referenceWeights: (sessionId: string) => ['session-reference-weights', sessionId] as const,
+    referenceWeights: (sessionId: string) => ['reference-weights', sessionId] as const,
   },
   analytics: {
     heatmap: (from?: string, to?: string) => ['heatmap', from, to] as const,

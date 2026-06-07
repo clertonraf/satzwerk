@@ -188,8 +188,6 @@ class WorkoutSessionService(
         sessionId: UUID,
     ): List<ExerciseReferenceWeights> {
         val session = getOwnedSession(userId, sessionId)
-        workoutGroupRepository.findById(session.workoutGroupId)
-            ?: throw NotFoundException("Workout group not found")
         val exerciseIds =
             workoutExerciseRepository.findAllByWorkoutGroupIdOrderByOrderIndex(session.workoutGroupId)
                 .map { it.exerciseId }
