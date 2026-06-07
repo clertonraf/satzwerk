@@ -53,7 +53,8 @@ Integration tests use **Testcontainers** (real PostgreSQL, not H2). Tests run se
 ```
 - `ktlintCheck` and `detekt` catch different things — always run both together. detekt enforces `MaxLineLength` (120 chars); ktlint does not.
 - After any import block modification (including after running `ktlintFormat`), run `compileTestKotlin` to confirm no imports were accidentally dropped. `ktlintFormat` silently reorders imports and can cause edit collisions.
-- Use the rubber-duck agent (`task(rubber-duck)`) before the first push of any non-trivial change to front-load edge-case discovery and reduce Copilot review round-trips.
+- Use the rubber-duck agent (`task(rubber-duck)`) before the first push of any non-trivial change to front-load edge-case discovery and reduce Copilot review round-trips. **If the rubber-duck agent does not complete within 3 minutes, cancel it and perform an inline self-review instead — do not retry the agent.**
+- Before `git push`, inspect your own diff and verify: (a) SQL rounding/precision is consistent with Kotlin/TypeScript logic, (b) no unused methods or imports left from the change, (c) any defensive guards have an explanatory comment if validation already prevents the case at the API boundary, (d) backend validators (`@Min`, `@DecimalMin`, etc.) are aligned with frontend input constraints, (e) no workaround types or TODO stubs remain in test files.
 
 ## Frontend (React + TypeScript + Vite)
 
@@ -107,7 +108,7 @@ gh pr create --fill
 
 ## Before creating a PR
 
-Run a rubber-duck review against your implementation before opening the PR. For changes touching SVG, CSS layout, or any frontend component, this is **mandatory** — browser rendering edge cases are the most common source of review comments in this repo.
+Run a rubber-duck review against your implementation before opening the PR. For changes touching SVG, CSS layout, or any frontend component, this is **mandatory** — browser rendering edge cases are the most common source of review comments in this repo. **If the rubber-duck agent stalls or does not complete within 3 minutes, cancel it and proceed with the inline self-review checklist from the pre-push section above.**
 
 When the PR touches `useEffect` hooks, run through this checklist before pushing:
 - **Cleanup scope**: Does the cleanup function fire only when intended? A cleanup returned from `useEffect(() => { ...; return () => { cleanup(); }; }, [dep])` runs before every re-execution (on every `dep` change), not only on unmount. For unmount-only cleanup, use a separate effect with an empty deps array: `useEffect(() => { return () => { cleanup(); }; }, [])`.
