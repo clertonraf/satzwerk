@@ -22,6 +22,10 @@ vi.mock('@/services/sessionService', () => ({
 }))
 
 describe('DashboardPage', () => {
+  const notFoundError = Object.assign(new axios.AxiosError('Not Found'), {
+    response: { status: 404, data: {}, headers: {}, config: {}, statusText: 'Not Found' },
+  })
+
   afterEach(() => {
     vi.clearAllMocks()
   })
@@ -30,7 +34,7 @@ describe('DashboardPage', () => {
     vi.mocked(analyticsService.heatmap).mockResolvedValue([])
     vi.mocked(analyticsService.streak).mockResolvedValue({ currentStreak: 0, longestStreak: 0 })
     vi.mocked(sessionService.history).mockResolvedValue([])
-    vi.mocked(sessionService.getOpen).mockResolvedValue(null)
+    vi.mocked(sessionService.getOpen).mockRejectedValue(notFoundError)
 
     render(
       <QueryClientWrapper>
@@ -43,11 +47,11 @@ describe('DashboardPage', () => {
     expect(await screen.findByRole('heading', { name: /activity/i })).toBeInTheDocument()
   })
 
-  it('shows "Start session" when no open WorkoutSession exists', async () => {
+  it('shows "Start session" when no open WorkoutSession exists (404)', async () => {
     vi.mocked(analyticsService.heatmap).mockResolvedValue([])
     vi.mocked(analyticsService.streak).mockResolvedValue({ currentStreak: 0, longestStreak: 0 })
     vi.mocked(sessionService.history).mockResolvedValue([])
-    vi.mocked(sessionService.getOpen).mockResolvedValue(null)
+    vi.mocked(sessionService.getOpen).mockRejectedValue(notFoundError)
 
     render(
       <QueryClientWrapper>
@@ -86,26 +90,5 @@ describe('DashboardPage', () => {
     )
 
     expect(await screen.findByRole('link', { name: 'Resume session' })).toBeInTheDocument()
-  })
-
-  it('shows "Start session" when GET /sessions/open returns 404 (no active session)', async () => {
-    const notFoundError = Object.assign(new axios.AxiosError('Not Found'), {
-      response: { status: 404, data: {}, headers: {}, config: {}, statusText: 'Not Found' },
-    })
-
-    vi.mocked(analyticsService.heatmap).mockResolvedValue([])
-    vi.mocked(analyticsService.streak).mockResolvedValue({ currentStreak: 0, longestStreak: 0 })
-    vi.mocked(sessionService.history).mockResolvedValue([])
-    vi.mocked(sessionService.getOpen).mockRejectedValue(notFoundError)
-
-    render(
-      <QueryClientWrapper>
-        <MemoryRouter>
-          <DashboardPage />
-        </MemoryRouter>
-      </QueryClientWrapper>
-    )
-
-    expect(await screen.findByRole('link', { name: 'Start session' })).toBeInTheDocument()
   })
 })
