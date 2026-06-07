@@ -61,6 +61,9 @@ Integration tests use **Testcontainers** (real PostgreSQL, not H2). Tests run se
   - any defensive guards have an explanatory comment if validation already prevents the case at the API boundary
   - backend validators (`@Min`, `@DecimalMin`, etc.) are aligned with frontend input constraints
   - no workaround types or TODO stubs remain in test files
+  - no `@Suppress(...)` annotations added to silence detekt or ktlint findings — fix the underlying issue instead
+
+**NOT NULL FK lookups**: When a service method receives an entity referenced via a NOT NULL FK column validated upstream (e.g. `workout_sessions.workout_group_id`), do not add a redundant `repository.findById()` call — the FK constraint guarantees existence. Add lookups only when the ID arrives from unvalidated user input.
 
 ## Frontend (React + TypeScript + Vite)
 
@@ -73,6 +76,10 @@ Integration tests use **Testcontainers** (real PostgreSQL, not H2). Tests run se
 Always use the constants from `services/queryKeys.ts` when writing TanStack Query calls — never inline string keys. Keys inside a namespace object use short, unprefixed strings (e.g., `['summary']`, `['weekly-trend', weeks]`) — never prefix the key with the namespace name (e.g., not `['analytics-summary']`).
 
 When adding `useQuery` for an **existing** `queryKey`, the `queryFn` error-handling semantics must match all other uses of that key — React Query shares one cache entry per key and will use whichever `queryFn` mounted last. Specifically, `queryKeys.sessions.open()` maps 404 → `null` but re-throws all other errors; any new consumer must do the same.
+
+**Never suppress errors**: Do not use `// @ts-ignore`, `// @ts-expect-error`, `/* eslint-disable */`, or any inline directive to silence TypeScript or ESLint errors. Fix the underlying issue. Suppression directives mask real bugs and have been rejected in review every time they appeared in this codebase.
+
+**Test assertions on display values**: When asserting on formatted output (weights, dates, percentages), call the same helper function used in the component (e.g. `formatDisplayWeight(value, unit)`) rather than hardcoding the expected string. Hardcoded raw values drift when formatting logic changes and were a recurring PR review finding.
 
 **Build / run / test:**
 ```bash
