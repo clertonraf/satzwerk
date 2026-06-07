@@ -70,11 +70,11 @@ When adding `useQuery` for an **existing** `queryKey`, the `queryFn` error-handl
 **Build / run / test:**
 ```bash
 cd frontend
-npm run dev                 # start Vite dev server (http://localhost:5173)
-npm test                    # run all tests (Vitest, jsdom)
-npm test -- src/features/workouts/__tests__/PlansPage.test.tsx  # single test file (use npm test --, not npx vitest run)
-npm run lint                # ESLint
-npm run format              # Prettier
+pnpm dev                    # start Vite dev server (http://localhost:5173)
+pnpm test                   # run all tests (Vitest, jsdom)
+pnpm test -- src/features/workouts/__tests__/PlansPage.test.tsx  # single test file (use pnpm test --, not npx vitest run)
+pnpm lint                   # ESLint
+pnpm format                 # Prettier
 ```
 
 ## Session hygiene
@@ -94,7 +94,7 @@ Before every `git push`, run all of the following locally. **Do not push if any 
 cd backend && ./gradlew ktlintCheck && ./gradlew detekt
 
 # Frontend
-cd frontend && npm ci && npm run lint && tsc -b --noEmit
+cd frontend && pnpm run lint && tsc -b --noEmit
 ```
 
 This prevents CI failures that require extra fix-and-push cycles. The backend checks are fast enough to run on every push.
