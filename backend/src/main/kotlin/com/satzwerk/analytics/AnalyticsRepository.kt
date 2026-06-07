@@ -160,7 +160,7 @@ class AnalyticsRepository(
             .sql(
                 """
                 SELECT sl.id, sl.exercise_id, e.name AS exercise_name,
-                       sl.weight, sl.logged_at
+                       sl.weight, sl.reps, sl.logged_at
                 FROM set_logs sl
                 JOIN workout_sessions ws ON sl.workout_session_id = ws.id
                 JOIN exercises e ON sl.exercise_id = e.id
@@ -176,6 +176,7 @@ class AnalyticsRepository(
                     exerciseId = row.get("exercise_id", UUID::class.java)!!,
                     exerciseName = row.get("exercise_name", String::class.java)!!,
                     weightKg = row.get("weight", BigDecimal::class.java)!!,
+                    reps = requireNotNull(row.get("reps", Integer::class.java)?.toInt()) { "reps must not be null" },
                     achievedAt = row.get("logged_at", Instant::class.java)!!,
                 )
             }.all()
@@ -201,5 +202,6 @@ data class PersonalRecordRow(
     val exerciseId: UUID,
     val exerciseName: String,
     val weightKg: BigDecimal,
+    val reps: Int,
     val achievedAt: Instant,
 )

@@ -58,7 +58,7 @@ class SessionQueryRepository(
             .asFlow()
             .toList()
 
-    suspend fun findMaxWeightForExercise(
+    suspend fun findMaxRatioForExercise(
         userId: UUID,
         exerciseId: UUID,
         beforeInstant: Instant,
@@ -67,25 +67,27 @@ class SessionQueryRepository(
         val sql =
             if (currentId == null) {
                 """
-                SELECT sl.weight AS max_weight
+                SELECT ROUND(sl.weight / sl.reps, 10) AS max_ratio
                 FROM set_logs sl
                 JOIN workout_sessions ws ON sl.workout_session_id = ws.id
                 WHERE ws.user_id = :userId
                   AND sl.exercise_id = :exerciseId
                   AND sl.logged_at <= :beforeInstant
-                ORDER BY sl.weight DESC
+                  AND sl.reps > 0
+                ORDER BY max_ratio DESC, sl.logged_at DESC, sl.id DESC
                 LIMIT 1
                 """.trimIndent()
             } else {
                 """
-                SELECT sl.weight AS max_weight
+                SELECT ROUND(sl.weight / sl.reps, 10) AS max_ratio
                 FROM set_logs sl
                 JOIN workout_sessions ws ON sl.workout_session_id = ws.id
                 WHERE ws.user_id = :userId
                   AND sl.exercise_id = :exerciseId
                   AND (sl.logged_at < :beforeInstant
                        OR (sl.logged_at = :beforeInstant AND sl.id < :currentId))
-                ORDER BY sl.weight DESC
+                  AND sl.reps > 0
+                ORDER BY max_ratio DESC, sl.logged_at DESC, sl.id DESC
                 LIMIT 1
                 """.trimIndent()
             }
@@ -96,7 +98,7 @@ class SessionQueryRepository(
                 .bind("beforeInstant", beforeInstant)
         if (currentId != null) spec = spec.bind("currentId", currentId)
         return spec
-            .map { row, _ -> row.get("max_weight", BigDecimal::class.java) }
+            .map { row, _ -> row.get("max_ratio", BigDecimal::class.java) }
             .one()
             .awaitSingleOrNull()
     }

@@ -26,12 +26,12 @@ export default function RecentPRsCard({ records }: RecentPRsCardProps) {
       </CardHeader>
       <CardContent className="space-y-2">
         {records.map((pr) => (
-          <div key={`${pr.exerciseId}-${pr.achievedAt}`} className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium">{pr.exerciseName}</span>
-            <div className="flex shrink-0 items-center gap-2 text-sm tabular-nums text-muted-foreground">
-              <span>{pr.weightKg} kg</span>
-              <span>{new Date(pr.achievedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
-            </div>
+          <div key={`${pr.exerciseId}-${pr.achievedAt}`} className="text-sm">
+            <span className="font-medium">{pr.exerciseName}</span>
+            <span className="text-muted-foreground">
+              {' — '}
+              {pr.weightKg} kg × {pr.reps} reps{pr.reps > 0 ? ` (ratio: ${(pr.weightKg / pr.reps).toFixed(1)})` : ''}
+            </span>
           </div>
         ))}
       </CardContent>

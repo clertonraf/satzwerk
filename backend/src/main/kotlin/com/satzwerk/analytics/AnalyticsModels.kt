@@ -40,6 +40,7 @@ data class PersonalRecord(
     val exerciseId: UUID,
     val exerciseName: String,
     val weightKg: BigDecimal,
+    val reps: Int,
     val achievedAt: Instant,
 )
 

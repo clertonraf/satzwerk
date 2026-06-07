@@ -31,6 +31,7 @@ export interface PersonalRecord {
   exerciseId: string
   exerciseName: string
   weightKg: number
+  reps: number
   achievedAt: string
 }
 

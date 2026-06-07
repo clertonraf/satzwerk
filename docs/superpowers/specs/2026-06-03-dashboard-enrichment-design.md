@@ -74,10 +74,10 @@ The session history API response must be enriched to include `workoutGroupTitle:
 
 A list of the 5 most recent personal records. Each row shows:
 - Exercise name
-- New max weight (kg)
-- Date achieved
+- Weight + reps
+- Ratio (`weightKg / reps`, rounded to one decimal place)
 
-A **Personal Record** is defined as a SetLog whose `weight` exceeds all previous SetLogs for the same `exerciseId` by the same user at the time it was logged. The server computes and persists this; the frontend does not derive it client-side.
+A **Personal Record** is defined as a SetLog whose `weight/reps` ratio exceeds all previous SetLogs for the same `exerciseId` by the same user at the time it was logged, considering only sets with `reps > 0`. The server computes and persists this; the frontend does not derive it client-side.
 
 ### 5. Weekly Trend Chart
 
@@ -133,13 +133,19 @@ Returns the N most recently achieved PRs, ordered by `achievedAt` descending.
 
 ```json
 [
-  { "exerciseId": "...", "exerciseName": "Bench Press", "weightKg": 102.5, "achievedAt": "2026-06-02T18:34:00Z" }
+  {
+    "exerciseId": "...",
+    "exerciseName": "Bench Press",
+    "weightKg": 102.5,
+    "reps": 5,
+    "achievedAt": "2026-06-02T18:34:00Z"
+  }
 ]
 ```
 
-PRs are computed by comparing each SetLog's weight against the running max for that exercise at the time of logging. The result is stored as a boolean flag on SetLog (`isPr`) populated at write time in `SessionService.addSetLog`.
+PRs are computed by comparing each SetLog's weight/reps ratio against the running max ratio for that exercise at the time of logging, ignoring sets with `reps <= 0`. The result is stored as a boolean flag on SetLog (`isPr`) populated at write time in `WorkoutSessionService.addSetLog` and `WorkoutSessionService.updateSetLog`.
 
-A Flyway migration must backfill `isPr` for all existing SetLogs by running the same max-weight comparison over historical data ordered by `loggedAt`. Until the migration runs, existing users will see an empty PRs card.
+A Flyway migration must backfill `isPr` for all existing SetLogs by running the same max-ratio comparison over historical data ordered by `loggedAt`. Until the migration runs, existing users will see an empty PRs card.
 
 ### Modified: `GET /api/sessions/history`
 
@@ -159,6 +165,17 @@ Add `workoutGroupTitle: String` to each `WorkoutSession` in the response. Resolv
 | `WeeklyTrendChart` | `features/analytics/` | 8-week bar chart (SVG) |
 
 ### Updated: `analyticsService`
+
+`PersonalRecord` now includes:
+```ts
+{
+  exerciseId: string
+  exerciseName: string
+  weightKg: number
+  reps: number
+  achievedAt: string
+}
+```
 
 Add three new service methods:
 

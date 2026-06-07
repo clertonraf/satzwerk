@@ -449,6 +449,66 @@ class AnalyticsIntegrationTest {
             .jsonPath("$.length()").isEqualTo(0)
     }
 
+    @Test
+    fun `personal records endpoint returns reps field`() {
+        val session = startSession(authToken, workoutGroupId)
+        addSetLog(
+            authToken,
+            session.id,
+            exerciseId,
+            setNumber = 1,
+            setLog = SetLogFixture(weight = BigDecimal("100.0"), reps = 5),
+        )
+        completeSession(authToken, session.id)
+
+        client
+            .get()
+            .uri("/api/analytics/personal-records")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(1)
+            .jsonPath("$[0].weightKg").isEqualTo(100.0)
+            .jsonPath("$[0].reps").isEqualTo(5)
+    }
+
+    @Test
+    fun `personal records endpoint returns multiple prs in order`() {
+        val firstSession = startSession(authToken, workoutGroupId)
+        addSetLog(
+            authToken,
+            firstSession.id,
+            exerciseId,
+            setNumber = 1,
+            setLog = SetLogFixture(weight = BigDecimal("100.0"), reps = 5),
+        )
+        completeSession(authToken, firstSession.id)
+
+        val secondSession = startSession(authToken, workoutGroupId)
+        addSetLog(
+            authToken,
+            secondSession.id,
+            exerciseId,
+            setNumber = 1,
+            setLog = SetLogFixture(weight = BigDecimal("60.0"), reps = 2),
+        )
+        completeSession(authToken, secondSession.id)
+
+        client
+            .get()
+            .uri("/api/analytics/personal-records")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(2)
+            .jsonPath("$[0].weightKg").isEqualTo(60.0)
+            .jsonPath("$[0].reps").isEqualTo(2)
+            .jsonPath("$[1].weightKg").isEqualTo(100.0)
+            .jsonPath("$[1].reps").isEqualTo(5)
+    }
+
     private fun startSession(
         token: String,
         groupId: UUID,
@@ -470,8 +530,9 @@ class AnalyticsIntegrationTest {
         sessionId: UUID,
         exerciseId: UUID,
         setNumber: Int,
-    ): SetLogResponse =
-        client
+        setLog: SetLogFixture = SetLogFixture(),
+    ): SetLogResponse {
+        return client
             .post()
             .uri("/api/sessions/$sessionId/set-logs")
             .header("Authorization", "Bearer $token")
@@ -480,14 +541,15 @@ class AnalyticsIntegrationTest {
                 mapOf(
                     "exerciseId" to exerciseId,
                     "setNumber" to setNumber,
-                    "weight" to BigDecimal("80.0"),
-                    "reps" to 5,
+                    "weight" to setLog.weight,
+                    "reps" to setLog.reps,
                 ),
             ).exchange()
             .expectStatus().isCreated
             .expectBody(SetLogResponse::class.java)
             .returnResult()
             .responseBody!!
+    }
 
     private fun completeSession(
         token: String,
@@ -644,3 +706,8 @@ class AnalyticsIntegrationTest {
             .responseBody!!
             .accessToken
 }
+
+private data class SetLogFixture(
+    val weight: BigDecimal = BigDecimal("80.0"),
+    val reps: Int = 5,
+)
