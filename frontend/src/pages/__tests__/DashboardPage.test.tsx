@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import axios from 'axios'
 import DashboardPage from '../DashboardPage'
 import { QueryClientWrapper } from '@/test/QueryClientWrapper'
 import { analyticsService } from '@/services/analyticsService'
 import { sessionService } from '@/services/sessionService'
+import { queryKeys } from '@/services/queryKeys'
 
 vi.mock('@/services/analyticsService', () => ({
   analyticsService: {
@@ -48,20 +50,28 @@ describe('DashboardPage', () => {
   })
 
   it('shows "Start session" when no open WorkoutSession exists (404)', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
     vi.mocked(analyticsService.heatmap).mockResolvedValue([])
     vi.mocked(analyticsService.streak).mockResolvedValue({ currentStreak: 0, longestStreak: 0 })
     vi.mocked(sessionService.history).mockResolvedValue([])
     vi.mocked(sessionService.getOpen).mockRejectedValue(notFoundError)
 
     render(
-      <QueryClientWrapper>
+      <QueryClientProvider client={queryClient}>
         <MemoryRouter>
           <DashboardPage />
         </MemoryRouter>
-      </QueryClientWrapper>
+      </QueryClientProvider>
     )
 
     expect(await screen.findByRole('link', { name: 'Start session' })).toBeInTheDocument()
+
+    await waitFor(() => {
+      const state = queryClient.getQueryState(queryKeys.sessions.open())
+      expect(state?.status).toBe('success')
+      expect(state?.data).toBeNull()
+    })
   })
 
   it('shows "Resume session" when an open WorkoutSession exists', async () => {

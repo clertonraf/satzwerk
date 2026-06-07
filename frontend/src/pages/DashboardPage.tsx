@@ -1,4 +1,3 @@
-import axios from 'axios'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -53,16 +52,7 @@ export default function DashboardPage() {
 
   const { data: openSession = null } = useQuery({
     queryKey: queryKeys.sessions.open(),
-    queryFn: async () => {
-      try {
-        return await sessionService.getOpen()
-      } catch (error) {
-        if (axios.isAxiosError(error) && error.response?.status === 404) {
-          return null
-        }
-        throw error
-      }
-    },
+    queryFn: () => sessionService.getOpen().catch(() => null),
   })
 
   const lastSession = history[0] ?? null
