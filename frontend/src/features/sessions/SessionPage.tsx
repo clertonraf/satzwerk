@@ -87,7 +87,7 @@ export default function SessionPage() {
     enabled: !session && !isSessionLoading,
   })
   const openPlanDetailQuery = useQuery({
-    queryKey: queryKeys.sessions.openPlanDetail(),
+    queryKey: queryKeys.sessions.openPlanDetail(session?.id ?? ''),
     queryFn: () => sessionService.getOpenPlanDetail(),
     enabled: !!session && !isSessionLoading,
   })
