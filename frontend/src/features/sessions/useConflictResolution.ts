@@ -16,6 +16,7 @@ export function useConflictResolution({ startMutateAsync, discardMutateAsync }: 
   const isOnline = useOnlineStatus()
   const [conflictSession, setConflictSession] = useState<WorkoutSession | null>(null)
   const [pendingWorkoutGroupId, setPendingWorkoutGroupId] = useState<string | null>(null)
+  const [stalePlanError, setStalePlanError] = useState<string | null>(null)
 
   async function handleStartSession(workoutGroupId: string) {
     if (!isOnline) {
@@ -33,6 +34,12 @@ export function useConflictResolution({ startMutateAsync, discardMutateAsync }: 
         queryClient.setQueryData(queryKeys.sessions.open(), openSession)
         setPendingWorkoutGroupId(workoutGroupId)
         setConflictSession(openSession)
+        return
+      }
+
+      if (axios.isAxiosError(error) && error.response?.status === 400) {
+        setStalePlanError('Your active plan changed. Please select a group again.')
+        await queryClient.invalidateQueries({ queryKey: queryKeys.sessions.startOptions() })
         return
       }
 
@@ -60,10 +67,12 @@ export function useConflictResolution({ startMutateAsync, discardMutateAsync }: 
   function clearConflictState() {
     setPendingWorkoutGroupId(null)
     setConflictSession(null)
+    setStalePlanError(null)
   }
 
   return {
     conflictSession,
+    stalePlanError,
     handleStartSession,
     handleDiscardConflict,
     clearConflictState,

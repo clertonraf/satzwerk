@@ -18,15 +18,6 @@ class SessionHandler(
     private val workoutSessionService: WorkoutSessionService,
     private val validator: Validator,
 ) {
-    suspend fun start(request: ServerRequest): ServerResponse =
-        handleErrors(withConflict = true) {
-            val body = request.awaitBody<StartSessionRequest>()
-            validateOrBadRequest(validator, body) {
-                val response = workoutSessionService.start(currentUserId(request), body.workoutGroupId)
-                ServerResponse.status(HttpStatus.CREATED).bodyValueAndAwait(response)
-            }
-        }
-
     suspend fun getOpen(request: ServerRequest): ServerResponse =
         handleErrors(withConflict = true) {
             val response = workoutSessionService.getOpen(currentUserId(request))

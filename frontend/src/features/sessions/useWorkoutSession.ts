@@ -11,6 +11,7 @@ export function useWorkoutSession({ onComplete, onForfeit }: { onComplete: () =>
   return {
     session: lifecycle.session,
     conflictSession: conflict.conflictSession,
+    stalePlanError: conflict.stalePlanError,
     isSessionLoading: lifecycle.isSessionLoading,
     handleStartSession: conflict.handleStartSession,
     handleLogSet: lifecycle.handleLogSet,

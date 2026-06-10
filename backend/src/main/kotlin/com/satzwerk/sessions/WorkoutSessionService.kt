@@ -1,9 +1,12 @@
 package com.satzwerk.sessions
 
+import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.NotFoundException
 import com.satzwerk.workouts.WorkoutExerciseRepository
 import com.satzwerk.workouts.WorkoutGroupRepository
+import com.satzwerk.workouts.WorkoutPlan
+import com.satzwerk.workouts.WorkoutPlanDetailResponse
 import com.satzwerk.workouts.WorkoutPlanService
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -30,13 +33,26 @@ class WorkoutSessionService(
         val group =
             workoutGroupRepository.findById(workoutGroupId)
                 ?: throw NotFoundException("Workout group not found")
-        workoutPlanService.getOwnedPlan(userId, group.workoutPlanId)
+        val plan = workoutPlanService.getOwnedPlan(userId, group.workoutPlanId)
+        requireActivePlan(plan)
         workoutSessionRepository.findByUserIdAndCompletedAtIsNull(userId)?.let {
             throw ConflictException("User already has an open workout session")
         }
 
         val session = workoutSessionRepository.save(WorkoutSession(userId = userId, workoutGroupId = workoutGroupId))
         return session.toResponse(emptyList(), group.title)
+    }
+
+    suspend fun getStartOptions(userId: UUID): WorkoutPlanDetailResponse = workoutPlanService.getActiveDetail(userId)
+
+    suspend fun getOpenPlanDetail(userId: UUID): WorkoutPlanDetailResponse {
+        val session =
+            workoutSessionRepository.findByUserIdAndCompletedAtIsNull(userId)
+                ?: throw NotFoundException("Open workout session not found")
+        val group =
+            workoutGroupRepository.findById(session.workoutGroupId)
+                ?: throw NotFoundException("Workout group not found")
+        return workoutPlanService.getDetail(userId, group.workoutPlanId)
     }
 
     suspend fun getOpen(userId: UUID): WorkoutSessionResponse {
@@ -206,6 +222,12 @@ class WorkoutSessionService(
         setLogRepository.findAllByWorkoutSessionId(sessionId)
             .sortedWith(compareBy(SetLog::setNumber, SetLog::loggedAt))
             .map(SetLog::toResponse)
+}
+
+private fun requireActivePlan(plan: WorkoutPlan) {
+    if (!plan.isActive) {
+        throw BadRequestException("Cannot start a session for a group belonging to an inactive workout plan")
+    }
 }
 
 private fun requireOpenSession(session: WorkoutSession) {

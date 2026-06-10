@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { useQueries, useQuery } from '@tanstack/react-query'
+import axios from 'axios'
+import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,7 +22,6 @@ import ExerciseReferenceRow from '@/features/sessions/ExerciseReferenceRow'
 import { useWorkoutSession } from '@/features/sessions/useWorkoutSession'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { exerciseService } from '@/services/exerciseService'
-import { planService } from '@/services/planService'
 import { queryKeys } from '@/services/queryKeys'
 import { sessionService, type ExerciseReferenceWeights } from '@/services/sessionService'
 import type { WorkoutGroupDetail } from '@/services/planService'
@@ -36,6 +36,7 @@ export default function SessionPage() {
   const {
     session,
     conflictSession,
+    stalePlanError,
     isSessionLoading,
     handleStartSession,
     handleLogSet,
@@ -67,13 +68,28 @@ export default function SessionPage() {
       return { sessionId: session?.id, units: { ...current, [exerciseId]: unit } }
     })
 
-  const plansQuery = useQuery({
-    queryKey: queryKeys.plans.all(),
-    queryFn: () => planService.list(),
-  })
   const exercisesQuery = useQuery({
     queryKey: queryKeys.exercises.all(),
     queryFn: () => exerciseService.list(),
+  })
+  const startOptionsQuery = useQuery({
+    queryKey: queryKeys.sessions.startOptions(),
+    queryFn: async () => {
+      try {
+        return await sessionService.getStartOptions()
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+          return null
+        }
+        throw error
+      }
+    },
+    enabled: !session && !isSessionLoading,
+  })
+  const openPlanDetailQuery = useQuery({
+    queryKey: queryKeys.sessions.openPlanDetail(),
+    queryFn: () => sessionService.getOpenPlanDetail(),
+    enabled: !!session && !isSessionLoading,
   })
   const historyQuery = useQuery({
     queryKey: queryKeys.sessions.history(),
@@ -86,28 +102,17 @@ export default function SessionPage() {
     queryFn: () => sessionService.getReferenceWeights(session!.id),
     enabled: !!session,
   })
-  const planDetailsQueries = useQueries({
-    queries: (plansQuery.data ?? []).map((plan) => ({
-      queryKey: queryKeys.plans.detail(plan.id),
-      queryFn: () => planService.get(plan.id),
-    })),
-  })
 
-  const planDetails = planDetailsQueries.flatMap((query) => (query.data ? [query.data] : []))
+  const planDetails = useMemo(() => {
+    if (session) {
+      return openPlanDetailQuery.data ? [openPlanDetailQuery.data] : []
+    }
+
+    return startOptionsQuery.data ? [startOptionsQuery.data] : []
+  }, [session, openPlanDetailQuery.data, startOptionsQuery.data])
   const groupCatalog = useMemo(() => buildWorkoutGroupCatalog(planDetails), [planDetails])
   const groupOptions = useMemo(
-    () =>
-      Object.values(groupCatalog).sort((left, right) => {
-        if (left.plan.isActive !== right.plan.isActive) {
-          return Number(right.plan.isActive) - Number(left.plan.isActive)
-        }
-
-        if (left.plan.name !== right.plan.name) {
-          return left.plan.name.localeCompare(right.plan.name)
-        }
-
-        return left.group.orderIndex - right.group.orderIndex
-      }),
+    () => Object.values(groupCatalog).sort((a, b) => a.group.orderIndex - b.group.orderIndex),
     [groupCatalog]
   )
   const groupStatsMap = useMemo(() => buildGroupStatsMap(historyQuery.data ?? []), [historyQuery.data])
@@ -121,12 +126,9 @@ export default function SessionPage() {
   )
   const currentGroupEntry = session ? groupCatalog[session.workoutGroupId] : undefined
   const queryError = session
-    ? null
-    : plansQuery.error ??
-      exercisesQuery.error ??
-      planDetailsQueries.find((query) => query.error)?.error
-  const isCatalogLoading =
-    plansQuery.isLoading || exercisesQuery.isLoading || planDetailsQueries.some((query) => query.isLoading)
+    ? openPlanDetailQuery.error ?? exercisesQuery.error
+    : startOptionsQuery.error ?? exercisesQuery.error
+  const isCatalogLoading = (session ? openPlanDetailQuery.isLoading : startOptionsQuery.isLoading) || exercisesQuery.isLoading
 
   if (queryError) {
     return <p className="text-sm text-destructive">Could not load workout session data.</p>
@@ -175,6 +177,11 @@ export default function SessionPage() {
           {!session ? (
             isCatalogLoading ? (
               <p className="text-sm text-muted-foreground">Loading workout groups...</p>
+            ) : startOptionsQuery.data === null ? (
+              <p className="text-sm text-muted-foreground">
+                No active plan. Activate a plan on the <Link className="underline" to="/plans">Plans</Link> page to start a
+                session.
+              </p>
             ) : groupOptions.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No workout groups found yet. Build your training split on the <Link className="underline" to="/plans">Plans</Link>{' '}
@@ -186,6 +193,9 @@ export default function SessionPage() {
                   <p className="text-sm text-muted-foreground">
                     Reconnect to start a new workout. Your current session data stays available offline.
                   </p>
+                ) : null}
+                {stalePlanError ? (
+                  <p className="text-sm text-destructive">{stalePlanError}</p>
                 ) : null}
                 {groupOptions.map(({ group, plan }) => {
                   const stats = groupStatsMap.get(group.id)
