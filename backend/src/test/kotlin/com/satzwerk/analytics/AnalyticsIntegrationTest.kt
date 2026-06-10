@@ -293,10 +293,12 @@ class AnalyticsIntegrationTest {
 
     @Test
     fun `summary activePlanDays is null when no active plan`() {
+        val suffix = UUID.randomUUID()
+        val noActivePlanToken = registerAndLogin("no-active-$suffix@test.com", "password123", "No Plan User")
         client
             .get()
             .uri("/api/analytics/summary")
-            .header("Authorization", "Bearer $authToken")
+            .header("Authorization", "Bearer $noActivePlanToken")
             .exchange()
             .expectStatus().isOk
             .expectBody()
@@ -643,7 +645,14 @@ class AnalyticsIntegrationTest {
                 .returnResult()
                 .responseBody!!
 
-        return response.id
+        val planId = response.id
+        client
+            .post()
+            .uri("/api/plans/$planId/activate")
+            .header("Authorization", "Bearer $token")
+            .exchange()
+            .expectStatus().isNoContent
+        return planId
     }
 
     private fun createGroup(

@@ -8,6 +8,8 @@ export const queryKeys = {
   },
   sessions: {
     open: () => ['open-session'] as const,
+    startOptions: () => ['session-start-options'] as const,
+    openPlanDetail: (sessionId: string) => ['session-open-plan-detail', sessionId] as const,
     history: () => ['session-history'] as const,
     detail: (id: string) => ['session', id] as const,
     referenceWeights: (sessionId: string) => ['reference-weights', sessionId] as const,

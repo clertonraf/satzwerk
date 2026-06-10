@@ -58,6 +58,7 @@ class WorkoutSessionIntegrationTest {
         authToken = registerAndLogin("session-$suffix@test.com", "password123", "Session User")
         exerciseId = createExercise(authToken, "Bench Press", "CHEST")
         val planId = createPlan(authToken, "Push Pull Legs")
+        activatePlan(authToken, planId)
         workoutGroupId = createGroup(authToken, planId, "Push Day", exerciseId)
     }
 
@@ -77,6 +78,54 @@ class WorkoutSessionIntegrationTest {
             .jsonPath("$.startedAt").isNotEmpty
             .jsonPath("$.completedAt").isEmpty
             .jsonPath("$.setLogs.length()").isEqualTo(0)
+    }
+
+    @Test
+    fun `get start options returns active plan detail`() {
+        client
+            .get()
+            .uri("/api/sessions/start-options")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.id").isNotEmpty
+            .jsonPath("$.isActive").isEqualTo(true)
+            .jsonPath("$.groups.length()").isEqualTo(1)
+            .jsonPath("$.groups[0].id").isEqualTo(workoutGroupId.toString())
+            .jsonPath("$.groups[0].title").isEqualTo("Push Day")
+    }
+
+    @Test
+    fun `get start options returns not found when no plan is active`() {
+        val suffix = UUID.randomUUID()
+        val token = registerAndLogin("inactive-$suffix@test.com", "password123", "Inactive User")
+        createPlan(token, "Inactive Plan")
+
+        client
+            .get()
+            .uri("/api/sessions/start-options")
+            .header("Authorization", "Bearer $token")
+            .exchange()
+            .expectStatus().isNotFound
+    }
+
+    @Test
+    fun `start session returns bad request when group belongs to inactive plan`() {
+        val suffix = UUID.randomUUID()
+        val token = registerAndLogin("inactive-group-$suffix@test.com", "password123", "Inactive Group User")
+        val ownedExerciseId = createExercise(token, "Overhead Press", "SHOULDERS")
+        val inactivePlanId = createPlan(token, "Inactive Push")
+        val inactiveGroupId = createGroup(token, inactivePlanId, "Push Day", ownedExerciseId)
+
+        client
+            .post()
+            .uri("/api/sessions")
+            .header("Authorization", "Bearer $token")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("workoutGroupId" to inactiveGroupId))
+            .exchange()
+            .expectStatus().isBadRequest
     }
 
     @Test
@@ -709,6 +758,18 @@ class WorkoutSessionIntegrationTest {
                 .responseBody!!
 
         return response.id
+    }
+
+    private fun activatePlan(
+        token: String,
+        planId: UUID,
+    ) {
+        client
+            .post()
+            .uri("/api/plans/$planId/activate")
+            .header("Authorization", "Bearer $token")
+            .exchange()
+            .expectStatus().isNoContent
     }
 
     private fun createGroup(

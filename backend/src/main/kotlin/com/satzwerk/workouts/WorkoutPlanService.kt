@@ -45,6 +45,13 @@ class WorkoutPlanService(
         return plan.toDetailResponse(groups, exercisesByGroup)
     }
 
+    suspend fun getActiveDetail(userId: UUID): WorkoutPlanDetailResponse {
+        val activePlan =
+            workoutPlanRepository.findAllByUserIdAndIsActive(userId, true).firstOrNull()
+                ?: throw NotFoundException("No active workout plan found")
+        return getDetail(userId, requireNotNull(activePlan.id))
+    }
+
     suspend fun update(
         userId: UUID,
         planId: UUID,

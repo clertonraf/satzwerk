@@ -1,4 +1,5 @@
 import { api } from './api'
+import type { WorkoutPlanDetail } from './planService'
 
 export interface WorkoutSession {
   id: string
@@ -42,6 +43,8 @@ export interface ExerciseReferenceWeights {
 export const sessionService = {
   start: (workoutGroupId: string) => api.post<WorkoutSession>('/sessions', { workoutGroupId }).then((response) => response.data),
   getOpen: () => api.get<WorkoutSession>('/sessions/open').then((response) => response.data),
+  getStartOptions: () => api.get<WorkoutPlanDetail>('/sessions/start-options').then((response) => response.data),
+  getOpenPlanDetail: () => api.get<WorkoutPlanDetail>('/sessions/open/plan-detail').then((response) => response.data),
   addSetLog: (sessionId: string, data: AddSetLogRequest) =>
     api.post<SetLog>(`/sessions/${sessionId}/set-logs`, data).then((response) => response.data),
   updateSetLog: (sessionId: string, setLogId: string, data: UpdateSetLogRequest) =>
