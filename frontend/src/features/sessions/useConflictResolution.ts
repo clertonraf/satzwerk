@@ -23,6 +23,8 @@ export function useConflictResolution({ startMutateAsync, discardMutateAsync }: 
       return
     }
 
+    setStalePlanError(null)
+
     try {
       const startedSession = await startMutateAsync(workoutGroupId)
       queryClient.setQueryData(queryKeys.sessions.open(), startedSession)
