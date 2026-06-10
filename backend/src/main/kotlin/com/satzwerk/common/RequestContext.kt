@@ -1,0 +1,32 @@
+package com.satzwerk.common
+
+import kotlinx.coroutines.reactor.awaitSingle
+import org.springframework.core.codec.CodecException
+import org.springframework.web.reactive.function.server.ServerRequest
+import java.util.UUID
+
+class RequestContext(
+    private val request: ServerRequest,
+) {
+    suspend fun userId(): UUID {
+        val principal = request.principal().awaitSingle()
+        return try {
+            UUID.fromString(principal.name)
+        } catch (_: IllegalArgumentException) {
+            throw BadRequestException("Invalid user ID: ${principal.name}")
+        }
+    }
+
+    suspend fun <T : Any> body(clazz: Class<T>): T =
+        try {
+            request.bodyToMono(clazz).awaitSingle()
+        } catch (e: CodecException) {
+            throw BadRequestException("Invalid request body: ${e.message}", e)
+        }
+
+    fun pathId(name: String): UUID = parseUuid(request.pathVariable(name))
+
+    fun queryParam(name: String): String? = request.queryParam(name).orElse(null)
+}
+
+suspend inline fun <reified T : Any> RequestContext.body(): T = body(T::class.java)
