@@ -1,7 +1,7 @@
 package com.satzwerk.analytics
 
 import com.satzwerk.common.BadRequestException
-import com.satzwerk.common.currentUserId
+import com.satzwerk.common.RequestContext
 import com.satzwerk.common.handleErrors
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.server.ServerRequest
@@ -25,49 +25,50 @@ class AnalyticsHandler(
 ) {
     suspend fun heatmap(request: ServerRequest): ServerResponse =
         handleErrors {
+            val ctx = RequestContext(request)
             val today = LocalDate.now(ZoneOffset.UTC)
             val from =
-                request.queryParam("from").map { parseDate("from", it) }
-                    .orElse(today.minusMonths(DEFAULT_HEATMAP_MONTHS))
-            val to = request.queryParam("to").map { parseDate("to", it) }.orElse(today)
-            val userId = currentUserId(request)
-            ServerResponse.ok().bodyValueAndAwait(analyticsService.heatmap(userId, from, to))
+                ctx.queryParam("from")?.let { parseDate("from", it) } ?: today.minusMonths(DEFAULT_HEATMAP_MONTHS)
+            val to = ctx.queryParam("to")?.let { parseDate("to", it) } ?: today
+            ServerResponse.ok().bodyValueAndAwait(analyticsService.heatmap(ctx.userId(), from, to))
         }
 
-    suspend fun streak(request: ServerRequest): ServerResponse {
-        val userId = currentUserId(request)
-        return ServerResponse.ok().bodyValueAndAwait(analyticsService.streak(userId))
-    }
+    suspend fun streak(request: ServerRequest): ServerResponse =
+        handleErrors {
+            val ctx = RequestContext(request)
+            ServerResponse.ok().bodyValueAndAwait(analyticsService.streak(ctx.userId()))
+        }
 
-    suspend fun dashboardSummary(request: ServerRequest): ServerResponse {
-        val userId = currentUserId(request)
-        return ServerResponse.ok().bodyValueAndAwait(analyticsService.dashboardSummary(userId))
-    }
+    suspend fun dashboardSummary(request: ServerRequest): ServerResponse =
+        handleErrors {
+            val ctx = RequestContext(request)
+            ServerResponse.ok().bodyValueAndAwait(analyticsService.dashboardSummary(ctx.userId()))
+        }
 
     suspend fun weeklyTrend(request: ServerRequest): ServerResponse =
         handleErrors {
-            val userId = currentUserId(request)
+            val ctx = RequestContext(request)
             val weeks =
-                request.queryParam("weeks")
-                    .map { it.toIntOrNull() ?: throw BadRequestException("'weeks' must be a valid integer") }
-                    .orElse(DEFAULT_TREND_WEEKS)
+                ctx.queryParam("weeks")?.let {
+                    it.toIntOrNull() ?: throw BadRequestException("'weeks' must be a valid integer")
+                } ?: DEFAULT_TREND_WEEKS
             if (weeks !in MIN_TREND_WEEKS..MAX_TREND_WEEKS) {
                 throw BadRequestException("'weeks' must be between $MIN_TREND_WEEKS and $MAX_TREND_WEEKS")
             }
-            ServerResponse.ok().bodyValueAndAwait(analyticsService.weeklyTrend(userId, weeks))
+            ServerResponse.ok().bodyValueAndAwait(analyticsService.weeklyTrend(ctx.userId(), weeks))
         }
 
     suspend fun personalRecords(request: ServerRequest): ServerResponse =
         handleErrors {
-            val userId = currentUserId(request)
+            val ctx = RequestContext(request)
             val limit =
-                request.queryParam("limit")
-                    .map { it.toIntOrNull() ?: throw BadRequestException("'limit' must be a valid integer") }
-                    .orElse(DEFAULT_PR_LIMIT)
+                ctx.queryParam("limit")?.let {
+                    it.toIntOrNull() ?: throw BadRequestException("'limit' must be a valid integer")
+                } ?: DEFAULT_PR_LIMIT
             if (limit !in MIN_PR_LIMIT..MAX_PR_LIMIT) {
                 throw BadRequestException("'limit' must be between $MIN_PR_LIMIT and $MAX_PR_LIMIT")
             }
-            ServerResponse.ok().bodyValueAndAwait(analyticsService.personalRecords(userId, limit))
+            ServerResponse.ok().bodyValueAndAwait(analyticsService.personalRecords(ctx.userId(), limit))
         }
 
     private fun parseDate(

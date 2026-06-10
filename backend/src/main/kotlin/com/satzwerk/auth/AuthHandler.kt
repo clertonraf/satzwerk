@@ -1,11 +1,12 @@
 package com.satzwerk.auth
 
+import com.satzwerk.common.RequestContext
+import com.satzwerk.common.body
 import jakarta.validation.Validator
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.server.ServerRequest
 import org.springframework.web.reactive.function.server.ServerResponse
-import org.springframework.web.reactive.function.server.awaitBody
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
 
 private data class ErrorResponse(
@@ -23,7 +24,7 @@ class AuthHandler(
 ) {
     suspend fun register(request: ServerRequest): ServerResponse {
         return try {
-            val body = request.awaitBody<RegisterRequest>()
+            val body = RequestContext(request).body<RegisterRequest>()
             val violations = validator.validate(body)
             if (violations.isNotEmpty()) {
                 ServerResponse
@@ -48,7 +49,7 @@ class AuthHandler(
 
     suspend fun login(request: ServerRequest): ServerResponse {
         return try {
-            val body = request.awaitBody<LoginRequest>()
+            val body = RequestContext(request).body<LoginRequest>()
             val violations = validator.validate(body)
             if (violations.isNotEmpty()) {
                 ServerResponse
@@ -69,7 +70,7 @@ class AuthHandler(
 
     suspend fun refresh(request: ServerRequest): ServerResponse {
         return try {
-            val body = request.awaitBody<RefreshRequest>()
+            val body = RequestContext(request).body<RefreshRequest>()
             val violations = validator.validate(body)
             if (violations.isNotEmpty()) {
                 ServerResponse
