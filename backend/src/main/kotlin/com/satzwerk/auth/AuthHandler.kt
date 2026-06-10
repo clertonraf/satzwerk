@@ -1,6 +1,8 @@
 package com.satzwerk.auth
 
+import com.satzwerk.common.ErrorResponse
 import com.satzwerk.common.RequestContext
+import com.satzwerk.common.ValidationErrorResponse
 import com.satzwerk.common.body
 import com.satzwerk.common.handleErrors
 import jakarta.validation.Validator
@@ -9,14 +11,6 @@ import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.server.ServerRequest
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
-
-private data class ErrorResponse(
-    val error: String,
-)
-
-private data class ValidationErrorResponse(
-    val errors: Map<String, String>,
-)
 
 @Component
 class AuthHandler(
