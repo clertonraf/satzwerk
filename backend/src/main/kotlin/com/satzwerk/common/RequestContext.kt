@@ -11,11 +11,7 @@ class RequestContext(
 ) {
     suspend fun userId(): UUID {
         val principal = request.principal().awaitSingle()
-        return try {
-            UUID.fromString(principal.name)
-        } catch (_: IllegalArgumentException) {
-            throw BadRequestException("Invalid UUID: ${principal.name}")
-        }
+        return parseUuid(principal.name)
     }
 
     suspend fun <T : Any> body(clazz: Class<T>): T =
@@ -23,7 +19,7 @@ class RequestContext(
             request.bodyToMono(clazz).awaitSingleOrNull()
                 ?: throw BadRequestException("Request body is required")
         } catch (e: CodecException) {
-            throw BadRequestException("Invalid request body: ${e.message}", e)
+            throw BadRequestException("Invalid request body: ${e.message ?: "malformed input"}", e)
         }
 
     fun pathId(name: String): UUID = parseUuid(request.pathVariable(name))
