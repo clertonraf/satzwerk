@@ -1,15 +1,14 @@
 package com.satzwerk.sessions
 
-import com.satzwerk.common.currentUserId
+import com.satzwerk.common.RequestContext
+import com.satzwerk.common.body
 import com.satzwerk.common.handleErrors
-import com.satzwerk.common.parseUuid
 import com.satzwerk.common.validateOrBadRequest
 import jakarta.validation.Validator
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.server.ServerRequest
 import org.springframework.web.reactive.function.server.ServerResponse
-import org.springframework.web.reactive.function.server.awaitBody
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import org.springframework.web.reactive.function.server.buildAndAwait
 
@@ -20,18 +19,20 @@ class SessionHandler(
 ) {
     suspend fun getOpen(request: ServerRequest): ServerResponse =
         handleErrors(withConflict = true) {
-            val response = workoutSessionService.getOpen(currentUserId(request))
+            val ctx = RequestContext(request)
+            val response = workoutSessionService.getOpen(ctx.userId())
             ServerResponse.ok().bodyValueAndAwait(response)
         }
 
     suspend fun addSetLog(request: ServerRequest): ServerResponse =
         handleErrors(withConflict = true) {
-            val body = request.awaitBody<AddSetLogRequest>()
+            val ctx = RequestContext(request)
+            val body = ctx.body<AddSetLogRequest>()
             validateOrBadRequest(validator, body) {
                 val response =
                     workoutSessionService.addSetLog(
-                        currentUserId(request),
-                        parseUuid(request.pathVariable("id")),
+                        ctx.userId(),
+                        ctx.pathId("id"),
                         body,
                     )
                 ServerResponse.status(HttpStatus.CREATED).bodyValueAndAwait(response)
@@ -40,13 +41,14 @@ class SessionHandler(
 
     suspend fun updateSetLog(request: ServerRequest): ServerResponse =
         handleErrors(withConflict = true) {
-            val body = request.awaitBody<UpdateSetLogRequest>()
+            val ctx = RequestContext(request)
+            val body = ctx.body<UpdateSetLogRequest>()
             validateOrBadRequest(validator, body) {
                 val response =
                     workoutSessionService.updateSetLog(
-                        currentUserId(request),
-                        parseUuid(request.pathVariable("id")),
-                        parseUuid(request.pathVariable("setLogId")),
+                        ctx.userId(),
+                        ctx.pathId("id"),
+                        ctx.pathId("setLogId"),
                         body,
                     )
                 ServerResponse.ok().bodyValueAndAwait(response)
@@ -55,46 +57,51 @@ class SessionHandler(
 
     suspend fun complete(request: ServerRequest): ServerResponse =
         handleErrors(withConflict = true) {
+            val ctx = RequestContext(request)
             val response =
                 workoutSessionService.complete(
-                    currentUserId(request),
-                    parseUuid(request.pathVariable("id")),
-                    request.awaitBody<CompleteSessionRequest>(),
+                    ctx.userId(),
+                    ctx.pathId("id"),
+                    ctx.body<CompleteSessionRequest>(),
                 )
             ServerResponse.ok().bodyValueAndAwait(response)
         }
 
     suspend fun discard(request: ServerRequest): ServerResponse =
         handleErrors(withConflict = true) {
+            val ctx = RequestContext(request)
             workoutSessionService.discard(
-                currentUserId(request),
-                parseUuid(request.pathVariable("id")),
+                ctx.userId(),
+                ctx.pathId("id"),
             )
             ServerResponse.noContent().buildAndAwait()
         }
 
     suspend fun history(request: ServerRequest): ServerResponse =
         handleErrors(withConflict = true) {
-            val response = workoutSessionService.history(currentUserId(request))
+            val ctx = RequestContext(request)
+            val response = workoutSessionService.history(ctx.userId())
             ServerResponse.ok().bodyValueAndAwait(response)
         }
 
     suspend fun getById(request: ServerRequest): ServerResponse =
         handleErrors {
+            val ctx = RequestContext(request)
             val response =
                 workoutSessionService.getById(
-                    currentUserId(request),
-                    parseUuid(request.pathVariable("id")),
+                    ctx.userId(),
+                    ctx.pathId("id"),
                 )
             ServerResponse.ok().bodyValueAndAwait(response)
         }
 
     suspend fun getReferenceWeights(request: ServerRequest): ServerResponse =
         handleErrors {
+            val ctx = RequestContext(request)
             val response =
                 workoutSessionService.getReferenceWeights(
-                    currentUserId(request),
-                    parseUuid(request.pathVariable("id")),
+                    ctx.userId(),
+                    ctx.pathId("id"),
                 )
             ServerResponse.ok().bodyValueAndAwait(response)
         }
