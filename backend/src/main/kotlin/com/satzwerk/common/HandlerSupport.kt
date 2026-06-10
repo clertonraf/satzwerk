@@ -10,6 +10,7 @@ import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import java.util.UUID
 
+@Deprecated("Use RequestContext.userId() instead")
 suspend fun currentUserId(request: ServerRequest): UUID {
     val principal = request.principal().awaitSingle()
     return UUID.fromString(principal.name)

@@ -38,9 +38,11 @@ class RequestContextTest {
         `when`(principal.name).thenReturn("not-a-uuid")
         `when`(request.principal()).thenReturn(Mono.just(principal))
 
-        assertThrows<BadRequestException> {
-            runBlocking { ctx.userId() }
-        }
+        val ex =
+            assertThrows<BadRequestException> {
+                runBlocking { ctx.userId() }
+            }
+        assertEquals("Invalid UUID: not-a-uuid", ex.message)
     }
 
     @Test
@@ -91,5 +93,16 @@ class RequestContextTest {
         `when`(request.queryParam("filter")).thenReturn(Optional.empty())
 
         assertNull(ctx.queryParam("filter"))
+    }
+
+    @Test
+    fun `body throws BadRequestException when body is absent`() {
+        `when`(request.bodyToMono(Payload::class.java)).thenReturn(Mono.empty())
+
+        val ex =
+            assertThrows<BadRequestException> {
+                runBlocking { ctx.body<Payload>() }
+            }
+        assertEquals("Request body is required", ex.message)
     }
 }

@@ -1,6 +1,7 @@
 package com.satzwerk.common
 
 import kotlinx.coroutines.reactor.awaitSingle
+import kotlinx.coroutines.reactor.awaitSingleOrNull
 import org.springframework.core.codec.CodecException
 import org.springframework.web.reactive.function.server.ServerRequest
 import java.util.UUID
@@ -13,13 +14,14 @@ class RequestContext(
         return try {
             UUID.fromString(principal.name)
         } catch (_: IllegalArgumentException) {
-            throw BadRequestException("Invalid user ID: ${principal.name}")
+            throw BadRequestException("Invalid UUID: ${principal.name}")
         }
     }
 
     suspend fun <T : Any> body(clazz: Class<T>): T =
         try {
-            request.bodyToMono(clazz).awaitSingle()
+            request.bodyToMono(clazz).awaitSingleOrNull()
+                ?: throw BadRequestException("Request body is required")
         } catch (e: CodecException) {
             throw BadRequestException("Invalid request body: ${e.message}", e)
         }
