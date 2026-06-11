@@ -12,7 +12,7 @@ class PlanImportServiceTest {
             workoutPlanRepository = mock(WorkoutPlanRepository::class.java),
             workoutGroupRepository = mock(WorkoutGroupRepository::class.java),
             workoutExerciseRepository = mock(WorkoutExerciseRepository::class.java),
-            exerciseRepository = mock(ExerciseRepository::class.java),
+            exerciseResolver = mock(ExerciseResolver::class.java),
         )
 
     @Test
