@@ -75,7 +75,7 @@ class WorkoutSessionService(
         requireOpenSession(session)
 
         val now = Instant.now()
-        val isPr = calculateIsPr(userId, request.exerciseId, request.weight, request.reps)
+        val isPr = calculateIsPr(userId, request.exerciseId, request.weight, request.reps, SetLogRef(null, now))
 
         return setLogRepository.save(
             SetLog(
@@ -228,7 +228,7 @@ private fun requireActivePlan(plan: WorkoutPlan) {
     }
 }
 
-private data class SetLogRef(val id: UUID, val loggedAt: Instant)
+private data class SetLogRef(val id: UUID?, val loggedAt: Instant)
 
 private fun requireOpenSession(session: WorkoutSession) {
     if (session.completedAt != null) {
