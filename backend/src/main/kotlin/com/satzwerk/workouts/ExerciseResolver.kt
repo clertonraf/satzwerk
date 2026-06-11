@@ -9,7 +9,9 @@ class ExerciseResolver(private val exerciseRepository: ExerciseRepository) {
     /**
      * Looks up existing exercises by userId and name (case-insensitive) and creates any that are missing.
      *
-     * @param nameToMuscleGroup map of original-cased exercise name → muscle group, deduplicated by caller
+     * Case-insensitive collisions (e.g. "Bench Press" vs "bench press") are resolved by first-occurrence wins.
+     *
+     * @param nameToMuscleGroup map of original-cased exercise name → muscle group
      * @return map of lowercase exercise name → Exercise
      */
     suspend fun resolve(
@@ -18,7 +20,11 @@ class ExerciseResolver(private val exerciseRepository: ExerciseRepository) {
     ): Map<String, Exercise> {
         if (nameToMuscleGroup.isEmpty()) return emptyMap()
 
-        val nameLowerToOriginal = nameToMuscleGroup.keys.associateBy { it.lowercase() }
+        // Use putIfAbsent so first occurrence wins on case-insensitive collisions.
+        val nameLowerToOriginal =
+            buildMap<String, String> {
+                nameToMuscleGroup.keys.forEach { name -> putIfAbsent(name.lowercase(), name) }
+            }
 
         val existingByNameLower =
             exerciseRepository.findAllByUserIdAndNamesLowercase(userId, nameLowerToOriginal.keys)
