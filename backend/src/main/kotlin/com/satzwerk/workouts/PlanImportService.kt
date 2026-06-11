@@ -1,7 +1,6 @@
 package com.satzwerk.workouts
 
 import com.fasterxml.jackson.databind.JsonNode
-import kotlinx.coroutines.flow.toList
 import org.springframework.http.codec.multipart.FilePart
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -13,7 +12,7 @@ class PlanImportService(
     private val workoutPlanRepository: WorkoutPlanRepository,
     private val workoutGroupRepository: WorkoutGroupRepository,
     private val workoutExerciseRepository: WorkoutExerciseRepository,
-    private val exerciseRepository: ExerciseRepository,
+    private val exerciseResolver: ExerciseResolver,
 ) {
     @Transactional
     suspend fun import(
@@ -34,7 +33,14 @@ class PlanImportService(
             )
         val planId = requireNotNull(plan.id)
 
-        val exerciseByNameLower = resolveExercises(userId, parsed)
+        val nameToMuscleGroup =
+            buildMap<String, String> {
+                parsed.workouts.forEach { workout ->
+                    val muscleGroup = workout.bodyParts.firstOrNull().orEmpty()
+                    workout.exercises.forEach { ex -> putIfAbsent(ex.exercise, muscleGroup) }
+                }
+            }
+        val exerciseByNameLower = exerciseResolver.resolve(userId, nameToMuscleGroup)
         createGroupsAndExercises(planId, parsed, exerciseByNameLower)
 
         return plan.toResponse()
@@ -79,47 +85,6 @@ class PlanImportService(
                 )
             }
         }
-    }
-
-    private suspend fun resolveExercises(
-        userId: UUID,
-        parsed: SatzwerkParserResponse,
-    ): Map<String, Exercise> {
-        val nameLowerToOriginal =
-            buildMap<String, String> {
-                parsed.workouts.forEach { workout ->
-                    workout.exercises.forEach { ex -> putIfAbsent(ex.exercise.lowercase(), ex.exercise) }
-                }
-            }
-        val nameLowerToMuscleGroup =
-            buildMap<String, String> {
-                parsed.workouts.forEach { workout ->
-                    val muscleGroup = workout.bodyParts.firstOrNull().orEmpty()
-                    workout.exercises.forEach { ex -> putIfAbsent(ex.exercise.lowercase(), muscleGroup) }
-                }
-            }
-
-        val existingByNameLower =
-            if (nameLowerToOriginal.isEmpty()) {
-                emptyMap()
-            } else {
-                exerciseRepository.findAllByUserIdAndNamesLowercase(userId, nameLowerToOriginal.keys)
-                    .associateBy { it.name.lowercase() }
-            }
-
-        val newExercises =
-            exerciseRepository.saveAll(
-                nameLowerToOriginal.filterKeys { it !in existingByNameLower }
-                    .map { (nameLower, originalName) ->
-                        Exercise(
-                            userId = userId,
-                            name = originalName,
-                            muscleGroup = nameLowerToMuscleGroup[nameLower].orEmpty(),
-                        )
-                    },
-            ).toList()
-
-        return existingByNameLower + newExercises.associateBy { it.name.lowercase() }
     }
 
     private fun mapReps(repsNode: JsonNode): Pair<Int, Boolean> =
