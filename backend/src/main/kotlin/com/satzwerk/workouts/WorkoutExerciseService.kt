@@ -1,7 +1,8 @@
 package com.satzwerk.workouts
 
 import com.satzwerk.common.NotFoundException
-import com.satzwerk.common.requireOwnership
+import com.satzwerk.common.Owned
+import com.satzwerk.common.assertOwner
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -21,7 +22,7 @@ class WorkoutExerciseService(
     ): WorkoutExerciseResponse {
         workoutGroupService.getRequiredGroup(userId, planId, groupId)
         val exercise = exerciseRepository.findById(request.exerciseId) ?: throw NotFoundException("Exercise not found")
-        requireOwnership(exercise.userId, userId, "Exercise")
+        Owned(exercise, exercise.userId).assertOwner(userId, "Exercise")
 
         return workoutExerciseRepository
             .save(

@@ -33,7 +33,7 @@ class WorkoutSessionService(
         val group =
             workoutGroupRepository.findById(workoutGroupId)
                 ?: throw NotFoundException("Workout group not found")
-        val plan = workoutPlanService.getOwnedPlan(userId, group.workoutPlanId)
+        val plan = workoutPlanService.getRequiredPlan(userId, group.workoutPlanId)
         requireActivePlan(plan)
         workoutSessionRepository.findByUserIdAndCompletedAtIsNull(userId)?.let {
             throw ConflictException("User already has an open workout session")

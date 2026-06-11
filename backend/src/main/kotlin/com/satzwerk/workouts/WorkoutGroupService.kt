@@ -15,7 +15,7 @@ class WorkoutGroupService(
         planId: UUID,
         request: CreateGroupRequest,
     ): WorkoutGroupResponse {
-        workoutPlanService.getOwnedPlan(userId, planId)
+        workoutPlanService.getRequiredPlan(userId, planId)
         return workoutGroupRepository
             .save(
                 WorkoutGroup(
@@ -57,7 +57,7 @@ class WorkoutGroupService(
         planId: UUID,
         groupId: UUID,
     ): WorkoutGroup {
-        workoutPlanService.getOwnedPlan(userId, planId)
+        workoutPlanService.getRequiredPlan(userId, planId)
         return workoutGroupRepository.findByIdAndWorkoutPlanId(groupId, planId)
             ?: throw NotFoundException("Workout group not found")
     }
