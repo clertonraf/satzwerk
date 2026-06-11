@@ -471,6 +471,52 @@ class WorkoutSessionIntegrationTest {
     }
 
     @Test
+    fun `update set log recalculates isPr when weight ratio is updated above existing records`() {
+        val firstSession = startSession()
+        addSetLog(firstSession.id, BigDecimal("100.0"), reps = 5)
+        completeSession(firstSession.id)
+
+        val secondSession = startSession()
+        val setLog = addSetLog(secondSession.id, BigDecimal("80.0"), reps = 5)
+        updateSetLog(secondSession.id, setLog.id, BigDecimal("120.0"), reps = 5)
+        completeSession(secondSession.id)
+
+        client
+            .get()
+            .uri("/api/analytics/personal-records")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(2)
+            .jsonPath("$[0].weightKg").isEqualTo(120.0)
+            .jsonPath("$[0].reps").isEqualTo(5)
+    }
+
+    @Test
+    fun `update set log recalculates isPr when weight ratio is updated below existing records`() {
+        val firstSession = startSession()
+        addSetLog(firstSession.id, BigDecimal("100.0"), reps = 5)
+        completeSession(firstSession.id)
+
+        val secondSession = startSession()
+        val setLog = addSetLog(secondSession.id, BigDecimal("120.0"), reps = 5)
+        updateSetLog(secondSession.id, setLog.id, BigDecimal("80.0"), reps = 5)
+        completeSession(secondSession.id)
+
+        client
+            .get()
+            .uri("/api/analytics/personal-records")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(1)
+            .jsonPath("$[0].weightKg").isEqualTo(100.0)
+            .jsonPath("$[0].reps").isEqualTo(5)
+    }
+
+    @Test
     fun `reference weights returns null values when exercise has no history`() {
         val session = startSession()
 
@@ -698,6 +744,28 @@ class WorkoutSessionIntegrationTest {
                 ),
             ).exchange()
             .expectStatus().isCreated
+            .expectBody(SetLogResponse::class.java)
+            .returnResult()
+            .responseBody!!
+
+    private fun updateSetLog(
+        sessionId: UUID,
+        setLogId: UUID,
+        weight: BigDecimal,
+        reps: Int,
+    ): SetLogResponse =
+        client
+            .patch()
+            .uri("/api/sessions/$sessionId/set-logs/$setLogId")
+            .header("Authorization", "Bearer $authToken")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "weight" to weight,
+                    "reps" to reps,
+                ),
+            ).exchange()
+            .expectStatus().isOk
             .expectBody(SetLogResponse::class.java)
             .returnResult()
             .responseBody!!
