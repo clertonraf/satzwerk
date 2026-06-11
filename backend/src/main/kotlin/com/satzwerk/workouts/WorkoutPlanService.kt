@@ -35,7 +35,7 @@ class WorkoutPlanService(
         userId: UUID,
         planId: UUID,
     ): WorkoutPlanDetailResponse {
-        val plan = getOwnedPlan(planId).assertOwner(userId, "Workout plan").value
+        val plan = getRequiredPlan(userId, planId)
         val groups = workoutGroupRepository.findAllByWorkoutPlanIdOrderByOrderIndex(planId)
 
         val exercisesByGroup =
@@ -58,7 +58,7 @@ class WorkoutPlanService(
         planId: UUID,
         request: UpdatePlanRequest,
     ): WorkoutPlanResponse {
-        val existing = getOwnedPlan(planId).assertOwner(userId, "Workout plan").value
+        val existing = getRequiredPlan(userId, planId)
         val updated =
             workoutPlanRepository.save(
                 existing.copy(
@@ -74,7 +74,7 @@ class WorkoutPlanService(
         userId: UUID,
         planId: UUID,
     ) {
-        val plan = getOwnedPlan(planId).assertOwner(userId, "Workout plan").value
+        val plan = getRequiredPlan(userId, planId)
         workoutPlanRepository.deleteById(requireNotNull(plan.id))
     }
 
@@ -83,7 +83,7 @@ class WorkoutPlanService(
         userId: UUID,
         planId: UUID,
     ) {
-        val plan = getOwnedPlan(planId).assertOwner(userId, "Workout plan").value
+        val plan = getRequiredPlan(userId, planId)
         val now = Instant.now()
         workoutPlanRepository.findAllByUserIdAndIsActive(userId, true)
             .filter { it.id != plan.id }
@@ -93,7 +93,12 @@ class WorkoutPlanService(
         workoutPlanRepository.save(plan.copy(isActive = true, activatedAt = now, updatedAt = now))
     }
 
-    suspend fun getOwnedPlan(planId: UUID): Owned<WorkoutPlan> {
+    suspend fun getRequiredPlan(
+        userId: UUID,
+        planId: UUID,
+    ): WorkoutPlan = fetchPlanAsOwned(planId).assertOwner(userId, "Workout plan").value
+
+    private suspend fun fetchPlanAsOwned(planId: UUID): Owned<WorkoutPlan> {
         val plan = workoutPlanRepository.findById(planId) ?: throw NotFoundException("Workout plan not found")
         return Owned(plan, plan.userId)
     }

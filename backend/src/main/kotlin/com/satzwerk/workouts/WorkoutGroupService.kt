@@ -1,7 +1,6 @@
 package com.satzwerk.workouts
 
 import com.satzwerk.common.NotFoundException
-import com.satzwerk.common.assertOwner
 import org.springframework.stereotype.Service
 import java.time.Instant
 import java.util.UUID
@@ -16,7 +15,7 @@ class WorkoutGroupService(
         planId: UUID,
         request: CreateGroupRequest,
     ): WorkoutGroupResponse {
-        workoutPlanService.getOwnedPlan(planId).assertOwner(userId, "Workout plan")
+        workoutPlanService.getRequiredPlan(userId, planId)
         return workoutGroupRepository
             .save(
                 WorkoutGroup(
@@ -58,7 +57,7 @@ class WorkoutGroupService(
         planId: UUID,
         groupId: UUID,
     ): WorkoutGroup {
-        workoutPlanService.getOwnedPlan(planId).assertOwner(userId, "Workout plan")
+        workoutPlanService.getRequiredPlan(userId, planId)
         return workoutGroupRepository.findByIdAndWorkoutPlanId(groupId, planId)
             ?: throw NotFoundException("Workout group not found")
     }

@@ -3,7 +3,6 @@ package com.satzwerk.sessions
 import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.NotFoundException
-import com.satzwerk.common.assertOwner
 import com.satzwerk.workouts.WorkoutExerciseRepository
 import com.satzwerk.workouts.WorkoutGroupRepository
 import com.satzwerk.workouts.WorkoutPlan
@@ -34,10 +33,7 @@ class WorkoutSessionService(
         val group =
             workoutGroupRepository.findById(workoutGroupId)
                 ?: throw NotFoundException("Workout group not found")
-        val plan =
-            workoutPlanService.getOwnedPlan(group.workoutPlanId)
-                .assertOwner(userId, "Workout plan")
-                .value
+        val plan = workoutPlanService.getRequiredPlan(userId, group.workoutPlanId)
         requireActivePlan(plan)
         workoutSessionRepository.findByUserIdAndCompletedAtIsNull(userId)?.let {
             throw ConflictException("User already has an open workout session")
