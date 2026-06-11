@@ -36,7 +36,7 @@ class WorkoutSessionService(
                 ?: throw NotFoundException("Workout group not found")
         val plan =
             workoutPlanService.getOwnedPlan(group.workoutPlanId)
-                .also { it.assertOwner(userId, "Workout plan") }
+                .assertOwner(userId, "Workout plan")
                 .value
         requireActivePlan(plan)
         workoutSessionRepository.findByUserIdAndCompletedAtIsNull(userId)?.let {

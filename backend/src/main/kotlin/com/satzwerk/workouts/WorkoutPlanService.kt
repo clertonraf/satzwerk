@@ -35,7 +35,7 @@ class WorkoutPlanService(
         userId: UUID,
         planId: UUID,
     ): WorkoutPlanDetailResponse {
-        val plan = getOwnedPlan(planId).also { it.assertOwner(userId, "Workout plan") }.value
+        val plan = getOwnedPlan(planId).assertOwner(userId, "Workout plan").value
         val groups = workoutGroupRepository.findAllByWorkoutPlanIdOrderByOrderIndex(planId)
 
         val exercisesByGroup =
@@ -58,7 +58,7 @@ class WorkoutPlanService(
         planId: UUID,
         request: UpdatePlanRequest,
     ): WorkoutPlanResponse {
-        val existing = getOwnedPlan(planId).also { it.assertOwner(userId, "Workout plan") }.value
+        val existing = getOwnedPlan(planId).assertOwner(userId, "Workout plan").value
         val updated =
             workoutPlanRepository.save(
                 existing.copy(
@@ -74,7 +74,7 @@ class WorkoutPlanService(
         userId: UUID,
         planId: UUID,
     ) {
-        val plan = getOwnedPlan(planId).also { it.assertOwner(userId, "Workout plan") }.value
+        val plan = getOwnedPlan(planId).assertOwner(userId, "Workout plan").value
         workoutPlanRepository.deleteById(requireNotNull(plan.id))
     }
 
@@ -83,7 +83,7 @@ class WorkoutPlanService(
         userId: UUID,
         planId: UUID,
     ) {
-        val plan = getOwnedPlan(planId).also { it.assertOwner(userId, "Workout plan") }.value
+        val plan = getOwnedPlan(planId).assertOwner(userId, "Workout plan").value
         val now = Instant.now()
         workoutPlanRepository.findAllByUserIdAndIsActive(userId, true)
             .filter { it.id != plan.id }

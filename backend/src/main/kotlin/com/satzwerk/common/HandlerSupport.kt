@@ -47,8 +47,8 @@ suspend fun handleErrors(
 ): ServerResponse =
     try {
         block()
-    } catch (_: ForbiddenException) {
-        ServerResponse.status(HttpStatus.FORBIDDEN).bodyValueAndAwait(ErrorResponse("Forbidden"))
+    } catch (e: ForbiddenException) {
+        ServerResponse.status(HttpStatus.FORBIDDEN).bodyValueAndAwait(ErrorResponse(e.message ?: "Forbidden"))
     } catch (_: NotFoundException) {
         ServerResponse.status(HttpStatus.NOT_FOUND).bodyValueAndAwait(ErrorResponse("Not found"))
     } catch (e: BadRequestException) {
