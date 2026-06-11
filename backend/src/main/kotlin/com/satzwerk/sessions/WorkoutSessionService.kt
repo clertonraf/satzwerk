@@ -10,6 +10,7 @@ import com.satzwerk.workouts.WorkoutPlanDetailResponse
 import com.satzwerk.workouts.WorkoutPlanService
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.Instant
 import java.util.UUID
@@ -74,18 +75,7 @@ class WorkoutSessionService(
         requireOpenSession(session)
 
         val now = Instant.now()
-        // Defensive guard: @Min(1) on AddSetLogRequest already blocks reps<=0 at the API boundary;
-        // this branch protects against bypassed validation or future callers that skip the handler.
-        val isPr =
-            if (request.reps <= 0) {
-                false
-            } else {
-                val prevMaxRatio =
-                    sessionQueryRepository.findMaxRatioForExercise(userId, request.exerciseId, now)
-                val currentRatio =
-                    request.weight.divide(request.reps.toBigDecimal(), PR_RATIO_SCALE, RoundingMode.HALF_UP)
-                prevMaxRatio == null || currentRatio > prevMaxRatio
-            }
+        val isPr = calculateIsPr(userId, request.exerciseId, request.weight, request.reps)
 
         return setLogRepository.save(
             SetLog(
@@ -113,23 +103,14 @@ class WorkoutSessionService(
             setLogRepository.findByIdAndWorkoutSessionId(setLogId, sessionId)
                 ?: throw NotFoundException("Set log not found")
 
-        // Defensive guard: @Min(1) on UpdateSetLogRequest already blocks reps<=0 at the API boundary;
-        // this branch protects against bypassed validation or future callers that skip the handler.
         val isPr =
-            if (request.reps <= 0) {
-                false
-            } else {
-                val prevMaxRatio =
-                    sessionQueryRepository.findMaxRatioForExercise(
-                        userId,
-                        setLog.exerciseId,
-                        setLog.loggedAt,
-                        setLog.id,
-                    )
-                val currentRatio =
-                    request.weight.divide(request.reps.toBigDecimal(), PR_RATIO_SCALE, RoundingMode.HALF_UP)
-                prevMaxRatio == null || currentRatio > prevMaxRatio
-            }
+            calculateIsPr(
+                userId,
+                setLog.exerciseId,
+                request.weight,
+                request.reps,
+                SetLogRef(requireNotNull(setLog.id), setLog.loggedAt),
+            )
 
         return setLogRepository.save(
             setLog.copy(
@@ -222,6 +203,23 @@ class WorkoutSessionService(
         setLogRepository.findAllByWorkoutSessionId(sessionId)
             .sortedWith(compareBy(SetLog::setNumber, SetLog::loggedAt))
             .map(SetLog::toResponse)
+
+    // Defensive guard: @Min(1) on request DTOs already blocks reps<=0 at the API boundary;
+    // this branch protects against bypassed validation or future callers that skip the handler.
+    private suspend fun calculateIsPr(
+        userId: UUID,
+        exerciseId: UUID,
+        weight: BigDecimal,
+        reps: Int,
+        existing: SetLogRef? = null,
+    ): Boolean {
+        if (reps <= 0) return false
+        val beforeDate = existing?.loggedAt ?: Instant.now()
+        val prevMaxRatio =
+            sessionQueryRepository.findMaxRatioForExercise(userId, exerciseId, beforeDate, existing?.id)
+        val currentRatio = weight.divide(reps.toBigDecimal(), PR_RATIO_SCALE, RoundingMode.HALF_UP)
+        return prevMaxRatio == null || currentRatio > prevMaxRatio
+    }
 }
 
 private fun requireActivePlan(plan: WorkoutPlan) {
@@ -229,6 +227,8 @@ private fun requireActivePlan(plan: WorkoutPlan) {
         throw BadRequestException("Cannot start a session for a group belonging to an inactive workout plan")
     }
 }
+
+private data class SetLogRef(val id: UUID, val loggedAt: Instant)
 
 private fun requireOpenSession(session: WorkoutSession) {
     if (session.completedAt != null) {
