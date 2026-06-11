@@ -1,7 +1,8 @@
 package com.satzwerk.workouts
 
 import com.satzwerk.common.NotFoundException
-import com.satzwerk.common.requireOwnership
+import com.satzwerk.common.Owned
+import com.satzwerk.common.assertOwner
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -34,7 +35,7 @@ class WorkoutPlanService(
         userId: UUID,
         planId: UUID,
     ): WorkoutPlanDetailResponse {
-        val plan = getOwnedPlan(userId, planId)
+        val plan = getOwnedPlan(planId).also { it.assertOwner(userId, "Workout plan") }.value
         val groups = workoutGroupRepository.findAllByWorkoutPlanIdOrderByOrderIndex(planId)
 
         val exercisesByGroup =
@@ -57,7 +58,7 @@ class WorkoutPlanService(
         planId: UUID,
         request: UpdatePlanRequest,
     ): WorkoutPlanResponse {
-        val existing = getOwnedPlan(userId, planId)
+        val existing = getOwnedPlan(planId).also { it.assertOwner(userId, "Workout plan") }.value
         val updated =
             workoutPlanRepository.save(
                 existing.copy(
@@ -73,7 +74,7 @@ class WorkoutPlanService(
         userId: UUID,
         planId: UUID,
     ) {
-        val plan = getOwnedPlan(userId, planId)
+        val plan = getOwnedPlan(planId).also { it.assertOwner(userId, "Workout plan") }.value
         workoutPlanRepository.deleteById(requireNotNull(plan.id))
     }
 
@@ -82,7 +83,7 @@ class WorkoutPlanService(
         userId: UUID,
         planId: UUID,
     ) {
-        val plan = getOwnedPlan(userId, planId)
+        val plan = getOwnedPlan(planId).also { it.assertOwner(userId, "Workout plan") }.value
         val now = Instant.now()
         workoutPlanRepository.findAllByUserIdAndIsActive(userId, true)
             .filter { it.id != plan.id }
@@ -92,13 +93,8 @@ class WorkoutPlanService(
         workoutPlanRepository.save(plan.copy(isActive = true, activatedAt = now, updatedAt = now))
     }
 
-    suspend fun getOwnedPlan(
-        userId: UUID,
-        planId: UUID,
-    ): WorkoutPlan {
+    suspend fun getOwnedPlan(planId: UUID): Owned<WorkoutPlan> {
         val plan = workoutPlanRepository.findById(planId) ?: throw NotFoundException("Workout plan not found")
-        requireOwnership(plan.userId, userId, "Workout plan")
-
-        return plan
+        return Owned(plan, plan.userId)
     }
 }
