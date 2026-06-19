@@ -185,11 +185,12 @@ class WorkoutSessionService(
         sessionId: UUID,
     ): List<ExerciseReferenceWeights> {
         val session = getOwnedSession(userId, sessionId)
-        val exerciseIds =
+        val workoutExercises =
             workoutExerciseRepository.findAllByWorkoutGroupIdOrderByOrderIndex(session.workoutGroupId)
-                .map { it.exerciseId }
+        val exerciseIds = workoutExercises.map { it.exerciseId }
+        val workoutExerciseMap = workoutExercises.associateBy { it.exerciseId }
 
-        return sessionQueryRepository.findReferenceWeights(userId, exerciseIds, sessionId)
+        return sessionQueryRepository.findReferenceWeights(userId, exerciseIds, sessionId, workoutExerciseMap)
     }
 
     private suspend fun getOwnedSession(

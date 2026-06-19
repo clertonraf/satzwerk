@@ -15,8 +15,7 @@ internal fun computeSuggestedWeight(
     oneRepMaxKg: BigDecimal,
     workoutExercise: WorkoutExercise?,
 ): BigDecimal? {
-    if (workoutExercise == null) return null
-    if (workoutExercise.toFailure) return null
+    if (workoutExercise == null || workoutExercise.toFailure) return null
 
     val technique = workoutExercise.advancedTechnique?.let { AdvancedTechnique.valueOf(it) }
 
@@ -31,8 +30,9 @@ internal fun computeSuggestedWeight(
             oneRepMaxKg.multiply(BigDecimal(GVT_PERCENT)).setScale(2, RoundingMode.HALF_UP)
 
         null, AdvancedTechnique.SST, AdvancedTechnique.REST_PAUSE -> {
-            val ratio = workoutExercise.reps.toBigDecimal()
-                .divide(BigDecimal(EPLEY_DIVISOR), SUGGESTION_REPS_SCALE, RoundingMode.HALF_UP)
+            val ratio =
+                workoutExercise.reps.toBigDecimal()
+                    .divide(BigDecimal(EPLEY_DIVISOR), SUGGESTION_REPS_SCALE, RoundingMode.HALF_UP)
             val divisor = BigDecimal.ONE.add(ratio)
             oneRepMaxKg.divide(divisor, 2, RoundingMode.HALF_UP)
         }
