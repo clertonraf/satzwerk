@@ -38,6 +38,7 @@ export interface ExerciseReferenceWeights {
   previousWeightKg: number | null
   prWeightKg: number | null
   estimatedOneRepMaxKg: number | null
+  suggestedWeightKg: number | null
 }
 
 export const sessionService = {
