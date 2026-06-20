@@ -187,8 +187,10 @@ class WorkoutSessionService(
         val session = getOwnedSession(userId, sessionId)
         val workoutExercises =
             workoutExerciseRepository.findAllByWorkoutGroupIdOrderByOrderIndex(session.workoutGroupId)
-        val exerciseIds = workoutExercises.map { it.exerciseId }
-        val workoutExerciseMap = workoutExercises.associateBy { it.exerciseId }
+        // De-duplicate by exerciseId keeping the first occurrence (lowest orderIndex), matching UI order.
+        val uniqueExercises = workoutExercises.distinctBy { it.exerciseId }
+        val exerciseIds = uniqueExercises.map { it.exerciseId }
+        val workoutExerciseMap = uniqueExercises.associateBy { it.exerciseId }
 
         return sessionQueryRepository.findReferenceWeights(userId, exerciseIds, sessionId, workoutExerciseMap)
     }
