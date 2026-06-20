@@ -45,6 +45,27 @@ cd backend
 
 Integration tests use **Testcontainers** (real PostgreSQL, not H2). Tests run serially (`maxParallelForks = 1`).
 
+**Kotlin coroutine test rule**: All test functions that use expression-body `runBlocking` **must** declare an explicit `: Unit` return type:
+```kotlin
+// WRONG — Kotlin infers Flow<T> return type if the last expression returns Flow<T>;
+// JUnit 5 silently ignores non-void test methods, so the test never runs.
+@Test
+fun `my test`() = runBlocking { verify(repo).saveAll(any()) }
+
+// CORRECT
+@Test
+fun `my test`(): Unit = runBlocking { verify(repo).saveAll(any()) }
+```
+This is the only way to guarantee JUnit 5 discovers the test. ktlint and detekt do not catch this.
+
+**Verifying calls on domain objects with `Instant.now()` defaults**: `Exercise`, `WorkoutSession`, and similar entities have `createdAt`/`updatedAt` fields that default to `Instant.now()`. Data class `equals()` compares all fields, so direct `verify(repo).save(expectedObject)` equality checks always fail. Use `argumentCaptor` to capture and assert individual fields instead:
+```kotlin
+val captor = argumentCaptor<Iterable<Exercise>>()
+verify(exerciseRepository).saveAll(captor.capture())
+val saved = captor.firstValue.toList()
+assertEquals("Bench Press", saved[0].name)
+```
+
 **JSON serialization**: `@JsonInclude(NON_NULL)` is not used anywhere in the project — not on classes, not on fields. All null fields are always serialized as `"field": null` and never omitted. Frontend types for nullable fields must use `: T | null`, not `?: T | undefined`.
 
 **Pre-push checklist (backend — run before every push):**
@@ -129,6 +150,8 @@ When the PR touches `useEffect` hooks, run through this checklist before pushing
 - **Global state cleanup**: Does `afterEach` in tests reset every piece of global state the component touches (`document.title`, `document.documentElement.classList`, etc.)?
 
 Always surface the PR URL immediately after `gh pr create` so the user doesn't have to ask.
+
+**Copilot reviewer on fix commits**: When a follow-up fix commit is pushed to a PR, the Copilot reviewer does not always produce a new inline review — it may only run the `copilot: completed - success` check. Accept the passing `copilot` check as the gate for fix commits rather than waiting for a full re-review that may not arrive.
 
 ## Worktree cleanup
 

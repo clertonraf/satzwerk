@@ -532,6 +532,7 @@ class WorkoutSessionIntegrationTest {
             .jsonPath("$[0].previousWeightKg").isEmpty
             .jsonPath("$[0].prWeightKg").isEmpty
             .jsonPath("$[0].estimatedOneRepMaxKg").isEmpty
+            .jsonPath("$[0].suggestedWeightKg").isEmpty
     }
 
     @Test
@@ -705,6 +706,149 @@ class WorkoutSessionIntegrationTest {
             .exchange()
             .expectStatus().isNotFound
     }
+
+    @Test
+    fun `reference weights calculates suggested weight using Epley inverse for no technique`() {
+        // createGroup uses reps=8, no advancedTechnique
+        // 100kg x 5 reps -> 1RM = 116.67 -> suggested for 8 reps = 92.11
+        val completedSession = startSession()
+        addSetLog(completedSession.id, BigDecimal("100.0"), reps = 5)
+        completeSession(completedSession.id)
+
+        val currentSession = startSession()
+
+        client
+            .get()
+            .uri("/api/sessions/${currentSession.id}/reference-weights")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$[0].suggestedWeightKg").isEqualTo(92.11)
+    }
+
+    @Test
+    fun `reference weights calculates suggested weight at 55 percent for GIRONDA technique`() {
+        // 100kg x 5 reps -> 1RM = 116.67 -> Gironda 55% = 64.17
+        val suffix = UUID.randomUUID()
+        val token = registerAndLogin("gironda-$suffix@test.com", "password123", "Gironda User")
+        val eid = createExercise(token, "Cable Crossover", "CHEST")
+        val planId = createPlan(token, "Gironda Plan")
+        activatePlan(token, planId)
+        val gid = createGroupWithTechnique(token, planId, eid, reps = 8, technique = "GIRONDA")
+
+        val completedSession = startSessionFor(token, gid)
+        addSetLogFor(token, completedSession.id, eid, BigDecimal("100.0"), reps = 5)
+        completeSessionFor(token, completedSession.id)
+
+        val currentSession = startSessionFor(token, gid)
+
+        client
+            .get()
+            .uri("/api/sessions/${currentSession.id}/reference-weights")
+            .header("Authorization", "Bearer $token")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$[0].suggestedWeightKg").isEqualTo(64.17)
+    }
+
+    private fun createGroupWithTechnique(
+        token: String,
+        planId: UUID,
+        exerciseId: UUID,
+        reps: Int,
+        technique: String,
+    ): UUID {
+        val groupResponse =
+            client
+                .post()
+                .uri("/api/plans/$planId/groups")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(mapOf("title" to "Training Day"))
+                .exchange()
+                .expectStatus().isCreated
+                .expectBody(WorkoutGroupResponse::class.java)
+                .returnResult()
+                .responseBody!!
+
+        val groupId = groupResponse.id
+
+        client
+            .post()
+            .uri("/api/plans/$planId/groups/$groupId/exercises")
+            .header("Authorization", "Bearer $token")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "exerciseId" to exerciseId,
+                    "sets" to 4,
+                    "reps" to reps,
+                    "advancedTechnique" to technique,
+                ),
+            ).exchange()
+            .expectStatus().isCreated
+
+        return groupId
+    }
+
+    private fun startSessionFor(
+        token: String,
+        groupId: UUID,
+    ): WorkoutSessionResponse =
+        client
+            .post()
+            .uri("/api/sessions")
+            .header("Authorization", "Bearer $token")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("workoutGroupId" to groupId))
+            .exchange()
+            .expectStatus().isCreated
+            .expectBody(WorkoutSessionResponse::class.java)
+            .returnResult()
+            .responseBody!!
+
+    private fun addSetLogFor(
+        token: String,
+        sessionId: UUID,
+        exerciseId: UUID,
+        weight: BigDecimal,
+        reps: Int,
+    ): SetLogResponse =
+        client
+            .post()
+            .uri("/api/sessions/$sessionId/set-logs")
+            .header("Authorization", "Bearer $token")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "exerciseId" to exerciseId,
+                    "setNumber" to 1,
+                    "weight" to weight,
+                    "reps" to reps,
+                ),
+            ).exchange()
+            .expectStatus().isCreated
+            .expectBody(SetLogResponse::class.java)
+            .returnResult()
+            .responseBody!!
+
+    private fun completeSessionFor(
+        token: String,
+        sessionId: UUID,
+    ): WorkoutSessionResponse =
+        client
+            .post()
+            .uri("/api/sessions/$sessionId/complete")
+            .header("Authorization", "Bearer $token")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("notes" to null))
+            .exchange()
+            .expectStatus().isOk
+            .expectBody(WorkoutSessionResponse::class.java)
+            .returnResult()
+            .responseBody!!
 
     private fun startSession(): WorkoutSessionResponse =
         client

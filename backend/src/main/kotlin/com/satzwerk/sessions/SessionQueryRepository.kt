@@ -1,5 +1,6 @@
 package com.satzwerk.sessions
 
+import com.satzwerk.workouts.WorkoutExercise
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.reactive.asFlow
 import kotlinx.coroutines.reactor.awaitSingleOrNull
@@ -77,6 +78,7 @@ class SessionQueryRepository(
         userId: UUID,
         exerciseIds: List<UUID>,
         currentSessionId: UUID,
+        workoutExerciseMap: Map<UUID, WorkoutExercise>,
     ): List<ExerciseReferenceWeights> {
         if (exerciseIds.isEmpty()) {
             return emptyList()
@@ -88,11 +90,16 @@ class SessionQueryRepository(
         return exerciseIds.map { exerciseId ->
             val previousWeight = previousWeights[exerciseId]?.previousWeight
             val personalRecord = personalRecords[exerciseId]
+            val oneRepMax = personalRecord.toEstimatedOneRepMaxKg()
             ExerciseReferenceWeights(
                 exerciseId = exerciseId,
                 previousWeightKg = previousWeight,
                 prWeightKg = personalRecord?.prWeight,
-                estimatedOneRepMaxKg = personalRecord.toEstimatedOneRepMaxKg(),
+                estimatedOneRepMaxKg = oneRepMax,
+                suggestedWeightKg =
+                    oneRepMax?.let {
+                        computeSuggestedWeight(it, workoutExerciseMap[exerciseId])
+                    },
             )
         }
     }

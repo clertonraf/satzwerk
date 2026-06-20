@@ -34,6 +34,9 @@ export default function ExerciseReferenceRow({
     referenceWeights.estimatedOneRepMaxKg != null
       ? `Est. 1RM: ${formatDisplayWeight(referenceWeights.estimatedOneRepMaxKg, unit)}`
       : null,
+    referenceWeights.suggestedWeightKg != null
+      ? `Suggested: ${formatDisplayWeight(referenceWeights.suggestedWeightKg, unit)}`
+      : null,
   ].filter((value): value is string => value !== null)
 
   if (values.length === 0) {
