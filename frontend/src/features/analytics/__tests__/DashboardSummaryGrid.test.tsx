@@ -26,11 +26,11 @@ describe('DashboardSummaryGrid', () => {
     expect(screen.getByText('24')).toBeInTheDocument()
   })
 
-  it('renders 7 skeleton tiles while loading', () => {
+  it('renders 8 skeleton tiles while loading', () => {
     render(<DashboardSummaryGrid data={undefined} isLoading={true} />)
 
     const skeletons = document.querySelectorAll('.animate-pulse')
-    expect(skeletons.length).toBe(7)
+    expect(skeletons.length).toBe(8)
     expect(screen.queryByText(/streak/i)).not.toBeInTheDocument()
   })
 

@@ -86,7 +86,7 @@ class AnalyticsRepository(
                      FROM workout_plans
                      WHERE user_id = :userId AND is_active = TRUE
                     LIMIT 1) AS active_plan_days,
-                    (SELECT CAST(EXTRACT(EPOCH FROM AVG(completed_at - started_at)) / 60 AS INT)
+                    (SELECT CAST(ROUND(EXTRACT(EPOCH FROM AVG(completed_at - started_at)) / 60) AS INT)
                     FROM workout_sessions
                     WHERE user_id = :userId AND completed_at IS NOT NULL) AS avg_session_duration_minutes
                 """.trimIndent(),
