@@ -28,7 +28,7 @@ export default function DashboardSummaryGrid({ data, isLoading, isError }: Dashb
   if (isLoading) {
     return (
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
+        {Array.from({ length: 7 }).map((_, i) => (
           <SkeletonTile key={i} />
         ))}
       </div>
@@ -51,6 +51,10 @@ export default function DashboardSummaryGrid({ data, isLoading, isError }: Dashb
       <StatTile label="Longest streak" value={`${data.longestStreak}d`} />
       <StatTile label="Total sessions" value={data.totalSessions} />
       <StatTile label="Sets this week" value={data.setsThisWeek} />
+      <StatTile
+        label="Avg session"
+        value={data.avgSessionDurationMinutes != null ? `${data.avgSessionDurationMinutes}m` : '—'}
+      />
       {data.activePlanDays != null && (
         <StatTile label="Plan age" value={`${data.activePlanDays}d`} />
       )}

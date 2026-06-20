@@ -85,7 +85,10 @@ class AnalyticsRepository(
                     (SELECT EXTRACT(DAY FROM NOW() - activated_at)::INT
                      FROM workout_plans
                      WHERE user_id = :userId AND is_active = TRUE
-                     LIMIT 1) AS active_plan_days
+                    LIMIT 1) AS active_plan_days,
+                    (SELECT CAST(EXTRACT(EPOCH FROM AVG(completed_at - started_at)) / 60 AS INT)
+                    FROM workout_sessions
+                    WHERE user_id = :userId AND completed_at IS NOT NULL) AS avg_session_duration_minutes
                 """.trimIndent(),
             ).bind("userId", userId)
             .map { row, _ ->
@@ -95,6 +98,8 @@ class AnalyticsRepository(
                     setsThisWeek = row.get("sets_this_week", java.lang.Long::class.java)?.toInt() ?: 0,
                     prsThisMonth = row.get("prs_this_month", java.lang.Long::class.java)?.toInt() ?: 0,
                     activePlanDays = row.get("active_plan_days", java.lang.Integer::class.java)?.toInt(),
+                    avgSessionDurationMinutes =
+                        row.get("avg_session_duration_minutes", java.lang.Integer::class.java)?.toInt(),
                 )
             }.one()
             .awaitSingle()
@@ -190,6 +195,7 @@ data class DashboardSummaryRow(
     val setsThisWeek: Int,
     val prsThisMonth: Int,
     val activePlanDays: Int?,
+    val avgSessionDurationMinutes: Int?,
 )
 
 data class WeeklyTrendRow(

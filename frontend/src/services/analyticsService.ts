@@ -19,6 +19,7 @@ export interface DashboardSummary {
   totalSessions: number
   setsThisWeek: number
   activePlanDays: number | null
+  avgSessionDurationMinutes: number | null
 }
 
 export interface WeeklyTrendEntry {

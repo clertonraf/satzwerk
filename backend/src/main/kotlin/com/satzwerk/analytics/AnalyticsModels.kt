@@ -28,6 +28,7 @@ data class DashboardSummary(
     val totalSessions: Int,
     val prsThisMonth: Int,
     val activePlanDays: Int?,
+    val avgSessionDurationMinutes: Int?,
 )
 
 data class WeeklyTrendEntry(
