@@ -56,6 +56,7 @@ class AnalyticsService(
             totalSessions = summaryRow.totalSessions,
             prsThisMonth = summaryRow.prsThisMonth,
             activePlanDays = summaryRow.activePlanDays,
+            avgSessionDurationMinutes = summaryRow.avgSessionDurationMinutes,
         )
     }
 

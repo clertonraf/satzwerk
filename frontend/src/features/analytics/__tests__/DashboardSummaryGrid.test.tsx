@@ -11,6 +11,7 @@ const mockData: DashboardSummary = {
   totalSessions: 42,
   setsThisWeek: 24,
   activePlanDays: null,
+  avgSessionDurationMinutes: null,
 }
 
 describe('DashboardSummaryGrid', () => {
@@ -25,11 +26,11 @@ describe('DashboardSummaryGrid', () => {
     expect(screen.getByText('24')).toBeInTheDocument()
   })
 
-  it('renders 6 skeleton tiles while loading', () => {
+  it('renders 8 skeleton tiles while loading', () => {
     render(<DashboardSummaryGrid data={undefined} isLoading={true} />)
 
     const skeletons = document.querySelectorAll('.animate-pulse')
-    expect(skeletons.length).toBe(6)
+    expect(skeletons.length).toBe(8)
     expect(screen.queryByText(/streak/i)).not.toBeInTheDocument()
   })
 
@@ -56,5 +57,19 @@ describe('DashboardSummaryGrid', () => {
     render(<DashboardSummaryGrid data={{ ...mockData, activePlanDays: null }} isLoading={false} />)
 
     expect(screen.queryByText(/plan age/i)).not.toBeInTheDocument()
+  })
+
+  it('renders avg session tile with duration in minutes when avgSessionDurationMinutes is set', () => {
+    render(<DashboardSummaryGrid data={{ ...mockData, avgSessionDurationMinutes: 47 }} isLoading={false} />)
+
+    expect(screen.getByText('47m')).toBeInTheDocument()
+    expect(screen.getByText(/avg session/i)).toBeInTheDocument()
+  })
+
+  it('renders avg session tile with dash when avgSessionDurationMinutes is null', () => {
+    render(<DashboardSummaryGrid data={{ ...mockData, avgSessionDurationMinutes: null }} isLoading={false} />)
+
+    expect(screen.getByText('—')).toBeInTheDocument()
+    expect(screen.getByText(/avg session/i)).toBeInTheDocument()
   })
 })

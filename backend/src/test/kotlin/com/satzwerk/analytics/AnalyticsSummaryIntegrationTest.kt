@@ -21,14 +21,12 @@ import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import java.math.BigDecimal
-import java.time.LocalDate
-import java.time.ZoneOffset
 import java.util.UUID
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @Testcontainers
-class AnalyticsIntegrationTest {
+class AnalyticsSummaryIntegrationTest {
     companion object {
         @Container
         @JvmStatic
@@ -61,271 +59,106 @@ class AnalyticsIntegrationTest {
     @BeforeEach
     fun setup() {
         val suffix = UUID.randomUUID()
-        authToken = registerAndLogin("analytics-$suffix@test.com", "password123", "Analytics User")
+        authToken = registerAndLogin("summary-$suffix@test.com", "password123", "Summary User")
         exerciseId = createExercise(authToken, "Bench Press", "CHEST")
         val planId = createPlan(authToken, "Push Pull Legs")
         workoutGroupId = createGroup(authToken, planId, "Push Day", exerciseId)
     }
 
+    // ── /analytics/summary ──────────────────────────────────────────────────
+
     @Test
-    fun `heatmap returns zero filled range with no data`() {
+    fun `summary returns zeroes with no activity`() {
         client
             .get()
-            .uri("/api/analytics/heatmap?from=2026-01-01&to=2026-01-07")
+            .uri("/api/analytics/summary")
             .header("Authorization", "Bearer $authToken")
             .exchange()
             .expectStatus().isOk
             .expectBody()
-            .jsonPath("$.length()").isEqualTo(7)
-            .jsonPath("$[0].date").isEqualTo("2026-01-01")
-            .jsonPath("$[0].count").isEqualTo(0)
-            .jsonPath("$[0].intensity").isEqualTo(0)
-            .jsonPath("$[6].date").isEqualTo("2026-01-07")
-            .jsonPath("$[6].count").isEqualTo(0)
-            .jsonPath("$[6].intensity").isEqualTo(0)
-    }
-
-    @Test
-    fun `heatmap counts sets correctly`() {
-        val session = startSession(authToken, workoutGroupId)
-        repeat(3) { index ->
-            addSetLog(authToken, session.id, exerciseId, index + 1)
-        }
-        completeSession(authToken, session.id)
-
-        val today = LocalDate.now(ZoneOffset.UTC)
-
-        client
-            .get()
-            .uri("/api/analytics/heatmap?from=$today&to=$today")
-            .header("Authorization", "Bearer $authToken")
-            .exchange()
-            .expectStatus().isOk
-            .expectBody()
-            .jsonPath("$.length()").isEqualTo(1)
-            .jsonPath("$[0].date").isEqualTo(today.toString())
-            .jsonPath("$[0].count").isEqualTo(3)
-            .jsonPath("$[0].intensity").isEqualTo(1)
-    }
-
-    @Test
-    fun `heatmap reaches intensity tier four at fifteen sets`() {
-        val session = startSession(authToken, workoutGroupId)
-        repeat(15) { index ->
-            addSetLog(authToken, session.id, exerciseId, index + 1)
-        }
-        completeSession(authToken, session.id)
-
-        val today = LocalDate.now(ZoneOffset.UTC)
-
-        client
-            .get()
-            .uri("/api/analytics/heatmap?from=$today&to=$today")
-            .header("Authorization", "Bearer $authToken")
-            .exchange()
-            .expectStatus().isOk
-            .expectBody()
-            .jsonPath("$[0].count").isEqualTo(15)
-            .jsonPath("$[0].intensity").isEqualTo(4)
-    }
-
-    @Test
-    fun `heatmap reaches intensity tier ten at thirty-seven sets`() {
-        val fixedDate = LocalDate.of(2025, 6, 1)
-        logSetsOnDate(authToken, workoutGroupId, exerciseId, fixedDate, 37)
-
-        client
-            .get()
-            .uri("/api/analytics/heatmap?from=$fixedDate&to=$fixedDate")
-            .header("Authorization", "Bearer $authToken")
-            .exchange()
-            .expectStatus().isOk
-            .expectBody()
-            .jsonPath("$[0].count").isEqualTo(37)
-            .jsonPath("$[0].intensity").isEqualTo(10)
-    }
-
-    @Test
-    fun `heatmap is scoped to authenticated user`() {
-        val otherToken = registerAndLogin("other-${UUID.randomUUID()}@test.com", "password123", "Other User")
-        val otherExerciseId = createExercise(otherToken, "Squat", "LEGS")
-        val otherPlanId = createPlan(otherToken, "Other Plan")
-        val otherWorkoutGroupId = createGroup(otherToken, otherPlanId, "Leg Day", otherExerciseId)
-
-        val ownSession = startSession(authToken, workoutGroupId)
-        repeat(2) { index ->
-            addSetLog(authToken, ownSession.id, exerciseId, index + 1)
-        }
-        completeSession(authToken, ownSession.id)
-
-        val otherSession = startSession(otherToken, otherWorkoutGroupId)
-        repeat(4) { index ->
-            addSetLog(otherToken, otherSession.id, otherExerciseId, index + 1)
-        }
-        completeSession(otherToken, otherSession.id)
-
-        val today = LocalDate.now(ZoneOffset.UTC)
-
-        client
-            .get()
-            .uri("/api/analytics/heatmap?from=$today&to=$today")
-            .header("Authorization", "Bearer $authToken")
-            .exchange()
-            .expectStatus().isOk
-            .expectBody()
-            .jsonPath("$[0].count").isEqualTo(2)
-            .jsonPath("$[0].intensity").isEqualTo(1)
-    }
-
-    @Test
-    fun `streak returns zeroes with no activity`() {
-        client
-            .get()
-            .uri("/api/analytics/streak")
-            .header("Authorization", "Bearer $authToken")
-            .exchange()
-            .expectStatus().isOk
-            .expectBody()
+            .jsonPath("$.totalSessions").isEqualTo(0)
+            .jsonPath("$.sessionsThisMonth").isEqualTo(0)
+            .jsonPath("$.setsThisWeek").isEqualTo(0)
+            .jsonPath("$.prsThisMonth").isEqualTo(0)
             .jsonPath("$.currentStreak").isEqualTo(0)
             .jsonPath("$.longestStreak").isEqualTo(0)
     }
 
     @Test
-    fun `streak counts consecutive days ending today`() {
-        val today = LocalDate.now(ZoneOffset.UTC)
-        logSetsOnDate(authToken, workoutGroupId, exerciseId, today, 1)
-        logSetsOnDate(authToken, workoutGroupId, exerciseId, today.minusDays(1), 1)
-
+    fun `summary activePlanDays is null when no active plan`() {
+        val suffix = UUID.randomUUID()
+        val noActivePlanToken = registerAndLogin("no-active-$suffix@test.com", "password123", "No Plan User")
         client
             .get()
-            .uri("/api/analytics/streak")
-            .header("Authorization", "Bearer $authToken")
+            .uri("/api/analytics/summary")
+            .header("Authorization", "Bearer $noActivePlanToken")
             .exchange()
             .expectStatus().isOk
             .expectBody()
-            .jsonPath("$.currentStreak").isEqualTo(2)
-            .jsonPath("$.longestStreak").isEqualTo(2)
+            .jsonPath("$.activePlanDays").value<Any?> { assertEquals(null, it) }
     }
 
     @Test
-    fun `streak is broken when there is a gap`() {
-        val today = LocalDate.now(ZoneOffset.UTC)
-        logSetsOnDate(authToken, workoutGroupId, exerciseId, today.minusDays(3), 1)
-        logSetsOnDate(authToken, workoutGroupId, exerciseId, today.minusDays(5), 1)
-
-        client
-            .get()
-            .uri("/api/analytics/streak")
-            .header("Authorization", "Bearer $authToken")
-            .exchange()
-            .expectStatus().isOk
-            .expectBody()
-            .jsonPath("$.currentStreak").isEqualTo(0)
-            .jsonPath("$.longestStreak").isEqualTo(1)
-    }
-
-    @Test
-    fun `heatmap defaults date range when query params are omitted`() {
-        val entries =
-            client
-                .get()
-                .uri("/api/analytics/heatmap")
-                .header("Authorization", "Bearer $authToken")
-                .exchange()
-                .expectStatus().isOk
-                .expectBodyList(HeatmapEntry::class.java)
-                .returnResult()
-                .responseBody!!
-
-        // Derive `to` from the response so the test is not sensitive to UTC midnight
-        val toDate = entries.last().date
-        val expectedDays = toDate.minusMonths(3).datesUntil(toDate.plusDays(1)).count().toInt()
-        assertEquals(expectedDays, entries.size)
-    }
-
-    @Test
-    fun `heatmap requires authentication`() {
-        client
-            .get()
-            .uri("/api/analytics/heatmap")
-            .exchange()
-            .expectStatus().isUnauthorized
-    }
-
-    @Test
-    fun `heatmap returns 400 for invalid from date`() {
-        client
-            .get()
-            .uri("/api/analytics/heatmap?from=2026-99-99")
-            .header("Authorization", "Bearer $authToken")
-            .exchange()
-            .expectStatus().isBadRequest
-    }
-
-    @Test
-    fun `heatmap returns 400 for invalid to date`() {
-        client
-            .get()
-            .uri("/api/analytics/heatmap?to=not-a-date")
-            .header("Authorization", "Bearer $authToken")
-            .exchange()
-            .expectStatus().isBadRequest
-    }
-
-    // ── /analytics/weekly-trend ─────────────────────────────────────────────
-
-    @Test
-    fun `weekly trend returns requested number of weeks`() {
-        client
-            .get()
-            .uri("/api/analytics/weekly-trend?weeks=4")
-            .header("Authorization", "Bearer $authToken")
-            .exchange()
-            .expectStatus().isOk
-            .expectBody()
-            .jsonPath("$.length()").isEqualTo(4)
-    }
-
-    @Test
-    fun `weekly trend returns 400 for weeks=0`() {
-        client
-            .get()
-            .uri("/api/analytics/weekly-trend?weeks=0")
-            .header("Authorization", "Bearer $authToken")
-            .exchange()
-            .expectStatus().isBadRequest
-    }
-
-    @Test
-    fun `weekly trend returns 400 for weeks exceeding max`() {
-        client
-            .get()
-            .uri("/api/analytics/weekly-trend?weeks=53")
-            .header("Authorization", "Bearer $authToken")
-            .exchange()
-            .expectStatus().isBadRequest
-    }
-
-    @Test
-    fun `weekly trend includes set count for current week`() {
+    fun `summary counts completed sessions and sets`() {
         val session = startSession(authToken, workoutGroupId)
-        repeat(5) { index -> addSetLog(authToken, session.id, exerciseId, index + 1) }
+        repeat(3) { index -> addSetLog(authToken, session.id, exerciseId, index + 1) }
         completeSession(authToken, session.id)
         alignSessionToNow(session.id)
 
-        val entries =
-            client
-                .get()
-                .uri("/api/analytics/weekly-trend?weeks=1")
-                .header("Authorization", "Bearer $authToken")
-                .exchange()
-                .expectStatus().isOk
-                .expectBodyList(WeeklyTrendEntry::class.java)
-                .returnResult()
-                .responseBody!!
+        client
+            .get()
+            .uri("/api/analytics/summary")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.totalSessions").isEqualTo(1)
+            .jsonPath("$.setsThisWeek").isEqualTo(3)
+    }
 
-        assertEquals(5, entries.last().setCount)
-        assertEquals(1, entries.last().sessionCount)
+    @Test
+    fun `summary avgSessionDurationMinutes is null when no completed sessions`() {
+        val suffix = UUID.randomUUID()
+        val noSessionToken = registerAndLogin("no-session-$suffix@test.com", "password123", "No Session User")
+        client
+            .get()
+            .uri("/api/analytics/summary")
+            .header("Authorization", "Bearer $noSessionToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.avgSessionDurationMinutes").value<Any?> { assertEquals(null, it) }
+    }
+
+    @Test
+    fun `summary avgSessionDurationMinutes computes average over completed sessions`() {
+        val session = startSession(authToken, workoutGroupId)
+        addSetLog(authToken, session.id, exerciseId, 1)
+        completeSession(authToken, session.id)
+        databaseClient
+            .sql(
+                "UPDATE workout_sessions SET started_at = NOW() - INTERVAL '50 minutes', " +
+                    "completed_at = NOW() WHERE id = :id",
+            ).bind("id", session.id)
+            .fetch().rowsUpdated().block()
+
+        client
+            .get()
+            .uri("/api/analytics/summary")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.avgSessionDurationMinutes").isEqualTo(50)
+    }
+
+    @Test
+    fun `summary requires authentication`() {
+        client
+            .get()
+            .uri("/api/analytics/summary")
+            .exchange()
+            .expectStatus().isUnauthorized
     }
 
     private fun startSession(
@@ -349,9 +182,9 @@ class AnalyticsIntegrationTest {
         sessionId: UUID,
         exerciseId: UUID,
         setNumber: Int,
-        setLog: SetLogFixture = SetLogFixture(),
-    ): SetLogResponse {
-        return client
+        setLog: SummarySetLogFixture = SummarySetLogFixture(),
+    ): SetLogResponse =
+        client
             .post()
             .uri("/api/sessions/$sessionId/set-logs")
             .header("Authorization", "Bearer $token")
@@ -368,7 +201,6 @@ class AnalyticsIntegrationTest {
             .expectBody(SetLogResponse::class.java)
             .returnResult()
             .responseBody!!
-    }
 
     private fun completeSession(
         token: String,
@@ -385,29 +217,6 @@ class AnalyticsIntegrationTest {
             .expectBody(WorkoutSessionResponse::class.java)
             .returnResult()
             .responseBody!!
-
-    private fun logSetsOnDate(
-        token: String,
-        groupId: UUID,
-        exerciseId: UUID,
-        date: LocalDate,
-        count: Int,
-    ) {
-        val session = startSession(token, groupId)
-        repeat(count) { index ->
-            addSetLog(token, session.id, exerciseId, index + 1)
-        }
-
-        databaseClient
-            .sql("UPDATE set_logs SET logged_at = :loggedAt WHERE workout_session_id = :sessionId")
-            .bind("loggedAt", date.atTime(12, 0).toInstant(ZoneOffset.UTC))
-            .bind("sessionId", session.id)
-            .fetch()
-            .rowsUpdated()
-            .block()
-
-        completeSession(token, session.id)
-    }
 
     private fun alignSessionToNow(sessionId: UUID) {
         databaseClient
@@ -533,7 +342,7 @@ class AnalyticsIntegrationTest {
             .accessToken
 }
 
-private data class SetLogFixture(
+private data class SummarySetLogFixture(
     val weight: BigDecimal = BigDecimal("80.0"),
     val reps: Int = 5,
 )
