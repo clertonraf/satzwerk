@@ -532,6 +532,7 @@ class WorkoutSessionIntegrationTest {
             .jsonPath("$[0].previousWeightKg").isEmpty
             .jsonPath("$[0].prWeightKg").isEmpty
             .jsonPath("$[0].estimatedOneRepMaxKg").isEmpty
+            .jsonPath("$[0].suggestedWeightKg").isEmpty
     }
 
     @Test
@@ -704,20 +705,6 @@ class WorkoutSessionIntegrationTest {
             .header("Authorization", "Bearer $otherToken")
             .exchange()
             .expectStatus().isNotFound
-    }
-
-    @Test
-    fun `reference weights returns null suggested weight when exercise has no history`() {
-        val session = startSession()
-
-        client
-            .get()
-            .uri("/api/sessions/${session.id}/reference-weights")
-            .header("Authorization", "Bearer $authToken")
-            .exchange()
-            .expectStatus().isOk
-            .expectBody()
-            .jsonPath("$[0].suggestedWeightKg").isEmpty
     }
 
     @Test
