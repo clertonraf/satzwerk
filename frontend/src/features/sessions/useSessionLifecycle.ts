@@ -8,7 +8,7 @@ import { sessionService } from '@/services/sessionService'
 
 export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () => void; onForfeit?: () => void }) {
   const queryClient = useQueryClient()
-  const transport = useSessionTransport()
+  const { transport, isAddPending, isUpdatePending } = useSessionTransport()
 
   const openSessionQuery = useQuery<WorkoutSession | null>({
     queryKey: queryKeys.sessions.open(),
@@ -36,14 +36,6 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
     mutationFn: (sessionId: string) => sessionService.discard(sessionId),
   })
 
-  const updateSetLogMutation = useMutation({
-    mutationFn: ({ sessionId, setLogId, payload }: { sessionId: string; setLogId: string; payload: UpdateSetLogRequest }) =>
-      sessionService.updateSetLog(sessionId, setLogId, payload),
-    onSuccess: (_, { sessionId }) => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.referenceWeights(sessionId) })
-    },
-  })
-
   const session = openSessionQuery.data ?? null
 
   async function handleLogSet(exerciseId: string, setNumber: number, weight: number, reps: number, unit: 'kg' | 'lb') {
@@ -58,7 +50,7 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
       reps,
     }
 
-    const loggedSet = await transport.logSet(session.id, payload)
+    const loggedSet = await transport.addSetLog(session.id, payload)
     const updatedSession = { ...session, setLogs: [...session.setLogs, loggedSet] }
     queryClient.setQueryData(queryKeys.sessions.open(), updatedSession)
   }
@@ -73,10 +65,12 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
       reps,
     }
 
-    const updatedLog = await updateSetLogMutation.mutateAsync({ sessionId: session.id, setLogId, payload })
+    const updatedLog = await transport.updateSetLog(session.id, setLogId, payload)
+    const existingLog = session.setLogs.find((log) => log.id === setLogId)
+    const mergedLog = existingLog ? { ...existingLog, weight: updatedLog.weight, reps: updatedLog.reps } : updatedLog
     const updatedSession = {
       ...session,
-      setLogs: session.setLogs.map((log) => (log.id === setLogId ? updatedLog : log)),
+      setLogs: session.setLogs.map((log) => (log.id === setLogId ? mergedLog : log)),
     }
     queryClient.setQueryData(queryKeys.sessions.open(), updatedSession)
   }
@@ -112,8 +106,8 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
     startMutateAsync: startMutation.mutateAsync,
     discardMutateAsync: discardMutation.mutateAsync,
     isStartPending: startMutation.isPending,
-    isAddSetPending: transport.isLogSetPending,
-    isUpdateSetPending: updateSetLogMutation.isPending,
+    isAddSetPending: isAddPending,
+    isUpdateSetPending: isUpdatePending,
     isCompletePending: completeMutation.isPending,
     isForfeitPending: discardMutation.isPending,
   }

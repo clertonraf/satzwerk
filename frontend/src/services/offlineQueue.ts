@@ -1,36 +1,38 @@
-import { db, type QueuedSetLog } from '@/lib/db'
+import { db, type QueuedOp } from '@/lib/db'
 import { sessionService } from './sessionService'
+import type { AddSetLogRequest, UpdateSetLogRequest } from './sessionService'
 
-type EnqueuePayload = Omit<QueuedSetLog, 'id' | 'queuedAt'>
+type EnqueuePayload =
+  | { type: 'add-set'; sessionId: string; data: AddSetLogRequest }
+  | { type: 'update-set'; sessionId: string; setLogId: string; data: UpdateSetLogRequest }
 
 export const offlineQueue = {
-  enqueue: (payload: EnqueuePayload) => db.queuedSetLogs.add({ ...payload, queuedAt: Date.now() }),
+  enqueue: (payload: EnqueuePayload) => db.queuedOps.add({ ...payload, queuedAt: Date.now() } as QueuedOp),
 
-  getAll: () => db.queuedSetLogs.toArray(),
+  getAll: () => db.queuedOps.toArray(),
 
-  clear: () => db.queuedSetLogs.clear(),
+  clear: () => db.queuedOps.clear(),
 
   flush: async () => {
-    const items = await db.queuedSetLogs.toArray()
+    const ops = await db.queuedOps.toArray()
 
-    if (items.length === 0) {
+    if (ops.length === 0) {
       return []
     }
 
     const results = await Promise.allSettled(
-      items.map((item) =>
-        sessionService.addSetLog(item.sessionId, {
-          exerciseId: item.exerciseId,
-          setNumber: item.setNumber,
-          weight: item.weight,
-          reps: item.reps,
-        })
-      )
+      ops.map((op) => {
+        if (op.type === 'add-set') {
+          return sessionService.addSetLog(op.sessionId, op.data)
+        }
+        return sessionService.updateSetLog(op.sessionId, op.setLogId, op.data)
+      }),
     )
 
-    const succeeded = items.filter((_, index) => results[index].status === 'fulfilled')
-    await Promise.all(succeeded.map((item) => db.queuedSetLogs.delete(item.id!)))
+    const succeeded = ops.filter((_, index) => results[index].status === 'fulfilled')
+    await Promise.all(succeeded.map((op) => db.queuedOps.delete(op.id!)))
 
     return results
   },
 }
+
