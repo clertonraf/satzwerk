@@ -107,7 +107,8 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
       return
     }
 
-    await deleteSetLogMutation.mutateAsync({ sessionId: session.id, setLogId })
+    const sessionId = session.id
+    await deleteSetLogMutation.mutateAsync({ sessionId, setLogId })
     const current = queryClient.getQueryData<WorkoutSession>(queryKeys.sessions.open())
     if (!current) return
     const remainingLogs = current.setLogs.filter((log) => log.id !== setLogId)
@@ -116,6 +117,8 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
       setLogs: remainingLogs,
       setCount: remainingLogs.length,
     })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.open() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.referenceWeights(sessionId) })
   }
 
   return {

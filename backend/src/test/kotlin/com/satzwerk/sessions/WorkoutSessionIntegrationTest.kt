@@ -773,6 +773,7 @@ class WorkoutSessionIntegrationTest {
             .expectStatus().isOk
             .expectBody()
             .jsonPath("$.setLogs.length()").isEqualTo(0)
+            .jsonPath("$.setCount").isEqualTo(0)
     }
 
     @Test
