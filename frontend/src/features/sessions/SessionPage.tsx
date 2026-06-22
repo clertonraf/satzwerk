@@ -54,9 +54,6 @@ export default function SessionPage() {
     })
 
   const {
-    startOptionsQuery,
-    historyQuery,
-    referenceWeightsQuery,
     groupOptions,
     groupCatalog,
     groupStatsMap,
@@ -64,6 +61,10 @@ export default function SessionPage() {
     referenceWeightsMap,
     isCatalogLoading,
     queryError,
+    isHistoryLoading,
+    isHistoryAvailable,
+    startOptionsData,
+    isReferenceWeightsLoading,
   } = useSessionQueries({ session, isSessionLoading })
 
   const currentGroupEntry = session ? groupCatalog[session.workoutGroupId] : undefined
@@ -118,9 +119,9 @@ export default function SessionPage() {
             <SessionStartup
               groupOptions={groupOptions}
               groupStatsMap={groupStatsMap}
-              isHistoryLoading={historyQuery.isLoading}
-              isHistoryAvailable={historyQuery.data !== undefined}
-              startOptionsData={startOptionsQuery.data}
+              isHistoryLoading={isHistoryLoading}
+              isHistoryAvailable={isHistoryAvailable}
+              startOptionsData={startOptionsData}
               isCatalogLoading={isCatalogLoading}
               isOnline={isOnline}
               stalePlanError={stalePlanError}
@@ -134,7 +135,7 @@ export default function SessionPage() {
               currentGroupEntry={currentGroupEntry}
               exercisesById={exercisesById}
               referenceWeightsMap={referenceWeightsMap}
-              isReferenceWeightsLoading={referenceWeightsQuery.isLoading}
+              isReferenceWeightsLoading={isReferenceWeightsLoading}
               isCatalogLoading={isCatalogLoading}
               isOnline={isOnline}
               exerciseUnits={exerciseUnits}

@@ -84,13 +84,12 @@ export function useSessionQueries({ session, isSessionLoading }: UseSessionQueri
     ? (openPlanDetailQuery.error ?? exercisesQuery.error)
     : (startOptionsQuery.error ?? exercisesQuery.error)
 
+  const isHistoryLoading = historyQuery.isLoading
+  const isHistoryAvailable = historyQuery.data !== undefined
+  const startOptionsData = startOptionsQuery.data
+  const isReferenceWeightsLoading = referenceWeightsQuery.isLoading
+
   return {
-    exercisesQuery,
-    startOptionsQuery,
-    openPlanDetailQuery,
-    historyQuery,
-    referenceWeightsQuery,
-    planDetails,
     groupCatalog,
     groupOptions,
     groupStatsMap,
@@ -98,5 +97,9 @@ export function useSessionQueries({ session, isSessionLoading }: UseSessionQueri
     referenceWeightsMap,
     isCatalogLoading,
     queryError,
+    isHistoryLoading,
+    isHistoryAvailable,
+    startOptionsData,
+    isReferenceWeightsLoading,
   }
 }
