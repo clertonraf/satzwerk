@@ -3,7 +3,7 @@ import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { convertWeightHint } from '@/features/sessions/sessionHelpers'
+import { convertWeightHint } from '@/lib/unitFormatters'
 
 const schema = z.object({
   weight: z

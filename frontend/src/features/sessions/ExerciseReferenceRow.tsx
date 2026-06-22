@@ -1,5 +1,5 @@
 import type { ExerciseReferenceWeights } from '@/services/sessionService'
-import { formatDisplayWeight } from './sessionHelpers'
+import { formatDisplayWeight } from '@/lib/unitFormatters'
 
 interface ExerciseReferenceRowProps {
   referenceWeights: ExerciseReferenceWeights | undefined

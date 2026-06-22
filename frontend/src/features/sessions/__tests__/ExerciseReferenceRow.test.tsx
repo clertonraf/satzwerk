@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import ExerciseReferenceRow from '../ExerciseReferenceRow'
-import { formatDisplayWeight } from '../sessionHelpers'
+import { formatDisplayWeight } from '@/lib/unitFormatters'
 
 describe('ExerciseReferenceRow', () => {
   it('renders nothing when reference weights are undefined and not loading', () => {
