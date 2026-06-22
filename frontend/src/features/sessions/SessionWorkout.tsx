@@ -43,8 +43,15 @@ export default function SessionWorkout({
   onComplete,
   onForfeit,
 }: SessionWorkoutProps) {
-  const exerciseLogs = (exerciseId: string): SetLog[] =>
-    session.setLogs.filter((log) => log.exerciseId === exerciseId)
+  const logsByExerciseId = session.setLogs.reduce<Map<string, SetLog[]>>((acc, log) => {
+    const bucket = acc.get(log.exerciseId)
+    if (bucket) {
+      bucket.push(log)
+    } else {
+      acc.set(log.exerciseId, [log])
+    }
+    return acc
+  }, new Map())
 
   return (
     <div className="space-y-4">
@@ -64,7 +71,7 @@ export default function SessionWorkout({
                 exercise={exercise}
                 exerciseName={exerciseName}
                 exerciseUnit={exerciseUnit}
-                exerciseLogs={exerciseLogs(exercise.exerciseId)}
+                exerciseLogs={logsByExerciseId.get(exercise.exerciseId) ?? []}
                 referenceWeights={referenceWeightsMap.get(exercise.exerciseId)}
                 isReferenceWeightsLoading={isReferenceWeightsLoading}
                 isAddSetPending={isAddSetPending}
