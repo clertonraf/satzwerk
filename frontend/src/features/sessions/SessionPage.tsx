@@ -9,10 +9,9 @@ import ForfeitSessionModal from '@/features/sessions/ForfeitSessionModal'
 import ResumeDiscardModal from '@/features/sessions/ResumeDiscardModal'
 import SetInput from '@/features/sessions/SetInput'
 import WorkoutGroupPreviewModal from '@/features/sessions/WorkoutGroupPreviewModal'
+import { buildGroupStatsMap, buildWorkoutGroupCatalog } from '@/lib/domainBuilders'
+import { formatDisplayWeight } from '@/lib/unitFormatters'
 import {
-  buildGroupStatsMap,
-  buildWorkoutGroupCatalog,
-  formatDisplayWeight,
   formatGroupStats,
   formatSessionDate,
   toPounds,
