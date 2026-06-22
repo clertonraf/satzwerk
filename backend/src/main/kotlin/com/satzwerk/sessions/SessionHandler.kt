@@ -55,6 +55,17 @@ class SessionHandler(
             }
         }
 
+    suspend fun deleteSetLog(request: ServerRequest): ServerResponse =
+        handleErrors(withConflict = true) {
+            val ctx = RequestContext(request)
+            workoutSessionService.deleteSetLog(
+                ctx.userId(),
+                ctx.pathId("id"),
+                ctx.pathId("setLogId"),
+            )
+            ServerResponse.noContent().buildAndAwait()
+        }
+
     suspend fun complete(request: ServerRequest): ServerResponse =
         handleErrors(withConflict = true) {
             val ctx = RequestContext(request)

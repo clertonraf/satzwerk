@@ -26,6 +26,7 @@ export default function SessionPage() {
     handleStartSession,
     handleLogSet,
     handleUpdateSetLog,
+    handleDeleteSetLog,
     handleCompleteSession,
     handleForfeitSession,
     handleDiscardConflict,
@@ -33,6 +34,7 @@ export default function SessionPage() {
     isStartPending,
     isAddSetPending,
     isUpdateSetPending,
+    isDeleteSetPending,
     isCompletePending,
     isForfeitPending,
   } = useWorkoutSession({
@@ -141,12 +143,14 @@ export default function SessionPage() {
               exerciseUnits={exerciseUnits}
               isAddSetPending={isAddSetPending}
               isUpdateSetPending={isUpdateSetPending}
+              isDeleteSetPending={isDeleteSetPending}
               isCompletePending={isCompletePending}
               isForfeitPending={isForfeitPending}
               onLogSet={(exerciseId, setNumber, weight, reps, unit) =>
                 void handleLogSet(exerciseId, setNumber, weight, reps, unit)
               }
               onUpdateSetLog={handleUpdateSetLog}
+              onDeleteSetLog={(setLogId) => void handleDeleteSetLog(setLogId)}
               onSetExerciseUnit={setExerciseUnit}
               onComplete={() => void handleCompleteSession()}
               onForfeit={() => setIsForfeitModalOpen(true)}

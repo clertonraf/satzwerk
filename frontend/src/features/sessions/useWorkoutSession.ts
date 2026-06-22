@@ -16,6 +16,7 @@ export function useWorkoutSession({ onComplete, onForfeit }: { onComplete: () =>
     handleStartSession: conflict.handleStartSession,
     handleLogSet: lifecycle.handleLogSet,
     handleUpdateSetLog: lifecycle.handleUpdateSetLog,
+    handleDeleteSetLog: lifecycle.handleDeleteSetLog,
     handleCompleteSession: lifecycle.handleCompleteSession,
     handleForfeitSession: lifecycle.handleForfeitSession,
     handleDiscardConflict: conflict.handleDiscardConflict,
@@ -23,6 +24,7 @@ export function useWorkoutSession({ onComplete, onForfeit }: { onComplete: () =>
     isStartPending: lifecycle.isStartPending,
     isAddSetPending: lifecycle.isAddSetPending,
     isUpdateSetPending: lifecycle.isUpdateSetPending,
+    isDeleteSetPending: lifecycle.isDeleteSetPending,
     isCompletePending: lifecycle.isCompletePending,
     isForfeitPending: lifecycle.isForfeitPending,
   }

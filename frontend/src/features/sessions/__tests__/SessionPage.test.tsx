@@ -41,6 +41,7 @@ const defaultWorkoutSessionState = {
   handleStartSession: vi.fn(),
   handleLogSet: vi.fn(),
   handleUpdateSetLog: vi.fn(),
+  handleDeleteSetLog: vi.fn(),
   handleCompleteSession: vi.fn(),
   handleForfeitSession: vi.fn(),
   handleDiscardConflict: vi.fn(),
@@ -48,6 +49,7 @@ const defaultWorkoutSessionState = {
   isStartPending: false,
   isAddSetPending: false,
   isUpdateSetPending: false,
+  isDeleteSetPending: false,
   isCompletePending: false,
   isForfeitPending: false,
 }

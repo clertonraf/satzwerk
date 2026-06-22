@@ -15,10 +15,12 @@ interface SessionWorkoutProps {
   exerciseUnits: Record<string, 'kg' | 'lb'>
   isAddSetPending: boolean
   isUpdateSetPending: boolean
+  isDeleteSetPending: boolean
   isCompletePending: boolean
   isForfeitPending: boolean
   onLogSet: (exerciseId: string, setNumber: number, weight: number, reps: number, unit: 'kg' | 'lb') => void
   onUpdateSetLog: (setLogId: string, weight: number, reps: number, unit: 'kg' | 'lb') => Promise<void>
+  onDeleteSetLog: (setLogId: string) => void
   onSetExerciseUnit: (exerciseId: string, unit: 'kg' | 'lb') => void
   onComplete: () => void
   onForfeit: () => void
@@ -35,10 +37,12 @@ export default function SessionWorkout({
   exerciseUnits,
   isAddSetPending,
   isUpdateSetPending,
+  isDeleteSetPending,
   isCompletePending,
   isForfeitPending,
   onLogSet,
   onUpdateSetLog,
+  onDeleteSetLog,
   onSetExerciseUnit,
   onComplete,
   onForfeit,
@@ -76,9 +80,11 @@ export default function SessionWorkout({
                 isReferenceWeightsLoading={isReferenceWeightsLoading}
                 isAddSetPending={isAddSetPending}
                 isUpdateSetPending={isUpdateSetPending}
+                isDeleteSetPending={isDeleteSetPending}
                 isOnline={isOnline}
                 onLogSet={onLogSet}
                 onUpdateSetLog={onUpdateSetLog}
+                onDeleteSetLog={onDeleteSetLog}
                 onSetExerciseUnit={onSetExerciseUnit}
               />
             )
