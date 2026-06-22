@@ -144,6 +144,19 @@ class WorkoutSessionService(
     }
 
     @Transactional
+    suspend fun deleteSetLog(
+        userId: UUID,
+        sessionId: UUID,
+        setLogId: UUID,
+    ) {
+        val session = getOwnedSession(userId, sessionId)
+        requireOpenSession(session)
+        setLogRepository.findByIdAndWorkoutSessionId(setLogId, sessionId)
+            ?: throw NotFoundException("Set log not found")
+        setLogRepository.deleteById(setLogId)
+    }
+
+    @Transactional
     suspend fun discard(
         userId: UUID,
         sessionId: UUID,

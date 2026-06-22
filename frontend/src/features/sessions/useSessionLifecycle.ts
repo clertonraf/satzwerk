@@ -36,6 +36,11 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
     mutationFn: (sessionId: string) => sessionService.discard(sessionId),
   })
 
+  const deleteSetLogMutation = useMutation({
+    mutationFn: ({ sessionId, setLogId }: { sessionId: string; setLogId: string }) =>
+      sessionService.deleteSetLog(sessionId, setLogId),
+  })
+
   const session = openSessionQuery.data ?? null
 
   async function handleLogSet(exerciseId: string, setNumber: number, weight: number, reps: number, unit: 'kg' | 'lb') {
@@ -51,7 +56,8 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
     }
 
     const loggedSet = await transport.addSetLog(session.id, payload)
-    const updatedSession = { ...session, setLogs: [...session.setLogs, loggedSet] }
+    const newSetLogs = [...session.setLogs, loggedSet]
+    const updatedSession = { ...session, setLogs: newSetLogs, setCount: newSetLogs.length }
     queryClient.setQueryData(queryKeys.sessions.open(), updatedSession)
   }
 
@@ -96,11 +102,31 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
     onForfeit?.()
   }
 
+  async function handleDeleteSetLog(setLogId: string) {
+    if (!session) {
+      return
+    }
+
+    const sessionId = session.id
+    await deleteSetLogMutation.mutateAsync({ sessionId, setLogId })
+    const current = queryClient.getQueryData<WorkoutSession>(queryKeys.sessions.open())
+    if (!current) return
+    const remainingLogs = current.setLogs.filter((log) => log.id !== setLogId)
+    queryClient.setQueryData(queryKeys.sessions.open(), {
+      ...current,
+      setLogs: remainingLogs,
+      setCount: remainingLogs.length,
+    })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.open() })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.referenceWeights(sessionId) })
+  }
+
   return {
     session,
     isSessionLoading: openSessionQuery.isLoading,
     handleLogSet,
     handleUpdateSetLog,
+    handleDeleteSetLog,
     handleCompleteSession,
     handleForfeitSession,
     startMutateAsync: startMutation.mutateAsync,
@@ -108,6 +134,7 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
     isStartPending: startMutation.isPending,
     isAddSetPending: isAddPending,
     isUpdateSetPending: isUpdatePending,
+    isDeleteSetPending: deleteSetLogMutation.isPending,
     isCompletePending: completeMutation.isPending,
     isForfeitPending: discardMutation.isPending,
   }

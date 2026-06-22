@@ -35,9 +35,11 @@ const defaultProps = {
   isReferenceWeightsLoading: false,
   isAddSetPending: false,
   isUpdateSetPending: false,
+  isDeleteSetPending: false,
   isOnline: true,
   onLogSet: vi.fn(),
   onUpdateSetLog: vi.fn(),
+  onDeleteSetLog: vi.fn(),
   onSetExerciseUnit: vi.fn(),
 }
 
@@ -85,5 +87,37 @@ describe('ExerciseSection', () => {
     renderSection({ onSetExerciseUnit })
     await userEvent.click(screen.getByRole('button', { name: 'lb' }))
     expect(onSetExerciseUnit).toHaveBeenCalledWith('exercise-1', 'lb')
+  })
+
+  it('shows a Delete button for each logged set', () => {
+    renderSection({ exerciseLogs: [makeSetLog()] })
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+  })
+
+  it('disables Delete for queued set logs', () => {
+    renderSection({ exerciseLogs: [makeSetLog({ id: 'queued-session-1-exercise-1-1-123' })] })
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled()
+  })
+
+  it('disables Delete when isDeleteSetPending is true', () => {
+    renderSection({ exerciseLogs: [makeSetLog()], isDeleteSetPending: true })
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled()
+  })
+
+  it('calls onDeleteSetLog when Delete is clicked and confirmed in dialog', async () => {
+    const onDeleteSetLog = vi.fn()
+    renderSection({ exerciseLogs: [makeSetLog()], onDeleteSetLog })
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    // AlertDialog should be open — confirm button is inside it
+    await userEvent.click(screen.getByRole('button', { name: 'Delete', hidden: false }))
+    expect(onDeleteSetLog).toHaveBeenCalledWith('log-1')
+  })
+
+  it('does not call onDeleteSetLog when Cancel is clicked in the dialog', async () => {
+    const onDeleteSetLog = vi.fn()
+    renderSection({ exerciseLogs: [makeSetLog()], onDeleteSetLog })
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onDeleteSetLog).not.toHaveBeenCalled()
   })
 })

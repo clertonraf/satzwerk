@@ -1,4 +1,14 @@
 import { useState } from 'react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import AdvancedTechniqueBadge from '@/features/sessions/AdvancedTechniqueBadge'
@@ -19,9 +29,11 @@ interface ExerciseSectionProps {
   isReferenceWeightsLoading: boolean
   isAddSetPending: boolean
   isUpdateSetPending: boolean
+  isDeleteSetPending: boolean
   isOnline: boolean
   onLogSet: (exerciseId: string, setNumber: number, weight: number, reps: number, unit: 'kg' | 'lb') => void
   onUpdateSetLog: (setLogId: string, weight: number, reps: number, unit: 'kg' | 'lb') => Promise<void>
+  onDeleteSetLog: (setLogId: string) => void
   onSetExerciseUnit: (exerciseId: string, unit: 'kg' | 'lb') => void
 }
 
@@ -34,12 +46,16 @@ export default function ExerciseSection({
   isReferenceWeightsLoading,
   isAddSetPending,
   isUpdateSetPending,
+  isDeleteSetPending,
   isOnline,
   onLogSet,
   onUpdateSetLog,
+  onDeleteSetLog,
   onSetExerciseUnit,
 }: ExerciseSectionProps) {
   const [editingSetLogId, setEditingSetLogId] = useState<string | null>(null)
+  const [pendingDeleteSetLogId, setPendingDeleteSetLogId] = useState<string | null>(null)
+  const pendingDeleteLog = pendingDeleteSetLogId ? exerciseLogs.find((l) => l.id === pendingDeleteSetLogId) : null
   const nextSetNumber = exerciseLogs.length + 1
 
   return (
@@ -119,15 +135,27 @@ export default function ExerciseSection({
                       <span>
                         Set {log.setNumber}: {formatDisplayWeight(log.weight, exerciseUnit)} × {log.reps}
                       </span>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        disabled={!isOnline || log.id.startsWith('queued-')}
-                        onClick={() => setEditingSetLogId(log.id)}
-                      >
-                        Edit
-                      </Button>
+                      <span className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          disabled={!isOnline || log.id.startsWith('queued-')}
+                          onClick={() => setEditingSetLogId(log.id)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                          disabled={!isOnline || log.id.startsWith('queued-') || isDeleteSetPending}
+                          onClick={() => setPendingDeleteSetLogId(log.id)}
+                        >
+                          Delete
+                        </Button>
+                      </span>
                     </div>
                   )}
                 </li>
@@ -138,6 +166,37 @@ export default function ExerciseSection({
           <p className="text-sm text-muted-foreground">No sets logged yet.</p>
         )}
       </CardContent>
+
+      <AlertDialog
+        open={Boolean(pendingDeleteSetLogId)}
+        onOpenChange={(open) => !open && setPendingDeleteSetLogId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete set?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDeleteLog
+                ? `This will permanently remove Set ${pendingDeleteLog.setNumber} from this session.`
+                : 'This will permanently remove this set from the session.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleteSetPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeleteSetPending}
+              onClick={() => {
+                if (pendingDeleteSetLogId) {
+                  onDeleteSetLog(pendingDeleteSetLogId)
+                  setPendingDeleteSetLogId(null)
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   )
 }

@@ -753,6 +753,69 @@ class WorkoutSessionIntegrationTest {
             .jsonPath("$[0].suggestedWeightKg").isEqualTo(64.17)
     }
 
+    @Test
+    fun `delete set log returns no content and removes it from session`() {
+        val session = startSession()
+        val setLog = addSetLog(session.id, BigDecimal("80.0"))
+
+        client
+            .delete()
+            .uri("/api/sessions/${session.id}/set-logs/${setLog.id}")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isNoContent
+
+        client
+            .get()
+            .uri("/api/sessions/open")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.setLogs.length()").isEqualTo(0)
+            .jsonPath("$.setCount").isEqualTo(0)
+    }
+
+    @Test
+    fun `delete set log returns not found for nonexistent set log`() {
+        val session = startSession()
+
+        client
+            .delete()
+            .uri("/api/sessions/${session.id}/set-logs/${UUID.randomUUID()}")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isNotFound
+    }
+
+    @Test
+    fun `cannot delete set log from completed session`() {
+        val session = startSession()
+        val setLog = addSetLog(session.id, BigDecimal("80.0"))
+        completeSession(session.id)
+
+        client
+            .delete()
+            .uri("/api/sessions/${session.id}/set-logs/${setLog.id}")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isEqualTo(409)
+    }
+
+    @Test
+    fun `delete set log returns not found when session belongs to different user`() {
+        val session = startSession()
+        val setLog = addSetLog(session.id, BigDecimal("80.0"))
+        val otherToken = registerAndLogin("other-delete-${UUID.randomUUID()}@test.com", "password123", "Other User")
+
+        client
+            .delete()
+            .uri("/api/sessions/${session.id}/set-logs/${setLog.id}")
+            .header("Authorization", "Bearer $otherToken")
+            .exchange()
+            .expectStatus().isNotFound
+    }
+
     private fun createGroupWithTechnique(
         token: String,
         planId: UUID,
