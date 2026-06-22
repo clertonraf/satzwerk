@@ -1,23 +1,12 @@
 package com.satzwerk.common
 
 import jakarta.validation.Validator
-import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.http.HttpStatus
 import org.springframework.web.reactive.function.client.WebClientRequestException
 import org.springframework.web.reactive.function.client.WebClientResponseException
-import org.springframework.web.reactive.function.server.ServerRequest
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import java.util.UUID
-
-@Deprecated(
-    "Use RequestContext.userId() instead",
-    ReplaceWith("RequestContext(request).userId()", "com.satzwerk.common.RequestContext"),
-)
-suspend fun currentUserId(request: ServerRequest): UUID {
-    val principal = request.principal().awaitSingle()
-    return parseUuid(principal.name)
-}
 
 fun parseUuid(value: String): UUID =
     try {
