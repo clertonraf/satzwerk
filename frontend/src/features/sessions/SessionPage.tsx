@@ -1,28 +1,15 @@
-import { useMemo, useState } from 'react'
-import axios from 'axios'
-import { useQuery } from '@tanstack/react-query'
-import { Link, useNavigate } from 'react-router-dom'
-import { Button } from '@/components/ui/button'
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import RestTimer from '@/features/sessions/RestTimer'
 import ForfeitSessionModal from '@/features/sessions/ForfeitSessionModal'
 import ResumeDiscardModal from '@/features/sessions/ResumeDiscardModal'
-import SetInput from '@/features/sessions/SetInput'
+import SessionStartup from '@/features/sessions/SessionStartup'
+import SessionWorkout from '@/features/sessions/SessionWorkout'
 import WorkoutGroupPreviewModal from '@/features/sessions/WorkoutGroupPreviewModal'
-import { buildGroupStatsMap, buildWorkoutGroupCatalog } from '@/lib/domainBuilders'
-import { formatDisplayWeight } from '@/lib/unitFormatters'
-import {
-  formatGroupStats,
-  formatSessionDate,
-  toPounds,
-} from '@/features/sessions/sessionHelpers'
-import AdvancedTechniqueBadge from '@/features/sessions/AdvancedTechniqueBadge'
-import ExerciseReferenceRow from '@/features/sessions/ExerciseReferenceRow'
+import { formatSessionDate } from '@/features/sessions/sessionHelpers'
+import { useSessionQueries } from '@/features/sessions/useSessionQueries'
 import { useWorkoutSession } from '@/features/sessions/useWorkoutSession'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
-import { exerciseService } from '@/services/exerciseService'
-import { queryKeys } from '@/services/queryKeys'
-import { sessionService, type ExerciseReferenceWeights } from '@/services/sessionService'
 import type { WorkoutGroupDetail } from '@/services/planService'
 
 export default function SessionPage() {
@@ -30,7 +17,6 @@ export default function SessionPage() {
   const isOnline = useOnlineStatus()
   const [isForfeitModalOpen, setIsForfeitModalOpen] = useState(false)
   const [previewGroup, setPreviewGroup] = useState<{ group: WorkoutGroupDetail; planName: string } | null>(null)
-  const [editingSetLogId, setEditingSetLogId] = useState<string | null>(null)
 
   const {
     session,
@@ -67,67 +53,21 @@ export default function SessionPage() {
       return { sessionId: session?.id, units: { ...current, [exerciseId]: unit } }
     })
 
-  const exercisesQuery = useQuery({
-    queryKey: queryKeys.exercises.all(),
-    queryFn: () => exerciseService.list(),
-  })
-  const startOptionsQuery = useQuery({
-    queryKey: queryKeys.sessions.startOptions(),
-    queryFn: async () => {
-      try {
-        return await sessionService.getStartOptions()
-      } catch (error) {
-        if (axios.isAxiosError(error) && error.response?.status === 404) {
-          return null
-        }
-        throw error
-      }
-    },
-    enabled: !session && !isSessionLoading,
-  })
-  const openPlanDetailQuery = useQuery({
-    queryKey: queryKeys.sessions.openPlanDetail(session?.id ?? ''),
-    queryFn: () => sessionService.getOpenPlanDetail(),
-    enabled: !!session && !isSessionLoading,
-  })
-  const historyQuery = useQuery({
-    queryKey: queryKeys.sessions.history(),
-    queryFn: () => sessionService.history(),
-    enabled: !session && !isSessionLoading,
-    retry: false,
-  })
-  const referenceWeightsQuery = useQuery({
-    queryKey: queryKeys.sessions.referenceWeights(session?.id ?? ''),
-    queryFn: () => sessionService.getReferenceWeights(session!.id),
-    enabled: !!session,
-  })
+  const {
+    groupOptions,
+    groupCatalog,
+    groupStatsMap,
+    exercisesById,
+    referenceWeightsMap,
+    isCatalogLoading,
+    queryError,
+    isHistoryLoading,
+    isHistoryAvailable,
+    startOptionsData,
+    isReferenceWeightsLoading,
+  } = useSessionQueries({ session, isSessionLoading })
 
-  const planDetails = useMemo(() => {
-    if (session) {
-      return openPlanDetailQuery.data ? [openPlanDetailQuery.data] : []
-    }
-
-    return startOptionsQuery.data ? [startOptionsQuery.data] : []
-  }, [session, openPlanDetailQuery.data, startOptionsQuery.data])
-  const groupCatalog = useMemo(() => buildWorkoutGroupCatalog(planDetails), [planDetails])
-  const groupOptions = useMemo(
-    () => Object.values(groupCatalog).sort((a, b) => a.group.orderIndex - b.group.orderIndex),
-    [groupCatalog]
-  )
-  const groupStatsMap = useMemo(() => buildGroupStatsMap(historyQuery.data ?? []), [historyQuery.data])
-  const exercisesById = useMemo(
-    () => new Map((exercisesQuery.data ?? []).map((exercise) => [exercise.id, exercise])),
-    [exercisesQuery.data]
-  )
-  const referenceWeightsMap = useMemo<Map<string, ExerciseReferenceWeights>>(
-    () => new Map((referenceWeightsQuery.data ?? []).map((rw) => [rw.exerciseId, rw])),
-    [referenceWeightsQuery.data]
-  )
   const currentGroupEntry = session ? groupCatalog[session.workoutGroupId] : undefined
-  const queryError = session
-    ? openPlanDetailQuery.error ?? exercisesQuery.error
-    : startOptionsQuery.error ?? exercisesQuery.error
-  const isCatalogLoading = (session ? openPlanDetailQuery.isLoading : startOptionsQuery.isLoading) || exercisesQuery.isLoading
 
   if (queryError) {
     return <p className="text-sm text-destructive">Could not load workout session data.</p>
@@ -164,7 +104,9 @@ export default function SessionPage() {
       <Card className="border-border bg-card/90 shadow-sm">
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1.5">
-            <CardTitle>{session ? currentGroupEntry?.group.title ?? 'Workout Session' : 'Start workout session'}</CardTitle>
+            <CardTitle>
+              {session ? (currentGroupEntry?.group.title ?? 'Workout Session') : 'Start workout session'}
+            </CardTitle>
             <CardDescription>
               {session
                 ? `${currentGroupEntry?.plan.name ?? 'Workout plan'} · Started ${formatSessionDate(session.startedAt)}`
@@ -174,213 +116,42 @@ export default function SessionPage() {
         </CardHeader>
         <CardContent>
           {!session ? (
-            isCatalogLoading ? (
-              <p className="text-sm text-muted-foreground">Loading workout groups...</p>
-            ) : startOptionsQuery.data === null ? (
-              <p className="text-sm text-muted-foreground">
-                No active plan. Activate a plan on the <Link className="underline" to="/plans">Plans</Link> page to start a
-                session.
-              </p>
-            ) : groupOptions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No workout groups found yet. Build your training split on the <Link className="underline" to="/plans">Plans</Link>{' '}
-                page.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {!isOnline ? (
-                  <p className="text-sm text-muted-foreground">
-                    Reconnect to start a new workout. Your current session data stays available offline.
-                  </p>
-                ) : null}
-                {stalePlanError ? (
-                  <p className="text-sm text-destructive">{stalePlanError}</p>
-                ) : null}
-                {groupOptions.map(({ group, plan }) => {
-                  const stats = groupStatsMap.get(group.id)
-
-                  return (
-                    <div
-                      key={group.id}
-                      className="flex w-full items-center justify-between rounded-lg border border-border px-4 py-4"
-                    >
-                      <span>
-                        <span className="block font-medium">{group.title}</span>
-                        <span className="block text-sm text-muted-foreground">
-                          {plan.name} · {group.exercises.length} exercises ·{' '}
-                          {historyQuery.isLoading
-                            ? '…'
-                            : historyQuery.data !== undefined
-                              ? formatGroupStats(stats?.count ?? 0, stats?.lastCompletedAt ?? null)
-                              : 'Stats unavailable'}
-                        </span>
-                      </span>
-                      <span className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setPreviewGroup({ group, planName: plan.name })}
-                        >
-                          Preview
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={!isOnline || isStartPending}
-                          onClick={() => {
-                            void handleStartSession(group.id)
-                          }}
-                        >
-                          Start
-                        </Button>
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            )
-          ) : null}
-
-          {session ? (
-            <div className="space-y-4">
-              {isCatalogLoading ? (
-                <p className="text-sm text-muted-foreground">Loading workout details...</p>
-              ) : currentGroupEntry?.group.exercises.length ? (
-                currentGroupEntry.group.exercises
-                  .slice()
-                  .sort((left, right) => left.orderIndex - right.orderIndex)
-                  .map((exercise) => {
-                    const exerciseLogs = session.setLogs.filter((log) => log.exerciseId === exercise.exerciseId)
-                    const nextSetNumber = exerciseLogs.length + 1
-                    const exerciseName = exercisesById.get(exercise.exerciseId)?.name ?? `Exercise ${exercise.exerciseId}`
-                    const exerciseUnit = exerciseUnits[exercise.exerciseId] ?? 'kg'
-
-                    return (
-                      <Card key={exercise.id} className="border-border bg-background/70 shadow-none">
-                        <CardHeader>
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="space-y-1.5">
-                              <CardTitle className="text-xl">{exerciseName}</CardTitle>
-                              <CardDescription>
-                                Target {exercise.sets} sets × {exercise.reps} reps
-                              </CardDescription>
-                              {exercise.advancedTechnique ? (
-                                <AdvancedTechniqueBadge technique={exercise.advancedTechnique} />
-                              ) : null}
-                            </div>
-                            <div className="flex shrink-0 items-center gap-1 rounded-lg border border-border p-1">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant={exerciseUnit === 'kg' ? 'default' : 'ghost'}
-                                onClick={() => setExerciseUnit(exercise.exerciseId, 'kg')}
-                              >
-                                kg
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant={exerciseUnit === 'lb' ? 'default' : 'ghost'}
-                                onClick={() => setExerciseUnit(exercise.exerciseId, 'lb')}
-                              >
-                                lb
-                              </Button>
-                            </div>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <ExerciseReferenceRow
-                            referenceWeights={referenceWeightsMap.get(exercise.exerciseId)}
-                            isLoading={referenceWeightsQuery.isLoading}
-                            unit={exerciseUnit}
-                          />
-                          <SetInput
-                            isLoading={isAddSetPending}
-                            setNumber={nextSetNumber}
-                            unit={exerciseUnit}
-                            onLog={({ reps, setNumber, weight }) => {
-                              void handleLogSet(exercise.exerciseId, setNumber, weight, reps, exerciseUnit)
-                            }}
-                          />
-                          <RestTimer />
-
-                          {exerciseLogs.length > 0 ? (
-                            <div className="space-y-2">
-                              <p className="text-sm font-medium">Logged sets</p>
-                              <ul className="space-y-2 text-sm text-muted-foreground">
-                                {exerciseLogs.map((log) => (
-                                  <li key={log.id} className="rounded-lg border border-border px-3 py-2">
-                                    {editingSetLogId === log.id ? (
-                                      <SetInput
-                                        key={`${log.id}-${exerciseUnit}`}
-                                        isLoading={isUpdateSetPending}
-                                        setNumber={log.setNumber}
-                                        unit={exerciseUnit}
-                                        defaultWeight={exerciseUnit === 'kg' ? log.weight : toPounds(log.weight)}
-                                        defaultReps={log.reps}
-                                        submitLabel="Save"
-                                        resetOnSubmit={false}
-                                        onLog={({ weight, reps }) => {
-                                          handleUpdateSetLog(log.id, weight, reps, exerciseUnit)
-                                            .then(() => setEditingSetLogId(null))
-                                            .catch(() => {
-                                              /* stay in edit mode so the user can retry */
-                                            })
-                                        }}
-                                        onCancel={() => setEditingSetLogId(null)}
-                                      />
-                                    ) : (
-                                      <div className="flex items-center justify-between">
-                                        <span>
-                                          Set {log.setNumber}: {formatDisplayWeight(log.weight, exerciseUnit)} × {log.reps}
-                                        </span>
-                                        <Button
-                                          type="button"
-                                          size="sm"
-                                          variant="ghost"
-                                          disabled={!isOnline || log.id.startsWith('queued-')}
-                                          onClick={() => setEditingSetLogId(log.id)}
-                                        >
-                                          Edit
-                                        </Button>
-                                      </div>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">No sets logged yet.</p>
-                          )}
-                        </CardContent>
-                      </Card>
-                    )
-                  })
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  {isOnline
-                    ? 'This workout group has no exercises yet.'
-                    : 'Workout details are unavailable offline. Logged sets stay saved and will sync when you reconnect.'}
-                </p>
-              )}
-
-              <div className="flex justify-between">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                  disabled={isForfeitPending || isCompletePending}
-                  onClick={() => setIsForfeitModalOpen(true)}
-                >
-                  Forfeit session
-                </Button>
-                <Button type="button" disabled={isCompletePending || isForfeitPending} onClick={() => void handleCompleteSession()}>
-                  Push Workout
-                </Button>
-              </div>
-            </div>
-          ) : null}
+            <SessionStartup
+              groupOptions={groupOptions}
+              groupStatsMap={groupStatsMap}
+              isHistoryLoading={isHistoryLoading}
+              isHistoryAvailable={isHistoryAvailable}
+              startOptionsData={startOptionsData}
+              isCatalogLoading={isCatalogLoading}
+              isOnline={isOnline}
+              stalePlanError={stalePlanError}
+              isStartPending={isStartPending}
+              onStart={(groupId) => void handleStartSession(groupId)}
+              onPreview={(group, planName) => setPreviewGroup({ group, planName })}
+            />
+          ) : (
+            <SessionWorkout
+              session={session}
+              currentGroupEntry={currentGroupEntry}
+              exercisesById={exercisesById}
+              referenceWeightsMap={referenceWeightsMap}
+              isReferenceWeightsLoading={isReferenceWeightsLoading}
+              isCatalogLoading={isCatalogLoading}
+              isOnline={isOnline}
+              exerciseUnits={exerciseUnits}
+              isAddSetPending={isAddSetPending}
+              isUpdateSetPending={isUpdateSetPending}
+              isCompletePending={isCompletePending}
+              isForfeitPending={isForfeitPending}
+              onLogSet={(exerciseId, setNumber, weight, reps, unit) =>
+                void handleLogSet(exerciseId, setNumber, weight, reps, unit)
+              }
+              onUpdateSetLog={handleUpdateSetLog}
+              onSetExerciseUnit={setExerciseUnit}
+              onComplete={() => void handleCompleteSession()}
+              onForfeit={() => setIsForfeitModalOpen(true)}
+            />
+          )}
         </CardContent>
       </Card>
     </div>
