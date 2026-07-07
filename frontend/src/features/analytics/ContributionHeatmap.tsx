@@ -71,6 +71,7 @@ export default function ContributionHeatmap({ entries, from, to }: { entries: He
 
   const cells: Array<{ dateStr: string; col: number; row: number; entry: HeatmapEntry | null; outOfRange: boolean }> = []
   const monthLabels: Array<{ key: string; label: string; x: number; col: number }> = []
+  let lastSeenMonthKey = ''
 
   for (let index = 0; index < totalDays; index += 1) {
     const date = addUtcDays(alignedStart, index)
@@ -79,16 +80,14 @@ export default function ContributionHeatmap({ entries, from, to }: { entries: He
     const row = index % ROWS
 
     if (row === 0) {
-      const label = MONTH_LABELS[date.getUTCMonth()]
-      const previous = monthLabels.at(-1)
-
-      if (!previous || (previous.key !== `${date.getUTCFullYear()}-${date.getUTCMonth()}` && col - previous.col >= MIN_LABEL_GAP_COLS)) {
-        monthLabels.push({
-          key: `${date.getUTCFullYear()}-${date.getUTCMonth()}`,
-          label,
-          x: col * STEP,
-          col,
-        })
+      const monthKey = `${date.getUTCFullYear()}-${date.getUTCMonth()}`
+      if (monthKey !== lastSeenMonthKey) {
+        lastSeenMonthKey = monthKey
+        const label = MONTH_LABELS[date.getUTCMonth()]
+        const previous = monthLabels.at(-1)
+        if (!previous || col - previous.col >= MIN_LABEL_GAP_COLS) {
+          monthLabels.push({ key: monthKey, label, x: col * STEP, col })
+        }
       }
     }
 
