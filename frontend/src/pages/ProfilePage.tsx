@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { type ChangeEvent, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -33,7 +33,7 @@ export default function ProfilePage() {
     }
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -94,6 +94,7 @@ export default function ProfilePage() {
               ref={fileInputRef}
               type="file"
               accept=".json,application/json"
+              aria-label="Import data file"
               onChange={handleFileChange}
             />
             {importError && <p className="text-sm text-destructive">{importError}</p>}

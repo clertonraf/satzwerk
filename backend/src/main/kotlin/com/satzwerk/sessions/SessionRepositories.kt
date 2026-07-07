@@ -19,6 +19,8 @@ interface WorkoutSessionRepository : CoroutineCrudRepository<WorkoutSession, UUI
 interface SetLogRepository : CoroutineCrudRepository<SetLog, UUID> {
     suspend fun findAllByWorkoutSessionId(sessionId: UUID): List<SetLog>
 
+    suspend fun findAllByWorkoutSessionIdIn(sessionIds: Collection<UUID>): List<SetLog>
+
     suspend fun findByIdAndWorkoutSessionId(
         id: UUID,
         workoutSessionId: UUID,

@@ -18,7 +18,8 @@ export const exportService = {
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    // Delay revocation so the browser has time to start the download
+    setTimeout(() => URL.revokeObjectURL(url), 100)
   },
 
   async importData(jsonContent: string): Promise<ImportSummaryResponse> {

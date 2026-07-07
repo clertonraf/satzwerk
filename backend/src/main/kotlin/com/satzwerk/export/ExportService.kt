@@ -172,11 +172,16 @@ class ExportService(
         )
     }
 
-    private suspend fun exportSessions(userId: UUID): List<ExportWorkoutSessionDto> =
-        workoutDataPort.findAllSessions(userId).map { session ->
-            val setLogs = setLogRepository.findAllByWorkoutSessionId(requireNotNull(session.id))
-            toExportSessionDto(session, setLogs)
+    private suspend fun exportSessions(userId: UUID): List<ExportWorkoutSessionDto> {
+        val sessions = workoutDataPort.findAllSessions(userId)
+        val sessionIds = sessions.mapNotNull { it.id }
+        val logsBySession =
+            setLogRepository.findAllByWorkoutSessionIdIn(sessionIds)
+                .groupBy { it.workoutSessionId }
+        return sessions.map { session ->
+            toExportSessionDto(session, logsBySession[session.id] ?: emptyList())
         }
+    }
 }
 
 // --- Top-level factory helpers (do not count towards ExportService function limit) ---
@@ -241,7 +246,14 @@ private fun toNewExercise(
 private fun toNewWorkoutPlan(
     userId: UUID,
     dto: ExportWorkoutPlanDto,
-) = WorkoutPlan(userId = userId, name = dto.name, source = dto.source, isActive = false)
+) = WorkoutPlan(
+    userId = userId,
+    name = dto.name,
+    source = dto.source,
+    isActive = false,
+    activatedAt = null,
+    createdAt = dto.createdAt,
+)
 
 private fun toNewWorkoutGroup(
     planId: UUID,
