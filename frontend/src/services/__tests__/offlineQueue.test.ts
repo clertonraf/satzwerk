@@ -117,9 +117,46 @@ describe('offlineQueue.flush', () => {
     expect(remaining).toHaveLength(0)
   })
 
-  it('returns an empty array when queue is empty', async () => {
+  it('returns zero counts when queue is empty', async () => {
     const result = await offlineQueue.flush()
-    expect(result).toEqual([])
+    expect(result).toEqual({ succeeded: 0, failed: 0 })
+  })
+
+  it('returns succeeded count for successful ops', async () => {
+    vi.spyOn(sessionServiceModule.sessionService, 'addSetLog').mockResolvedValue({
+      id: 'log-1',
+      exerciseId: 'e1',
+      setNumber: 1,
+      weight: 80,
+      reps: 5,
+      loggedAt: '2026-01-01T00:00:00Z',
+    })
+
+    await offlineQueue.enqueue({
+      type: 'add-set',
+      sessionId: 's1',
+      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5 },
+    })
+
+    const result = await offlineQueue.flush()
+    expect(result).toEqual({ succeeded: 1, failed: 0 })
+  })
+
+  it('increments retryCount and returns failed count for failed ops', async () => {
+    vi.spyOn(sessionServiceModule.sessionService, 'addSetLog').mockRejectedValue(new Error('Network error'))
+
+    await offlineQueue.enqueue({
+      type: 'add-set',
+      sessionId: 's1',
+      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5 },
+    })
+
+    const result = await offlineQueue.flush()
+    expect(result).toEqual({ succeeded: 0, failed: 1 })
+
+    const ops = await offlineQueue.getAll()
+    expect(ops).toHaveLength(1)
+    expect(ops[0].retryCount).toBe(1)
   })
 })
 

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { offlineQueue } from '@/services/offlineQueue'
@@ -25,13 +25,7 @@ describe('useOfflineSync', () => {
   })
 
   it('flushes the queue when the app comes back online', async () => {
-    const client = new QueryClient({
-      defaultOptions: {
-        queries: {
-          retry: false,
-        },
-      },
-    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const invalidateQueries = vi.spyOn(client, 'invalidateQueries').mockResolvedValue()
 
     function Wrapper({ children }: { children: ReactNode }) {
@@ -39,7 +33,7 @@ describe('useOfflineSync', () => {
     }
 
     mockUseOnlineStatus.mockReturnValue(false)
-    vi.mocked(offlineQueue.flush).mockResolvedValue([])
+    vi.mocked(offlineQueue.flush).mockResolvedValue({ succeeded: 1, failed: 0 })
 
     const { rerender } = renderHook(() => useOfflineSync(), { wrapper: Wrapper })
 
@@ -48,5 +42,47 @@ describe('useOfflineSync', () => {
 
     await waitFor(() => expect(offlineQueue.flush).toHaveBeenCalledTimes(1))
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.sessions.open() })
+  })
+
+  it('sets flushError when flush returns failed ops', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    vi.spyOn(client, 'invalidateQueries').mockResolvedValue()
+
+    function Wrapper({ children }: { children: ReactNode }) {
+      return <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    }
+
+    mockUseOnlineStatus.mockReturnValue(false)
+    vi.mocked(offlineQueue.flush).mockResolvedValue({ succeeded: 0, failed: 2 })
+
+    const { rerender, result } = renderHook(() => useOfflineSync(), { wrapper: Wrapper })
+
+    mockUseOnlineStatus.mockReturnValue(true)
+    rerender()
+
+    await waitFor(() => expect(result.current.flushError).not.toBeNull())
+    expect(result.current.flushError).toContain('2 sets')
+  })
+
+  it('clears flushError on dismissFlushError', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    vi.spyOn(client, 'invalidateQueries').mockResolvedValue()
+
+    function Wrapper({ children }: { children: ReactNode }) {
+      return <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    }
+
+    mockUseOnlineStatus.mockReturnValue(false)
+    vi.mocked(offlineQueue.flush).mockResolvedValue({ succeeded: 0, failed: 1 })
+
+    const { rerender, result } = renderHook(() => useOfflineSync(), { wrapper: Wrapper })
+
+    mockUseOnlineStatus.mockReturnValue(true)
+    rerender()
+
+    await waitFor(() => expect(result.current.flushError).not.toBeNull())
+
+    act(() => result.current.dismissFlushError())
+    expect(result.current.flushError).toBeNull()
   })
 })

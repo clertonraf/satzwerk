@@ -11,7 +11,7 @@ export interface QueuedSetLog {
   queuedAt: number
 }
 
-type QueuedOpBase = { id?: number; sessionId: string; queuedAt: number }
+type QueuedOpBase = { id?: number; sessionId: string; queuedAt: number; retryCount: number }
 
 export type QueuedOp =
   | (QueuedOpBase & { type: 'add-set'; data: AddSetLogRequest })
@@ -32,8 +32,17 @@ class SatzwerkDb extends Dexie {
       queuedSetLogs: null,
       queuedOps: '++id, type, sessionId, queuedAt',
     })
+
+    this.version(3).stores({
+      queuedOps: '++id, type, sessionId, queuedAt',
+    }).upgrade((tx) => {
+      return tx.table<QueuedOp>('queuedOps').toCollection().modify((op) => {
+        if (op.retryCount === undefined) {
+          op.retryCount = 0
+        }
+      })
+    })
   }
 }
 
 export const db = new SatzwerkDb()
-
