@@ -8,6 +8,8 @@ interface WorkoutSessionRepository : CoroutineCrudRepository<WorkoutSession, UUI
 
     suspend fun findAllByUserIdAndCompletedAtIsNotNullOrderByCompletedAtDesc(userId: UUID): List<WorkoutSession>
 
+    suspend fun findAllByUserId(userId: UUID): List<WorkoutSession>
+
     suspend fun findByIdAndUserId(
         id: UUID,
         userId: UUID,
