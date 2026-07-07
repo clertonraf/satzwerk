@@ -28,17 +28,24 @@ export function useOfflineSync(): OfflineSyncState {
 
     wasOffline.current = false
 
-    void offlineQueue.flush().then(({ failed }) => {
-      const openSession = queryClient.getQueryData<WorkoutSession>(queryKeys.sessions.open())
-      if (openSession?.id) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.referenceWeights(openSession.id) })
-      }
-      void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.open() })
+    void offlineQueue
+      .flush()
+      .then(({ failed }) => {
+        const openSession = queryClient.getQueryData<WorkoutSession>(queryKeys.sessions.open())
+        if (openSession?.id) {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.referenceWeights(openSession.id) })
+        }
+        void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.open() })
 
-      if (failed > 0) {
-        setFlushError(`${failed} set${failed === 1 ? '' : 's'} from your offline session could not be saved.`)
-      }
-    })
+        if (failed > 0) {
+          setFlushError(`${failed} set${failed === 1 ? '' : 's'} from your offline session could not be saved.`)
+        } else {
+          setFlushError(null)
+        }
+      })
+      .catch(() => {
+        setFlushError('Offline sync failed unexpectedly. Please reload the page.')
+      })
   }, [isOnline, queryClient])
 
   return {

@@ -36,7 +36,9 @@ class SatzwerkDb extends Dexie {
     this.version(3).stores({
       queuedOps: '++id, type, sessionId, queuedAt',
     }).upgrade((tx) => {
-      return tx.table<QueuedOp>('queuedOps').toCollection().modify((op) => {
+      // QueuedOpLegacy represents rows written before retryCount was introduced (schema v2).
+      type QueuedOpLegacy = Omit<QueuedOp, 'retryCount'> & { retryCount?: number }
+      return tx.table<QueuedOpLegacy>('queuedOps').toCollection().modify((op) => {
         if (op.retryCount === undefined) {
           op.retryCount = 0
         }

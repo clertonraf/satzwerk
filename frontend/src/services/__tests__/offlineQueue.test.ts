@@ -158,6 +158,26 @@ describe('offlineQueue.flush', () => {
     expect(ops).toHaveLength(1)
     expect(ops[0].retryCount).toBe(1)
   })
+
+  it('deletes ops that have reached MAX_RETRIES and counts them as failed', async () => {
+    vi.spyOn(sessionServiceModule.sessionService, 'addSetLog').mockRejectedValue(new Error('Network error'))
+
+    // Insert an op that is already at the retry cap (retryCount >= 3).
+    await db.queuedOps.add({
+      type: 'add-set',
+      sessionId: 's1',
+      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5 },
+      queuedAt: Date.now(),
+      retryCount: 3,
+    } as Parameters<typeof db.queuedOps.add>[0])
+
+    const result = await offlineQueue.flush()
+
+    // The capped op should be deleted and counted as failed.
+    expect(result).toEqual({ succeeded: 0, failed: 1 })
+    const remaining = await offlineQueue.getAll()
+    expect(remaining).toHaveLength(0)
+  })
 })
 
 describe('offlineQueue.clear', () => {
