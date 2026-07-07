@@ -22,7 +22,7 @@ class SetLogService(
         val now = Instant.now()
         val isPr =
             calculateIsPr(
-                requireNotNull(session.userId),
+                session.userId,
                 request.exerciseId,
                 request.weight,
                 request.reps,
@@ -51,7 +51,7 @@ class SetLogService(
                 ?: throw NotFoundException("Set log not found")
         val isPr =
             calculateIsPr(
-                requireNotNull(session.userId),
+                session.userId,
                 setLog.exerciseId,
                 request.weight,
                 request.reps,
