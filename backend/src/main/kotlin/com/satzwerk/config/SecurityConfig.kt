@@ -2,6 +2,7 @@ package com.satzwerk.config
 
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity
@@ -24,10 +25,11 @@ class SecurityConfig(
             .exceptionHandling {
                 it.authenticationEntryPoint { exchange, _ ->
                     exchange.response.statusCode = HttpStatus.UNAUTHORIZED
+                    exchange.response.headers.remove(HttpHeaders.WWW_AUTHENTICATE)
                     exchange.response.headers.contentType = MediaType.APPLICATION_JSON
                     val body =
                         exchange.response.bufferFactory()
-                            .wrap("""{"message":"Unauthorized"}""".toByteArray())
+                            .wrap("""{"message":"Unauthorized","error":"Unauthorized"}""".toByteArray(Charsets.UTF_8))
                     exchange.response.writeWith(Mono.just(body))
                 }
             }

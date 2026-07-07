@@ -41,19 +41,14 @@ class SecurityConfigTest {
     @Test
     fun `unauthenticated request returns 401 without WWW-Authenticate header`(): Unit =
         run {
-            val result =
-                client
-                    .get()
-                    .uri("/api/exercises")
-                    .exchange()
-                    .expectStatus().isUnauthorized
-                    .expectBody()
-                    .jsonPath("$.message").isEqualTo("Unauthorized")
-                    .returnResult()
-
-            assert(!result.responseHeaders.containsKey(HttpHeaders.WWW_AUTHENTICATE)) {
-                val value = result.responseHeaders[HttpHeaders.WWW_AUTHENTICATE]
-                "401 response must not contain WWW-Authenticate header, got: $value"
-            }
+            client
+                .get()
+                .uri("/api/exercises")
+                .exchange()
+                .expectStatus().isUnauthorized
+                .expectHeader().doesNotExist(HttpHeaders.WWW_AUTHENTICATE)
+                .expectBody()
+                .jsonPath("$.message").isEqualTo("Unauthorized")
+                .jsonPath("$.error").isEqualTo("Unauthorized")
         }
 }
