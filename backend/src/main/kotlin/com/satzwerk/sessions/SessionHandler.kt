@@ -15,6 +15,7 @@ import org.springframework.web.reactive.function.server.buildAndAwait
 @Component
 class SessionHandler(
     private val workoutSessionService: WorkoutSessionService,
+    private val setLogService: SetLogService,
     private val validator: Validator,
 ) {
     suspend fun getOpen(request: ServerRequest): ServerResponse =
@@ -29,13 +30,8 @@ class SessionHandler(
             val ctx = RequestContext(request)
             val body = ctx.body<AddSetLogRequest>()
             validateOrBadRequest(validator, body) {
-                val response =
-                    workoutSessionService.addSetLog(
-                        ctx.userId(),
-                        ctx.pathId("id"),
-                        body,
-                    )
-                ServerResponse.status(HttpStatus.CREATED).bodyValueAndAwait(response)
+                val session = workoutSessionService.requireOwnedOpenSession(ctx.userId(), ctx.pathId("id"))
+                ServerResponse.status(HttpStatus.CREATED).bodyValueAndAwait(setLogService.add(session, body))
             }
         }
 
@@ -44,25 +40,18 @@ class SessionHandler(
             val ctx = RequestContext(request)
             val body = ctx.body<UpdateSetLogRequest>()
             validateOrBadRequest(validator, body) {
-                val response =
-                    workoutSessionService.updateSetLog(
-                        ctx.userId(),
-                        ctx.pathId("id"),
-                        ctx.pathId("setLogId"),
-                        body,
-                    )
-                ServerResponse.ok().bodyValueAndAwait(response)
+                val session = workoutSessionService.requireOwnedOpenSession(ctx.userId(), ctx.pathId("id"))
+                ServerResponse.ok().bodyValueAndAwait(
+                    setLogService.update(session, ctx.pathId("setLogId"), body),
+                )
             }
         }
 
     suspend fun deleteSetLog(request: ServerRequest): ServerResponse =
         handleErrors(withConflict = true) {
             val ctx = RequestContext(request)
-            workoutSessionService.deleteSetLog(
-                ctx.userId(),
-                ctx.pathId("id"),
-                ctx.pathId("setLogId"),
-            )
+            val session = workoutSessionService.requireOwnedOpenSession(ctx.userId(), ctx.pathId("id"))
+            setLogService.delete(session, ctx.pathId("setLogId"))
             ServerResponse.noContent().buildAndAwait()
         }
 

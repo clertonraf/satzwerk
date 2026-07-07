@@ -4,6 +4,7 @@ import com.satzwerk.common.RequestContext
 import com.satzwerk.common.body
 import com.satzwerk.common.handleErrors
 import com.satzwerk.common.validateOrBadRequest
+import com.satzwerk.workouts.WorkoutPlanService
 import jakarta.validation.Validator
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
@@ -14,6 +15,7 @@ import org.springframework.web.reactive.function.server.bodyValueAndAwait
 @Component
 class SessionStartHandler(
     private val workoutSessionService: WorkoutSessionService,
+    private val workoutPlanService: WorkoutPlanService,
     private val validator: Validator,
 ) {
     suspend fun start(request: ServerRequest): ServerResponse =
@@ -29,7 +31,7 @@ class SessionStartHandler(
     suspend fun getStartOptions(request: ServerRequest): ServerResponse =
         handleErrors {
             val ctx = RequestContext(request)
-            val response = workoutSessionService.getStartOptions(ctx.userId())
+            val response = workoutPlanService.getActiveDetail(ctx.userId())
             ServerResponse.ok().bodyValueAndAwait(response)
         }
 
