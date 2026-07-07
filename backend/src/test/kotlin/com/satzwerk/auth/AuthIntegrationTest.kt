@@ -297,8 +297,9 @@ class AuthIntegrationTest {
                 .expectStatus().isOk
 
             val afterCount = refreshTokenRepository.count()
-            // The stale token should have been deleted during cleanup.
-            assertEquals(beforeCount - 1, afterCount)
+            // Cleanup deletes the stale token (-1) while refresh issues a new token (+1); net 0.
+            // Without cleanup, afterCount would be beforeCount + 1 (stale token not removed).
+            assertEquals(beforeCount, afterCount)
         }
 
     private fun registerUser(email: String): AuthResponse =
