@@ -12,6 +12,60 @@ import java.util.UUID
 
 private const val DEFAULT_WEEKLY_TREND_WEEKS = 8
 
+private val DASHBOARD_SUMMARY_SQL =
+    """
+    WITH workout_days AS (
+        SELECT DISTINCT DATE(sl.logged_at AT TIME ZONE 'UTC') AS day
+        FROM set_logs sl
+        JOIN workout_sessions ws ON sl.workout_session_id = ws.id
+        WHERE ws.user_id = :userId
+    ),
+    ranked AS (
+        SELECT day,
+               day - (ROW_NUMBER() OVER (ORDER BY day))::int AS grp
+        FROM workout_days
+    ),
+    streak_ranges AS (
+        SELECT COUNT(*)::int AS streak_len,
+               MAX(day) AS end_day
+        FROM ranked
+        GROUP BY grp
+    )
+    SELECT
+        (SELECT COUNT(*) FROM workout_sessions
+         WHERE user_id = :userId AND completed_at IS NOT NULL) AS total_sessions,
+        (SELECT COUNT(*) FROM workout_sessions
+         WHERE user_id = :userId
+           AND completed_at IS NOT NULL
+           AND DATE_TRUNC('month', completed_at AT TIME ZONE 'UTC')
+               = DATE_TRUNC('month', NOW() AT TIME ZONE 'UTC')) AS sessions_this_month,
+        (SELECT COUNT(*) FROM set_logs sl
+         JOIN workout_sessions ws ON sl.workout_session_id = ws.id
+         WHERE ws.user_id = :userId
+           AND DATE_TRUNC('week', sl.logged_at AT TIME ZONE 'UTC')
+               = DATE_TRUNC('week', NOW() AT TIME ZONE 'UTC')) AS sets_this_week,
+        (SELECT COUNT(*) FROM set_logs sl
+         JOIN workout_sessions ws ON sl.workout_session_id = ws.id
+         WHERE ws.user_id = :userId
+           AND sl.is_pr = TRUE
+           AND DATE_TRUNC('month', sl.logged_at AT TIME ZONE 'UTC')
+               = DATE_TRUNC('month', NOW() AT TIME ZONE 'UTC')) AS prs_this_month,
+        (SELECT EXTRACT(DAY FROM NOW() - activated_at)::INT
+         FROM workout_plans
+         WHERE user_id = :userId AND is_active = TRUE
+        LIMIT 1) AS active_plan_days,
+        (SELECT CAST(ROUND(EXTRACT(EPOCH FROM AVG(completed_at - started_at)) / 60) AS INT)
+        FROM workout_sessions
+        WHERE user_id = :userId AND completed_at IS NOT NULL) AS avg_session_duration_minutes,
+        COALESCE(
+            (SELECT streak_len FROM streak_ranges
+             WHERE end_day >= (NOW() AT TIME ZONE 'UTC')::DATE - 1
+             ORDER BY end_day DESC LIMIT 1),
+            0
+        ) AS current_streak,
+        COALESCE((SELECT MAX(streak_len) FROM streak_ranges), 0) AS longest_streak
+    """.trimIndent()
+
 @Repository
 class AnalyticsRepository(
     private val databaseClient: DatabaseClient,
@@ -61,36 +115,8 @@ class AnalyticsRepository(
 
     suspend fun findDashboardSummary(userId: UUID): DashboardSummaryRow =
         databaseClient
-            .sql(
-                """
-                SELECT
-                    (SELECT COUNT(*) FROM workout_sessions
-                     WHERE user_id = :userId AND completed_at IS NOT NULL) AS total_sessions,
-                    (SELECT COUNT(*) FROM workout_sessions
-                     WHERE user_id = :userId
-                       AND completed_at IS NOT NULL
-                       AND DATE_TRUNC('month', completed_at AT TIME ZONE 'UTC')
-                           = DATE_TRUNC('month', NOW() AT TIME ZONE 'UTC')) AS sessions_this_month,
-                    (SELECT COUNT(*) FROM set_logs sl
-                     JOIN workout_sessions ws ON sl.workout_session_id = ws.id
-                     WHERE ws.user_id = :userId
-                       AND DATE_TRUNC('week', sl.logged_at AT TIME ZONE 'UTC')
-                           = DATE_TRUNC('week', NOW() AT TIME ZONE 'UTC')) AS sets_this_week,
-                    (SELECT COUNT(*) FROM set_logs sl
-                     JOIN workout_sessions ws ON sl.workout_session_id = ws.id
-                     WHERE ws.user_id = :userId
-                       AND sl.is_pr = TRUE
-                       AND DATE_TRUNC('month', sl.logged_at AT TIME ZONE 'UTC')
-                           = DATE_TRUNC('month', NOW() AT TIME ZONE 'UTC')) AS prs_this_month,
-                    (SELECT EXTRACT(DAY FROM NOW() - activated_at)::INT
-                     FROM workout_plans
-                     WHERE user_id = :userId AND is_active = TRUE
-                    LIMIT 1) AS active_plan_days,
-                    (SELECT CAST(ROUND(EXTRACT(EPOCH FROM AVG(completed_at - started_at)) / 60) AS INT)
-                    FROM workout_sessions
-                    WHERE user_id = :userId AND completed_at IS NOT NULL) AS avg_session_duration_minutes
-                """.trimIndent(),
-            ).bind("userId", userId)
+            .sql(DASHBOARD_SUMMARY_SQL)
+            .bind("userId", userId)
             .map { row, _ ->
                 DashboardSummaryRow(
                     totalSessions = row.get("total_sessions", java.lang.Long::class.java)?.toInt() ?: 0,
@@ -100,6 +126,8 @@ class AnalyticsRepository(
                     activePlanDays = row.get("active_plan_days", java.lang.Integer::class.java)?.toInt(),
                     avgSessionDurationMinutes =
                         row.get("avg_session_duration_minutes", java.lang.Integer::class.java)?.toInt(),
+                    currentStreak = row.get("current_streak", java.lang.Integer::class.java)?.toInt() ?: 0,
+                    longestStreak = row.get("longest_streak", java.lang.Integer::class.java)?.toInt() ?: 0,
                 )
             }.one()
             .awaitSingle()
@@ -196,6 +224,8 @@ data class DashboardSummaryRow(
     val prsThisMonth: Int,
     val activePlanDays: Int?,
     val avgSessionDurationMinutes: Int?,
+    val currentStreak: Int,
+    val longestStreak: Int,
 )
 
 data class WeeklyTrendRow(

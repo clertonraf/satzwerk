@@ -2,9 +2,14 @@ package com.satzwerk.auth
 
 import com.satzwerk.users.User
 import com.satzwerk.users.UserRepository
+import org.slf4j.LoggerFactory
+import org.springframework.dao.DataAccessException
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import java.time.Instant
+
+private const val CLEANUP_DAYS_THRESHOLD = 30L
+private const val SECONDS_PER_DAY = 86400L
 
 @Service
 class AuthService(
@@ -13,6 +18,8 @@ class AuthService(
     private val passwordEncoder: PasswordEncoder,
     private val jwtService: JwtService,
 ) {
+    private val logger = LoggerFactory.getLogger(AuthService::class.java)
+
     suspend fun register(
         email: String,
         password: String,
@@ -54,7 +61,20 @@ class AuthService(
         }
 
         refreshTokenRepository.save(token.copy(revokedAt = Instant.now()))
-        return issueTokenPair(token.userId)
+        val pair = issueTokenPair(token.userId)
+        // Cleanup runs best-effort: a transient DB error must not roll back the completed rotation.
+        try {
+            cleanupOldTokens()
+        } catch (e: DataAccessException) {
+            logger.warn("Post-refresh token cleanup failed", e)
+        }
+        return pair
+    }
+
+    private suspend fun cleanupOldTokens() {
+        val cutoff = Instant.now().minusSeconds(CLEANUP_DAYS_THRESHOLD * SECONDS_PER_DAY)
+        refreshTokenRepository.deleteByExpiresAtBefore(cutoff)
+        refreshTokenRepository.deleteByRevokedAtIsNotNullAndRevokedAtBefore(cutoff)
     }
 
     private suspend fun issueTokenPair(userId: java.util.UUID): TokenPair {

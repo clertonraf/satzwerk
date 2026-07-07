@@ -1,6 +1,7 @@
 package com.satzwerk.workouts
 
 import com.fasterxml.jackson.databind.JsonNode
+import kotlinx.coroutines.flow.toList
 import org.springframework.http.codec.multipart.FilePart
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -51,28 +52,29 @@ class PlanImportService(
         parsed: SatzwerkParserResponse,
         exerciseByNameLower: Map<String, Exercise>,
     ) {
-        parsed.workouts.forEachIndexed { groupIndex, parsedWorkout ->
-            val groupTitle =
-                parsedWorkout.bodyParts
-                    .filter { it.isNotBlank() }
-                    .joinToString(", ")
-                    .ifBlank { parsedWorkout.name }
-
-            val group =
-                workoutGroupRepository.save(
-                    WorkoutGroup(
-                        workoutPlanId = planId,
-                        title = groupTitle,
-                        orderIndex = groupIndex,
-                    ),
+        val groupEntities =
+            parsed.workouts.mapIndexed { groupIndex, parsedWorkout ->
+                val groupTitle =
+                    parsedWorkout.bodyParts
+                        .filter { it.isNotBlank() }
+                        .joinToString(", ")
+                        .ifBlank { parsedWorkout.name }
+                WorkoutGroup(
+                    workoutPlanId = planId,
+                    title = groupTitle,
+                    orderIndex = groupIndex,
                 )
-            val groupId = requireNotNull(group.id)
+            }
+        // Sort by orderIndex to guarantee stable pairing with parsed.workouts regardless of saveAll emission order.
+        val savedGroups = workoutGroupRepository.saveAll(groupEntities).toList().sortedBy { it.orderIndex }
 
-            parsedWorkout.exercises.forEachIndexed { exerciseIndex, parsedExercise ->
-                val exercise = requireNotNull(exerciseByNameLower[parsedExercise.exercise.lowercase()])
-                val (reps, toFailure) = mapReps(parsedExercise.reps)
-
-                workoutExerciseRepository.save(
+        val allExercises =
+            savedGroups.flatMapIndexed { idx, group ->
+                val parsedWorkout = parsed.workouts[idx]
+                val groupId = requireNotNull(group.id)
+                parsedWorkout.exercises.mapIndexed { exerciseIndex, parsedExercise ->
+                    val exercise = requireNotNull(exerciseByNameLower[parsedExercise.exercise.lowercase()])
+                    val (reps, toFailure) = mapReps(parsedExercise.reps)
                     WorkoutExercise(
                         workoutGroupId = groupId,
                         exerciseId = requireNotNull(exercise.id),
@@ -81,10 +83,10 @@ class PlanImportService(
                         toFailure = toFailure,
                         advancedTechnique = mapTechnique(parsedExercise.advancedTechnique),
                         orderIndex = exerciseIndex,
-                    ),
-                )
+                    )
+                }
             }
-        }
+        workoutExerciseRepository.saveAll(allExercises).toList()
     }
 
     private fun mapReps(repsNode: JsonNode): Pair<Int, Boolean> =

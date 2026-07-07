@@ -2,26 +2,45 @@ import { db, type QueuedOp } from '@/lib/db'
 import { sessionService } from './sessionService'
 import type { AddSetLogRequest, UpdateSetLogRequest } from './sessionService'
 
+const MAX_RETRIES = 3
+
 type EnqueuePayload =
   | { type: 'add-set'; sessionId: string; data: AddSetLogRequest }
   | { type: 'update-set'; sessionId: string; setLogId: string; data: UpdateSetLogRequest }
 
+export interface FlushResult {
+  succeeded: number
+  failed: number
+}
+
 export const offlineQueue = {
-  enqueue: (payload: EnqueuePayload) => db.queuedOps.add({ ...payload, queuedAt: Date.now() } as QueuedOp),
+  enqueue: (payload: EnqueuePayload) =>
+    db.queuedOps.add({ ...payload, queuedAt: Date.now(), retryCount: 0 } as QueuedOp),
 
   getAll: () => db.queuedOps.toArray(),
 
   clear: () => db.queuedOps.clear(),
 
-  flush: async () => {
+  flush: async (): Promise<FlushResult> => {
     const ops = await db.queuedOps.toArray()
 
     if (ops.length === 0) {
-      return []
+      return { succeeded: 0, failed: 0 }
+    }
+
+    // Drop ops that have exceeded the retry cap — they are permanently failed.
+    const exceededIds = ops.filter((op) => op.retryCount >= MAX_RETRIES).map((op) => op.id!)
+    if (exceededIds.length > 0) {
+      await Promise.all(exceededIds.map((id) => db.queuedOps.delete(id)))
+    }
+
+    const retryable = ops.filter((op) => op.retryCount < MAX_RETRIES)
+    if (retryable.length === 0) {
+      return { succeeded: 0, failed: exceededIds.length }
     }
 
     const results = await Promise.allSettled(
-      ops.map((op) => {
+      retryable.map((op) => {
         if (op.type === 'add-set') {
           return sessionService.addSetLog(op.sessionId, op.data)
         }
@@ -29,10 +48,17 @@ export const offlineQueue = {
       }),
     )
 
-    const succeeded = ops.filter((_, index) => results[index].status === 'fulfilled')
-    await Promise.all(succeeded.map((op) => db.queuedOps.delete(op.id!)))
+    const succeeded = retryable.filter((_, index) => results[index].status === 'fulfilled')
+    const failed = retryable.filter((_, index) => results[index].status === 'rejected')
 
-    return results
+    await Promise.all(succeeded.map((op) => db.queuedOps.delete(op.id!)))
+    await Promise.all(
+      failed.map((op) => db.queuedOps.update(op.id!, { retryCount: op.retryCount + 1 })),
+    )
+
+    return {
+      succeeded: succeeded.length,
+      failed: failed.length + exceededIds.length,
+    }
   },
 }
-

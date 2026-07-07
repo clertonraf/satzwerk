@@ -46,11 +46,10 @@ class AnalyticsService(
     }
 
     suspend fun dashboardSummary(userId: UUID): DashboardSummary {
-        val streakResponse = streak(userId)
         val summaryRow = analyticsRepository.findDashboardSummary(userId)
         return DashboardSummary(
-            currentStreak = streakResponse.currentStreak,
-            longestStreak = streakResponse.longestStreak,
+            currentStreak = summaryRow.currentStreak,
+            longestStreak = summaryRow.longestStreak,
             sessionsThisMonth = summaryRow.sessionsThisMonth,
             setsThisWeek = summaryRow.setsThisWeek,
             totalSessions = summaryRow.totalSessions,
