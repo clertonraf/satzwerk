@@ -1,6 +1,5 @@
 package com.satzwerk.sessions
 
-import com.satzwerk.common.NotFoundException
 import com.satzwerk.workouts.WorkoutExerciseRepository
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
@@ -11,7 +10,7 @@ import java.util.UUID
 private const val PR_RATIO_SCALE = 10
 
 /** Identifies an existing set log being updated, so its ratio is excluded from the PR comparison. */
-data class SetLogRef(val id: UUID?, val loggedAt: Instant)
+internal data class SetLogRef(val id: UUID?, val loggedAt: Instant)
 
 @Service
 class PersonalRecordService(
@@ -39,7 +38,7 @@ class PersonalRecordService(
     ): List<ExerciseReferenceWeights> {
         val workoutExercises =
             workoutExerciseRepository.findAllByWorkoutGroupIdOrderByOrderIndex(workoutGroupId)
-                .also { if (it.isEmpty()) throw NotFoundException("Workout group not found") }
+        if (workoutExercises.isEmpty()) return emptyList()
         // De-duplicate by exerciseId keeping the first occurrence (lowest orderIndex), matching UI order.
         val uniqueExercises = workoutExercises.distinctBy { it.exerciseId }
         val exerciseIds = uniqueExercises.map { it.exerciseId }
@@ -50,13 +49,13 @@ class PersonalRecordService(
     /**
      * Returns true if the given weight/reps combination represents a new personal record for the exercise.
      *
-     * Comparison is based on the Epley ratio (weight / reps) to normalise across different rep ranges.
+     * Comparison is based on the weight-to-reps ratio (weight / reps) to normalise across different rep ranges.
      * [existing] identifies a set log being updated, so its current ratio is excluded from the comparison.
      *
      * Defensive guard: @Min(1) on request DTOs already blocks reps<=0 at the API boundary;
      * this branch protects against bypassed validation or future callers that skip the handler.
      */
-    suspend fun calculateIsPr(
+    internal suspend fun calculateIsPr(
         userId: UUID,
         exerciseId: UUID,
         weight: BigDecimal,
