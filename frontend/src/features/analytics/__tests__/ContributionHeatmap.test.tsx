@@ -54,11 +54,15 @@ describe('ContributionHeatmap', () => {
     expect(svg?.style.aspectRatio).toBeTruthy()
   })
 
-  it('renders all month labels visible in the date range', () => {
+  it('renders month labels for months not suppressed by gap constraint', () => {
+    // FROM=2025-10-01 aligns to Sep 29 (Mon) = col 0 → "Sep" label.
+    // Oct first seen at col 1 (gap 1 < MIN_LABEL_GAP_COLS=3) → suppressed entirely.
+    // Nov first seen at col 5 (gap 5-0=5 from Sep) → shown. Dec, Jan follow with sufficient gaps.
     render(<ContributionHeatmap entries={makeEntries(7)} from={FROM} to={TO} />)
     const texts = Array.from(document.querySelectorAll('text'))
     const labels = texts.map((t) => t.textContent)
-    expect(labels).toContain('Oct')
+    expect(labels).toContain('Sep')
+    expect(labels).not.toContain('Oct')
     expect(labels).toContain('Nov')
     expect(labels).toContain('Dec')
     expect(labels).toContain('Jan')
@@ -76,5 +80,31 @@ describe('ContributionHeatmap', () => {
     const rects = Array.from(document.querySelectorAll('rect'))
     const activeRect = rects.find((r) => r.getAttribute('fill') === '#f0fdf4')
     expect(activeRect).toBeTruthy()
+  })
+
+  it('suppresses month label when gap to previous label is fewer than 3 columns', () => {
+    // 2025-03-28 to 2025-04-17:
+    // alignedStart = 2025-03-24 (Mon), alignedEnd = 2025-04-20 (Sun)
+    // "Mar" → col 0 (Mar 24). "Apr" first seen at col 2 (Apr 7), gap = 2 < 3 → suppress.
+    // Apr 14 = col 3: same month key as Apr 7 → already seen, skip.
+    // "Apr" must never appear.
+    const entries = [{ date: '2025-03-28', count: 1, intensity: 1 }]
+    render(<ContributionHeatmap entries={entries} from='2025-03-28' to='2025-04-17' />)
+    const texts = Array.from(document.querySelectorAll('text'))
+    const labels = texts.map((t) => t.textContent)
+    expect(labels).toContain('Mar')
+    expect(labels).not.toContain('Apr')
+  })
+
+  it('shows all three month labels when gaps are at least 3 columns', () => {
+    // FROM=2025-01-06 (Mon) = alignedStart = col 0 → "Jan".
+    // Feb 3 = col 4 (gap 4 ≥ 3) → shown. Mar 3 = col 8 (gap 4 ≥ 3) → shown.
+    const entries = [{ date: '2025-01-06', count: 1, intensity: 1 }]
+    render(<ContributionHeatmap entries={entries} from='2025-01-06' to='2025-03-31' />)
+    const texts = Array.from(document.querySelectorAll('text'))
+    const labels = texts.map((t) => t.textContent)
+    expect(labels).toContain('Jan')
+    expect(labels).toContain('Feb')
+    expect(labels).toContain('Mar')
   })
 })

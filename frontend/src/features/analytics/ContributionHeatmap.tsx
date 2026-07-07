@@ -4,6 +4,7 @@ const STEP = CELL + GAP
 const ROWS = 7
 const TOP_PAD = 20
 const MS_PER_DAY = 1000 * 60 * 60 * 24
+const MIN_LABEL_GAP_COLS = 3
 
 interface HeatmapEntry {
   date: string
@@ -69,7 +70,8 @@ export default function ContributionHeatmap({ entries, from, to }: { entries: He
   const cols = totalDays / ROWS
 
   const cells: Array<{ dateStr: string; col: number; row: number; entry: HeatmapEntry | null; outOfRange: boolean }> = []
-  const monthLabels: Array<{ key: string; label: string; x: number }> = []
+  const monthLabels: Array<{ key: string; label: string; x: number; col: number }> = []
+  let lastSeenMonthKey = ''
 
   for (let index = 0; index < totalDays; index += 1) {
     const date = addUtcDays(alignedStart, index)
@@ -78,15 +80,14 @@ export default function ContributionHeatmap({ entries, from, to }: { entries: He
     const row = index % ROWS
 
     if (row === 0) {
-      const label = MONTH_LABELS[date.getUTCMonth()]
-      const previous = monthLabels.at(-1)
-
-      if (!previous || previous.key !== `${date.getUTCFullYear()}-${date.getUTCMonth()}`) {
-        monthLabels.push({
-          key: `${date.getUTCFullYear()}-${date.getUTCMonth()}`,
-          label,
-          x: col * STEP,
-        })
+      const monthKey = `${date.getUTCFullYear()}-${date.getUTCMonth()}`
+      if (monthKey !== lastSeenMonthKey) {
+        lastSeenMonthKey = monthKey
+        const label = MONTH_LABELS[date.getUTCMonth()]
+        const previous = monthLabels.at(-1)
+        if (!previous || col - previous.col >= MIN_LABEL_GAP_COLS) {
+          monthLabels.push({ key: monthKey, label, x: col * STEP, col })
+        }
       }
     }
 
