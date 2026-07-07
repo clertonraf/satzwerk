@@ -1,4 +1,4 @@
-import { api } from './api'
+import { http } from './api'
 
 export interface AuthResponse {
   accessToken: string
@@ -17,9 +17,8 @@ export interface LoginRequest {
 }
 
 export const authService = {
-  register: (data: RegisterRequest) => api.post<AuthResponse>('/auth/register', data).then((response) => response.data),
-  login: (data: LoginRequest) => api.post<AuthResponse>('/auth/login', data).then((response) => response.data),
-  refresh: (refreshToken: string) =>
-    api.post<AuthResponse>('/auth/refresh', { refreshToken }).then((response) => response.data),
-  logout: () => api.post('/auth/logout').catch(() => {}),
+  register: (data: RegisterRequest) => http.post<AuthResponse>('/auth/register', data),
+  login: (data: LoginRequest) => http.post<AuthResponse>('/auth/login', data),
+  refresh: (refreshToken: string) => http.post<AuthResponse>('/auth/refresh', { refreshToken }),
+  logout: () => http.post('/auth/logout').catch(() => {}),
 }
