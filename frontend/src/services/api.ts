@@ -1,4 +1,4 @@
-import axios from 'axios'
+import axios, { type AxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/store/auth'
 import { tokenService } from '@/services/tokenService'
 
@@ -76,8 +76,6 @@ api.interceptors.response.use(
     }
   }
 )
-
-import type { AxiosRequestConfig } from 'axios'
 
 /** Typed HTTP facade that unwraps `.data` automatically. Use instead of `api.*` in service modules. */
 export const http = {
