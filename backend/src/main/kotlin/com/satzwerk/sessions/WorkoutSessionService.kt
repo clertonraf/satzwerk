@@ -3,19 +3,14 @@ package com.satzwerk.sessions
 import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.NotFoundException
-import com.satzwerk.workouts.WorkoutExerciseRepository
 import com.satzwerk.workouts.WorkoutGroupRepository
 import com.satzwerk.workouts.WorkoutPlan
 import com.satzwerk.workouts.WorkoutPlanDetailResponse
 import com.satzwerk.workouts.WorkoutPlanService
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.math.BigDecimal
-import java.math.RoundingMode
 import java.time.Instant
 import java.util.UUID
-
-private const val PR_RATIO_SCALE = 10
 
 @Suppress("TooManyFunctions")
 @Service
@@ -23,9 +18,8 @@ class WorkoutSessionService(
     private val workoutSessionRepository: WorkoutSessionRepository,
     private val setLogRepository: SetLogRepository,
     private val workoutGroupRepository: WorkoutGroupRepository,
-    private val workoutExerciseRepository: WorkoutExerciseRepository,
     private val workoutPlanService: WorkoutPlanService,
-    private val sessionQueryRepository: SessionQueryRepository,
+    private val personalRecordService: PersonalRecordService,
 ) {
     suspend fun start(
         userId: UUID,
@@ -75,7 +69,14 @@ class WorkoutSessionService(
         requireOpenSession(session)
 
         val now = Instant.now()
-        val isPr = calculateIsPr(userId, request.exerciseId, request.weight, request.reps, SetLogRef(null, now))
+        val isPr =
+            personalRecordService.calculateIsPr(
+                userId,
+                request.exerciseId,
+                request.weight,
+                request.reps,
+                SetLogRef(null, now),
+            )
 
         return setLogRepository.save(
             SetLog(
@@ -104,7 +105,7 @@ class WorkoutSessionService(
                 ?: throw NotFoundException("Set log not found")
 
         val isPr =
-            calculateIsPr(
+            personalRecordService.calculateIsPr(
                 userId,
                 setLog.exerciseId,
                 request.weight,
@@ -167,19 +168,7 @@ class WorkoutSessionService(
         workoutSessionRepository.deleteById(sessionId)
     }
 
-    suspend fun history(userId: UUID): List<WorkoutSessionResponse> =
-        sessionQueryRepository.findHistoryWithDetails(userId).map { row ->
-            WorkoutSessionResponse(
-                id = row.id,
-                workoutGroupId = row.workoutGroupId,
-                workoutGroupTitle = row.workoutGroupTitle,
-                startedAt = row.startedAt,
-                completedAt = row.completedAt,
-                notes = row.notes,
-                setLogs = emptyList(),
-                setCount = row.setCount,
-            )
-        }
+    suspend fun history(userId: UUID): List<WorkoutSessionResponse> = personalRecordService.history(userId)
 
     suspend fun getById(
         userId: UUID,
@@ -198,14 +187,7 @@ class WorkoutSessionService(
         sessionId: UUID,
     ): List<ExerciseReferenceWeights> {
         val session = getOwnedSession(userId, sessionId)
-        val workoutExercises =
-            workoutExerciseRepository.findAllByWorkoutGroupIdOrderByOrderIndex(session.workoutGroupId)
-        // De-duplicate by exerciseId keeping the first occurrence (lowest orderIndex), matching UI order.
-        val uniqueExercises = workoutExercises.distinctBy { it.exerciseId }
-        val exerciseIds = uniqueExercises.map { it.exerciseId }
-        val workoutExerciseMap = uniqueExercises.associateBy { it.exerciseId }
-
-        return sessionQueryRepository.findReferenceWeights(userId, exerciseIds, sessionId, workoutExerciseMap)
+        return personalRecordService.findReferenceWeights(userId, session.workoutGroupId, sessionId)
     }
 
     private suspend fun getOwnedSession(
@@ -219,23 +201,6 @@ class WorkoutSessionService(
         setLogRepository.findAllByWorkoutSessionId(sessionId)
             .sortedWith(compareBy(SetLog::setNumber, SetLog::loggedAt))
             .map(SetLog::toResponse)
-
-    // Defensive guard: @Min(1) on request DTOs already blocks reps<=0 at the API boundary;
-    // this branch protects against bypassed validation or future callers that skip the handler.
-    private suspend fun calculateIsPr(
-        userId: UUID,
-        exerciseId: UUID,
-        weight: BigDecimal,
-        reps: Int,
-        existing: SetLogRef? = null,
-    ): Boolean {
-        if (reps <= 0) return false
-        val beforeDate = existing?.loggedAt ?: Instant.now()
-        val prevMaxRatio =
-            sessionQueryRepository.findMaxRatioForExercise(userId, exerciseId, beforeDate, existing?.id)
-        val currentRatio = weight.divide(reps.toBigDecimal(), PR_RATIO_SCALE, RoundingMode.HALF_UP)
-        return prevMaxRatio == null || currentRatio > prevMaxRatio
-    }
 }
 
 private fun requireActivePlan(plan: WorkoutPlan) {
@@ -243,8 +208,6 @@ private fun requireActivePlan(plan: WorkoutPlan) {
         throw BadRequestException("Cannot start a session for a group belonging to an inactive workout plan")
     }
 }
-
-private data class SetLogRef(val id: UUID?, val loggedAt: Instant)
 
 private fun requireOpenSession(session: WorkoutSession) {
     if (session.completedAt != null) {
