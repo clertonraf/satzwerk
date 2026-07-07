@@ -53,6 +53,11 @@ class WorkoutPlanService(
         return getDetail(userId, requireNotNull(activePlan.id))
     }
 
+    /** Returns the active WorkoutPlan for [userId], or throws [NotFoundException] if none is active. */
+    suspend fun requireActivePlan(userId: UUID): WorkoutPlan =
+        workoutPlanRepository.findAllByUserIdAndIsActive(userId, true).firstOrNull()
+            ?: throw NotFoundException("No active workout plan found")
+
     suspend fun update(
         userId: UUID,
         planId: UUID,

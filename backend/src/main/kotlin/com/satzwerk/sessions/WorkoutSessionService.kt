@@ -4,8 +4,8 @@ import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.NotFoundException
 import com.satzwerk.workouts.WorkoutExerciseRepository
+import com.satzwerk.workouts.WorkoutGroup
 import com.satzwerk.workouts.WorkoutGroupRepository
-import com.satzwerk.workouts.WorkoutPlan
 import com.satzwerk.workouts.WorkoutPlanDetailResponse
 import com.satzwerk.workouts.WorkoutPlanService
 import org.springframework.stereotype.Service
@@ -31,17 +31,27 @@ class WorkoutSessionService(
         userId: UUID,
         workoutGroupId: UUID,
     ): WorkoutSessionResponse {
-        val group =
-            workoutGroupRepository.findById(workoutGroupId)
-                ?: throw NotFoundException("Workout group not found")
-        val plan = workoutPlanService.getRequiredPlan(userId, group.workoutPlanId)
-        requireActivePlan(plan)
+        val group = requireGroupInActivePlan(userId, workoutGroupId)
         workoutSessionRepository.findByUserIdAndCompletedAtIsNull(userId)?.let {
             throw ConflictException("User already has an open workout session")
         }
 
         val session = workoutSessionRepository.save(WorkoutSession(userId = userId, workoutGroupId = workoutGroupId))
         return session.toResponse(emptyList(), group.title)
+    }
+
+    private suspend fun requireGroupInActivePlan(
+        userId: UUID,
+        workoutGroupId: UUID,
+    ): WorkoutGroup {
+        val group =
+            workoutGroupRepository.findById(workoutGroupId)
+                ?: throw NotFoundException("Workout group not found")
+        val activePlan = workoutPlanService.requireActivePlan(userId)
+        if (group.workoutPlanId != requireNotNull(activePlan.id)) {
+            throw BadRequestException("Cannot start a session for a group belonging to an inactive workout plan")
+        }
+        return group
     }
 
     suspend fun getStartOptions(userId: UUID): WorkoutPlanDetailResponse = workoutPlanService.getActiveDetail(userId)
@@ -235,12 +245,6 @@ class WorkoutSessionService(
             sessionQueryRepository.findMaxRatioForExercise(userId, exerciseId, beforeDate, existing?.id)
         val currentRatio = weight.divide(reps.toBigDecimal(), PR_RATIO_SCALE, RoundingMode.HALF_UP)
         return prevMaxRatio == null || currentRatio > prevMaxRatio
-    }
-}
-
-private fun requireActivePlan(plan: WorkoutPlan) {
-    if (!plan.isActive) {
-        throw BadRequestException("Cannot start a session for a group belonging to an inactive workout plan")
     }
 }
 
