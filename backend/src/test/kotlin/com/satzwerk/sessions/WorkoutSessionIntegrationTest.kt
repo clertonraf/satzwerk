@@ -578,7 +578,7 @@ class WorkoutSessionIntegrationTest {
     }
 
     @Test
-    fun `reference weights returns pr as max weight across all sessions`() {
+    fun `reference weights returns the highest-ratio is_pr set across all sessions`() {
         val firstCompletedSession = startSession()
         addSetLog(firstCompletedSession.id, BigDecimal("90.0"))
         completeSession(firstCompletedSession.id)
@@ -600,6 +600,34 @@ class WorkoutSessionIntegrationTest {
             .jsonPath("$.length()").isEqualTo(1)
             .jsonPath("$[0].exerciseId").isEqualTo(exerciseId.toString())
             .jsonPath("$[0].prWeightKg").isEqualTo(110)
+    }
+
+    @Test
+    fun `reference weights selects lighter set with higher weight-to-reps ratio over heavier set`() {
+        // Set A: 100 kg x 10 reps -> ratio = 10 (is_pr initially, but beaten by Set B)
+        val firstSession = startSession()
+        addSetLog(firstSession.id, BigDecimal("100.0"), reps = 10)
+        completeSession(firstSession.id)
+
+        // Set B: 60 kg x 3 reps -> ratio = 20 (is_pr = TRUE, beats Set A's ratio)
+        val secondSession = startSession()
+        addSetLog(secondSession.id, BigDecimal("60.0"), reps = 3)
+        completeSession(secondSession.id)
+
+        val currentSession = startSession()
+
+        client
+            .get()
+            .uri("/api/sessions/${currentSession.id}/reference-weights")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(1)
+            .jsonPath("$[0].exerciseId").isEqualTo(exerciseId.toString())
+            // The 60 kg set has the highest ratio (20 vs 10) and is_pr=TRUE,
+            // so it is returned -- not the heavier 100 kg set.
+            .jsonPath("$[0].prWeightKg").isEqualTo(60)
     }
 
     @Test
