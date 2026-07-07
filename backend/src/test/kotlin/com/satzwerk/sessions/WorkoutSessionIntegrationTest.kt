@@ -91,6 +91,9 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
         val suffix = UUID.randomUUID()
         val token = registerAndLogin("inactive-group-$suffix@test.com", "password123", "Inactive Group User")
         val ownedExerciseId = createExercise(token, "Overhead Press", "SHOULDERS")
+        // User has an active plan, but tries to start with a group from a different (inactive) plan
+        val activePlanId = createPlan(token, "Active Push")
+        activatePlan(token, activePlanId)
         val inactivePlanId = createPlan(token, "Inactive Push")
         val inactiveGroupId = createGroup(token, inactivePlanId, "Push Day", ownedExerciseId)
 
@@ -102,6 +105,24 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
             .bodyValue(mapOf("workoutGroupId" to inactiveGroupId))
             .exchange()
             .expectStatus().isBadRequest
+    }
+
+    @Test
+    fun `start session returns not found when no active plan exists`() {
+        val suffix = UUID.randomUUID()
+        val token = registerAndLogin("no-active-$suffix@test.com", "password123", "No Active User")
+        val ownedExerciseId = createExercise(token, "Overhead Press", "SHOULDERS")
+        val inactivePlanId = createPlan(token, "Inactive Push")
+        val inactiveGroupId = createGroup(token, inactivePlanId, "Push Day", ownedExerciseId)
+
+        client
+            .post()
+            .uri("/api/sessions")
+            .header("Authorization", "Bearer $token")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("workoutGroupId" to inactiveGroupId))
+            .exchange()
+            .expectStatus().isNotFound
     }
 
     @Test

@@ -3,8 +3,8 @@ package com.satzwerk.sessions
 import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.NotFoundException
+import com.satzwerk.workouts.WorkoutGroup
 import com.satzwerk.workouts.WorkoutGroupRepository
-import com.satzwerk.workouts.WorkoutPlan
 import com.satzwerk.workouts.WorkoutPlanDetailResponse
 import com.satzwerk.workouts.WorkoutPlanService
 import org.springframework.stereotype.Service
@@ -26,11 +26,7 @@ class WorkoutSessionService(
         userId: UUID,
         workoutGroupId: UUID,
     ): WorkoutSessionResponse {
-        val group =
-            workoutGroupRepository.findById(workoutGroupId)
-                ?: throw NotFoundException("Workout group not found")
-        val plan = workoutPlanService.getRequiredPlan(userId, group.workoutPlanId)
-        requireActivePlan(plan)
+        val group = requireGroupInActivePlan(userId, workoutGroupId, workoutGroupRepository, workoutPlanService)
         workoutSessionRepository.findByUserIdAndCompletedAtIsNull(userId)?.let {
             throw ConflictException("User already has an open workout session")
         }
@@ -132,10 +128,26 @@ internal suspend fun requireOwnedSession(
     workoutSessionRepository.findByIdAndUserId(sessionId, userId)
         ?: throw NotFoundException("Workout session not found")
 
-private fun requireActivePlan(plan: WorkoutPlan) {
-    if (!plan.isActive) {
+/**
+ * Verifies that the workout group belongs to the user's active WorkoutPlan.
+ * Throws [BadRequestException] if the group does not belong to the active plan.
+ */
+private suspend fun requireGroupInActivePlan(
+    userId: UUID,
+    workoutGroupId: UUID,
+    workoutGroupRepository: WorkoutGroupRepository,
+    workoutPlanService: WorkoutPlanService,
+): WorkoutGroup {
+    val group =
+        workoutGroupRepository.findById(workoutGroupId)
+            ?: throw NotFoundException("Workout group not found")
+    // getRequiredPlan enforces ownership (ForbiddenException if plan belongs to another user).
+    workoutPlanService.getRequiredPlan(userId, group.workoutPlanId)
+    val activePlan = workoutPlanService.requireActivePlan(userId)
+    if (group.workoutPlanId != activePlan.id) {
         throw BadRequestException("Cannot start a session for a group belonging to an inactive workout plan")
     }
+    return group
 }
 
 private fun requireOpenSession(session: WorkoutSession) {
