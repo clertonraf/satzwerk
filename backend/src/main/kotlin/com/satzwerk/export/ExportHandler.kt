@@ -1,6 +1,5 @@
 package com.satzwerk.export
 
-import com.satzwerk.common.RequestContext
 import com.satzwerk.common.body
 import com.satzwerk.common.handleErrors
 import org.springframework.http.ContentDisposition
@@ -15,8 +14,7 @@ class ExportHandler(
     private val exportService: ExportService,
 ) {
     suspend fun export(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             val export = exportService.exportForUser(ctx.userId())
             ServerResponse.ok()
                 .header(
@@ -27,8 +25,7 @@ class ExportHandler(
         }
 
     suspend fun import(request: ServerRequest): ServerResponse =
-        handleErrors(withConflict = true) {
-            val ctx = RequestContext(request)
+        handleErrors(request, withConflict = true) { ctx ->
             val dto = ctx.body<UserDataExportDto>()
             val summary = exportService.importForUser(ctx.userId(), dto)
             ServerResponse.ok().bodyValueAndAwait(summary)

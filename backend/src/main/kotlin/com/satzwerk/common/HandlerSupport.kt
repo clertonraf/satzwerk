@@ -4,6 +4,7 @@ import jakarta.validation.Validator
 import org.springframework.http.HttpStatus
 import org.springframework.web.reactive.function.client.WebClientRequestException
 import org.springframework.web.reactive.function.client.WebClientResponseException
+import org.springframework.web.reactive.function.server.ServerRequest
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import java.util.UUID
@@ -63,3 +64,14 @@ suspend fun handleErrors(
             throw e
         }
     }
+
+/**
+ * [handleErrors] overload that builds a [RequestContext] from [request] and passes it to [block].
+ * Eliminates the `val ctx = RequestContext(request)` boilerplate from handler methods.
+ */
+suspend fun handleErrors(
+    request: ServerRequest,
+    withConflict: Boolean = false,
+    withWebClient: Boolean = false,
+    block: suspend (RequestContext) -> ServerResponse,
+): ServerResponse = handleErrors(withConflict, withWebClient) { block(RequestContext(request)) }
