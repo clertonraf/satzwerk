@@ -17,6 +17,8 @@ import org.springframework.r2dbc.core.DatabaseClient
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.reactive.server.WebTestClient
 import java.math.BigDecimal
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.UUID
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -129,6 +131,72 @@ class AnalyticsSummaryIntegrationTest : PostgresTestContainer() {
     }
 
     @Test
+    fun `summary returns currentStreak of 1 after completing a session today`() {
+        val session = startSession(authToken, workoutGroupId)
+        addSetLog(authToken, session.id, exerciseId, 1)
+        completeSession(authToken, session.id)
+
+        client
+            .get()
+            .uri("/api/analytics/summary")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.currentStreak").isEqualTo(1)
+    }
+
+    @Test
+    fun `summary streak values match streak endpoint for consecutive UTC days`() {
+        val today = LocalDate.now(ZoneOffset.UTC)
+        logSetsOnDate(authToken, workoutGroupId, exerciseId, today, 1)
+        logSetsOnDate(authToken, workoutGroupId, exerciseId, today.minusDays(1), 1)
+        logSetsOnDate(authToken, workoutGroupId, exerciseId, today.minusDays(2), 1)
+
+        val streakResult =
+            client
+                .get()
+                .uri("/api/analytics/streak")
+                .header("Authorization", "Bearer $authToken")
+                .exchange()
+                .expectStatus().isOk
+                .expectBody(StreakResponse::class.java)
+                .returnResult()
+                .responseBody!!
+
+        assertEquals(3, streakResult.currentStreak)
+
+        client
+            .get()
+            .uri("/api/analytics/summary")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.currentStreak").isEqualTo(streakResult.currentStreak)
+            .jsonPath("$.longestStreak").isEqualTo(streakResult.longestStreak)
+    }
+
+    @Test
+    fun `summary longestStreak reflects historical streak after gap breaks current streak`() {
+        val today = LocalDate.now(ZoneOffset.UTC)
+        // 3-day streak two weeks ago (longestStreak=3), no recent activity (currentStreak=0)
+        logSetsOnDate(authToken, workoutGroupId, exerciseId, today.minusDays(14), 1)
+        logSetsOnDate(authToken, workoutGroupId, exerciseId, today.minusDays(13), 1)
+        logSetsOnDate(authToken, workoutGroupId, exerciseId, today.minusDays(12), 1)
+
+        client
+            .get()
+            .uri("/api/analytics/summary")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.currentStreak").isEqualTo(0)
+            .jsonPath("$.longestStreak").isEqualTo(3)
+    }
+
+    @Test
     fun `summary requires authentication`() {
         client
             .get()
@@ -203,6 +271,27 @@ class AnalyticsSummaryIntegrationTest : PostgresTestContainer() {
             .sql("UPDATE workout_sessions SET completed_at = NOW(), started_at = NOW() WHERE id = :sessionId")
             .bind("sessionId", sessionId)
             .fetch().rowsUpdated().block()
+    }
+
+    private fun logSetsOnDate(
+        token: String,
+        groupId: UUID,
+        exerciseId: UUID,
+        date: LocalDate,
+        count: Int,
+    ) {
+        val session = startSession(token, groupId)
+        repeat(count) { addSetLog(token, session.id, exerciseId, it + 1) }
+
+        databaseClient
+            .sql("UPDATE set_logs SET logged_at = :loggedAt WHERE workout_session_id = :sessionId")
+            .bind("loggedAt", date.atTime(12, 0).toInstant(ZoneOffset.UTC))
+            .bind("sessionId", session.id)
+            .fetch()
+            .rowsUpdated()
+            .block()
+
+        completeSession(token, session.id)
     }
 
     private fun createExercise(
