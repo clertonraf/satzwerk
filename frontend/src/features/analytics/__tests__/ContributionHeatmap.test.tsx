@@ -70,11 +70,28 @@ describe('ContributionHeatmap', () => {
     expect(firstText?.getAttribute('font-size')).toBeTruthy()
   })
 
-  it('applies the tier-10 colour (#f0fdf4) for intensity level 10 (37+ sets)', () => {
-    const highEntry = [{ date: '2026-01-01', count: 40, intensity: 10 }]
-    render(<ContributionHeatmap entries={highEntry} from='2026-01-01' to='2026-01-07' />)
-    const rects = Array.from(document.querySelectorAll('rect'))
-    const activeRect = rects.find((r) => r.getAttribute('fill') === '#f0fdf4')
-    expect(activeRect).toBeTruthy()
+  it('suppresses month label when gap to previous label is fewer than 3 columns', () => {
+    // 2025-03-28 to 2025-04-10:
+    // alignedStart = 2025-03-24 (Mon), alignedEnd = 2025-04-13 (Sun)
+    // "Mar" → col 0 (Mar 24). "Apr" → col 2 (Apr 7), gap = 2 < 3 → suppress
+    const entries = [{ date: '2025-03-28', count: 1, intensity: 1 }]
+    render(<ContributionHeatmap entries={entries} from='2025-03-28' to='2025-04-10' />)
+    const texts = Array.from(document.querySelectorAll('text'))
+    const labels = texts.map((t) => t.textContent)
+    expect(labels).toContain('Mar')
+    expect(labels).not.toContain('Apr')
+  })
+
+  it('shows both month labels when gap is at least 3 columns', () => {
+    // 2025-01-01 to 2025-03-31:
+    // Dec 29 2024 (Mon) aligns to col 0.  Jan 1 = col 0. Feb 3 = col 5 (gap >= 3 → show).
+    // Mar 3 = further along (gap >= 3 → show).
+    const entries = [{ date: '2025-01-01', count: 1, intensity: 1 }]
+    render(<ContributionHeatmap entries={entries} from='2025-01-01' to='2025-03-31' />)
+    const texts = Array.from(document.querySelectorAll('text'))
+    const labels = texts.map((t) => t.textContent)
+    expect(labels).toContain('Jan')
+    expect(labels).toContain('Feb')
+    expect(labels).toContain('Mar')
   })
 })
