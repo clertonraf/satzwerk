@@ -35,6 +35,7 @@ vi.mock('@/hooks/useOnlineStatus', () => ({
 
 const defaultWorkoutSessionState = {
   session: null,
+  pendingSetLogs: [],
   conflictSession: null,
   stalePlanError: null,
   phase: 'idle' as const,
