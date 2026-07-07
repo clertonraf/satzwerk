@@ -188,6 +188,8 @@ class AnalyticsSummaryIntegrationTest {
                 .returnResult()
                 .responseBody!!
 
+        assertEquals(3, streakResult.currentStreak)
+
         client
             .get()
             .uri("/api/analytics/summary")
@@ -303,7 +305,7 @@ class AnalyticsSummaryIntegrationTest {
         count: Int,
     ) {
         val session = startSession(token, groupId)
-        repeat(count) { index -> addSetLog(token, session.id, exerciseId, index + 1) }
+        repeat(count) { addSetLog(token, session.id, exerciseId, it + 1) }
 
         databaseClient
             .sql("UPDATE set_logs SET logged_at = :loggedAt WHERE workout_session_id = :sessionId")
