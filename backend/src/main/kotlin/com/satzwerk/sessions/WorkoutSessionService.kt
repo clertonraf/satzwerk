@@ -3,7 +3,6 @@ package com.satzwerk.sessions
 import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.NotFoundException
-import com.satzwerk.workouts.WorkoutExerciseRepository
 import com.satzwerk.workouts.WorkoutGroupRepository
 import com.satzwerk.workouts.WorkoutPlan
 import com.satzwerk.workouts.WorkoutPlanDetailResponse
@@ -17,11 +16,12 @@ import java.util.UUID
 class WorkoutSessionService(
     private val workoutSessionRepository: WorkoutSessionRepository,
     private val workoutGroupRepository: WorkoutGroupRepository,
-    private val workoutExerciseRepository: WorkoutExerciseRepository,
     private val workoutPlanService: WorkoutPlanService,
-    private val sessionQueryRepository: SessionQueryRepository,
+    private val personalRecordService: PersonalRecordService,
     private val setLogService: SetLogService,
 ) {
+    suspend fun getStartOptions(userId: UUID): WorkoutPlanDetailResponse = workoutPlanService.getActiveDetail(userId)
+
     suspend fun start(
         userId: UUID,
         workoutGroupId: UUID,
@@ -64,7 +64,7 @@ class WorkoutSessionService(
         sessionId: UUID,
         request: CompleteSessionRequest,
     ): WorkoutSessionResponse {
-        val session = requireOwnedSession(userId, sessionId)
+        val session = requireOwnedSession(userId, sessionId, workoutSessionRepository)
         requireOpenSession(session)
 
         val completedSession =
@@ -86,31 +86,19 @@ class WorkoutSessionService(
         userId: UUID,
         sessionId: UUID,
     ) {
-        val session = requireOwnedSession(userId, sessionId)
+        val session = requireOwnedSession(userId, sessionId, workoutSessionRepository)
         requireOpenSession(session)
         setLogService.clearSetLogs(sessionId)
         workoutSessionRepository.deleteById(sessionId)
     }
 
-    suspend fun history(userId: UUID): List<WorkoutSessionResponse> =
-        sessionQueryRepository.findHistoryWithDetails(userId).map { row ->
-            WorkoutSessionResponse(
-                id = row.id,
-                workoutGroupId = row.workoutGroupId,
-                workoutGroupTitle = row.workoutGroupTitle,
-                startedAt = row.startedAt,
-                completedAt = row.completedAt,
-                notes = row.notes,
-                setLogs = emptyList(),
-                setCount = row.setCount,
-            )
-        }
+    suspend fun history(userId: UUID): List<WorkoutSessionResponse> = personalRecordService.history(userId)
 
     suspend fun getById(
         userId: UUID,
         sessionId: UUID,
     ): WorkoutSessionResponse {
-        val session = requireOwnedSession(userId, sessionId)
+        val session = requireOwnedSession(userId, sessionId, workoutSessionRepository)
         val group =
             workoutGroupRepository.findById(session.workoutGroupId)
                 ?: throw NotFoundException("Workout group not found")
@@ -121,14 +109,8 @@ class WorkoutSessionService(
         userId: UUID,
         sessionId: UUID,
     ): List<ExerciseReferenceWeights> {
-        val session = requireOwnedSession(userId, sessionId)
-        val workoutExercises =
-            workoutExerciseRepository.findAllByWorkoutGroupIdOrderByOrderIndex(session.workoutGroupId)
-        // De-duplicate by exerciseId keeping the first occurrence (lowest orderIndex), matching UI order.
-        val uniqueExercises = workoutExercises.distinctBy { it.exerciseId }
-        val exerciseIds = uniqueExercises.map { it.exerciseId }
-        val workoutExerciseMap = uniqueExercises.associateBy { it.exerciseId }
-        return sessionQueryRepository.findReferenceWeights(userId, exerciseIds, sessionId, workoutExerciseMap)
+        val session = requireOwnedSession(userId, sessionId, workoutSessionRepository)
+        return personalRecordService.findReferenceWeights(userId, session.workoutGroupId, sessionId)
     }
 
     /** Returns the session after verifying ownership and that it is still open (not completed). */
@@ -136,18 +118,19 @@ class WorkoutSessionService(
         userId: UUID,
         sessionId: UUID,
     ): WorkoutSession {
-        val session = requireOwnedSession(userId, sessionId)
+        val session = requireOwnedSession(userId, sessionId, workoutSessionRepository)
         requireOpenSession(session)
         return session
     }
-
-    private suspend fun requireOwnedSession(
-        userId: UUID,
-        sessionId: UUID,
-    ): WorkoutSession =
-        workoutSessionRepository.findByIdAndUserId(sessionId, userId)
-            ?: throw NotFoundException("Workout session not found")
 }
+
+internal suspend fun requireOwnedSession(
+    userId: UUID,
+    sessionId: UUID,
+    workoutSessionRepository: WorkoutSessionRepository,
+): WorkoutSession =
+    workoutSessionRepository.findByIdAndUserId(sessionId, userId)
+        ?: throw NotFoundException("Workout session not found")
 
 private fun requireActivePlan(plan: WorkoutPlan) {
     if (!plan.isActive) {

@@ -96,5 +96,3 @@ class SetLogService(
         return prevMaxRatio == null || currentRatio > prevMaxRatio
     }
 }
-
-private data class SetLogRef(val id: UUID?, val loggedAt: Instant)

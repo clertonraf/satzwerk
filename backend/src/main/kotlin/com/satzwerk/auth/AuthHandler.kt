@@ -1,7 +1,6 @@
 package com.satzwerk.auth
 
 import com.satzwerk.common.ErrorResponse
-import com.satzwerk.common.RequestContext
 import com.satzwerk.common.ValidationErrorResponse
 import com.satzwerk.common.body
 import com.satzwerk.common.handleErrors
@@ -18,8 +17,7 @@ class AuthHandler(
     private val validator: Validator,
 ) {
     suspend fun register(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             try {
                 val body = ctx.body<RegisterRequest>()
                 val violations = validator.validate(body)
@@ -45,8 +43,7 @@ class AuthHandler(
         }
 
     suspend fun login(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             try {
                 val body = ctx.body<LoginRequest>()
                 val violations = validator.validate(body)
@@ -68,8 +65,7 @@ class AuthHandler(
         }
 
     suspend fun refresh(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             try {
                 val body = ctx.body<RefreshRequest>()
                 val violations = validator.validate(body)
