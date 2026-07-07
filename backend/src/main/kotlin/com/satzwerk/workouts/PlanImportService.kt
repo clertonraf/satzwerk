@@ -65,7 +65,8 @@ class PlanImportService(
                     orderIndex = groupIndex,
                 )
             }
-        val savedGroups = workoutGroupRepository.saveAll(groupEntities).toList()
+        // Sort by orderIndex to guarantee stable pairing with parsed.workouts regardless of saveAll emission order.
+        val savedGroups = workoutGroupRepository.saveAll(groupEntities).toList().sortedBy { it.orderIndex }
 
         val allExercises =
             savedGroups.flatMapIndexed { idx, group ->
