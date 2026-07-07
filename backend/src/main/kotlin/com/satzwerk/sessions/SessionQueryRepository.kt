@@ -152,7 +152,7 @@ class SessionQueryRepository(
                 WHERE ws.user_id = :userId
                   AND sl.exercise_id = ANY(:exerciseIds)
                   AND sl.is_pr = TRUE
-                ORDER BY sl.exercise_id, sl.logged_at DESC, sl.id DESC
+                ORDER BY sl.exercise_id, ROUND(sl.weight / sl.reps, 10) DESC, sl.logged_at DESC, sl.id DESC
                 """.trimIndent(),
             ).bind("userId", userId)
             .bind("exerciseIds", exerciseIds.toTypedArray())
