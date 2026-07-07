@@ -47,8 +47,8 @@ suspend fun <T : Any> validateOrBadRequest(
 suspend fun handleErrors(
     extra: Map<KClass<out Throwable>, HttpStatus> = emptyMap(),
     block: suspend () -> ServerResponse,
-): ServerResponse =
-    try {
+): ServerResponse {
+    return try {
         block()
     } catch (e: ForbiddenException) {
         ServerResponse.status(HttpStatus.FORBIDDEN).bodyValueAndAwait(ErrorResponse(e.message ?: "Forbidden"))
@@ -62,3 +62,4 @@ suspend fun handleErrors(
                 ?: throw e
         ServerResponse.status(status).bodyValueAndAwait(ErrorResponse(e.message ?: status.reasonPhrase))
     }
+}
