@@ -8,7 +8,7 @@ import SessionWorkout from '@/features/sessions/SessionWorkout'
 import WorkoutGroupPreviewModal from '@/features/sessions/WorkoutGroupPreviewModal'
 import { formatSessionDate } from '@/features/sessions/sessionHelpers'
 import { useSessionQueries } from '@/features/sessions/useSessionQueries'
-import { useWorkoutSession } from '@/features/sessions/useWorkoutSession'
+import { useWorkoutSessionMachine } from '@/features/sessions/useWorkoutSessionMachine'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import type { WorkoutGroupDetail } from '@/services/planService'
 
@@ -23,21 +23,14 @@ export default function SessionPage() {
     conflictSession,
     stalePlanError,
     isSessionLoading,
-    handleStartSession,
-    handleLogSet,
-    handleUpdateSetLog,
-    handleDeleteSetLog,
-    handleCompleteSession,
-    handleForfeitSession,
-    handleDiscardConflict,
-    clearConflictState,
+    dispatch,
     isStartPending,
     isAddSetPending,
     isUpdateSetPending,
     isDeleteSetPending,
     isCompletePending,
     isForfeitPending,
-  } = useWorkoutSession({
+  } = useWorkoutSessionMachine({
     onComplete: () => navigate('/history'),
     onForfeit: () => navigate('/session'),
   })
@@ -82,14 +75,17 @@ export default function SessionPage() {
   return (
     <div className="space-y-6">
       {conflictSession ? (
-        <ResumeDiscardModal onResume={clearConflictState} onDiscard={() => void handleDiscardConflict()} />
+        <ResumeDiscardModal
+          onResume={() => void dispatch({ type: 'RESUME' })}
+          onDiscard={() => void dispatch({ type: 'DISCARD' })}
+        />
       ) : null}
 
       {isForfeitModalOpen ? (
         <ForfeitSessionModal
           onConfirm={() => {
             setIsForfeitModalOpen(false)
-            void handleForfeitSession()
+            void dispatch({ type: 'FORFEIT' })
           }}
           onCancel={() => setIsForfeitModalOpen(false)}
         />
@@ -128,7 +124,7 @@ export default function SessionPage() {
               isOnline={isOnline}
               stalePlanError={stalePlanError}
               isStartPending={isStartPending}
-              onStart={(groupId) => void handleStartSession(groupId)}
+              onStart={(groupId) => void dispatch({ type: 'START', workoutGroupId: groupId })}
               onPreview={(group, planName) => setPreviewGroup({ group, planName })}
             />
           ) : (
@@ -147,12 +143,14 @@ export default function SessionPage() {
               isCompletePending={isCompletePending}
               isForfeitPending={isForfeitPending}
               onLogSet={(exerciseId, setNumber, weight, reps, unit) =>
-                void handleLogSet(exerciseId, setNumber, weight, reps, unit)
+                void dispatch({ type: 'LOG_SET', exerciseId, setNumber, weight, reps, unit })
               }
-              onUpdateSetLog={handleUpdateSetLog}
-              onDeleteSetLog={(setLogId) => void handleDeleteSetLog(setLogId)}
+              onUpdateSetLog={(setLogId, weight, reps, unit) =>
+                dispatch({ type: 'UPDATE_SET', setLogId, weight, reps, unit })
+              }
+              onDeleteSetLog={(setLogId) => void dispatch({ type: 'DELETE_SET', setLogId })}
               onSetExerciseUnit={setExerciseUnit}
-              onComplete={() => void handleCompleteSession()}
+              onComplete={() => void dispatch({ type: 'COMPLETE' })}
               onForfeit={() => setIsForfeitModalOpen(true)}
             />
           )}
