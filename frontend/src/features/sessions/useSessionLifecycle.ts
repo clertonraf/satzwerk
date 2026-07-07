@@ -45,18 +45,29 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
 
   const session = openSessionQuery.data ?? null
 
+  const prevSessionIdRef = useRef<string | undefined>(session?.id)
   const prevServerSetCountRef = useRef(session?.setCount ?? 0)
 
-  // Reconcile pending logs when the session is refetched from the server after queue flush.
-  // Once setCount increases past what we knew before going offline, server has confirmed them.
+  // Reconcile pending logs as the server confirms them after queue flush.
+  // On session change, reset all pending. Within the same session, remove
+  // confirmed logs incrementally to handle partial flushes correctly.
   useEffect(() => {
+    const currentId = session?.id
     const serverCount = session?.setCount ?? 0
-    if (pendingSetLogs.length > 0 && serverCount > prevServerSetCountRef.current) {
+
+    if (prevSessionIdRef.current !== currentId) {
+      prevSessionIdRef.current = currentId
+      prevServerSetCountRef.current = serverCount
       setPendingSetLogs([])
+      return
+    }
+
+    const delta = serverCount - prevServerSetCountRef.current
+    if (delta > 0) {
+      setPendingSetLogs((prev) => prev.slice(delta))
     }
     prevServerSetCountRef.current = serverCount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.setCount])
+  }, [session?.id, session?.setCount])
 
   async function handleLogSet(exerciseId: string, setNumber: number, weight: number, reps: number, unit: 'kg' | 'lb') {
     if (!session) {
