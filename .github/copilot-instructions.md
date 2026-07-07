@@ -32,6 +32,12 @@ Packages under `src/main/kotlin/com/satzwerk/`:
 
 Database migrations live in `src/main/resources/db/migration/` (Flyway, versioned `V<N>__<desc>.sql`).
 
+**Flyway version collision check**: Before merging any PR that adds a migration file, verify the highest V-number already on `main` and rename if there is a collision:
+```bash
+git log origin/main --name-only -- "src/main/resources/db/migration/" | grep "V[0-9]" | sort -V | tail -5
+```
+Two PRs that independently choose the same version number (e.g., both use V11) will break the schema — always rename the later PR's file before merge.
+
 **Build / run / test:**
 ```bash
 cd backend
@@ -84,6 +90,15 @@ assertEquals("Bench Press", saved[0].name)
   - no workaround types or TODO stubs remain in test files
   - no `@Suppress(...)` annotations added to silence detekt or ktlint findings — fix the underlying issue instead
 
+**Avoiding `TooManyFunctions` (detekt threshold ≥ 11)**: When adding a method would push a class to 11 functions (the threshold triggers AT 11, not above), extract private helpers as **package-level functions** passing dependencies (repositories, services) as parameters. This keeps the class under the limit without `@Suppress`. Example: `requireOwnedSession` and `requireGroupInActivePlan` in `WorkoutSessionService.kt` are package-level.
+
+**Parallel PR file-overlap check**: When batching multiple PRs for sequential merge, check for overlapping files before starting parallel development:
+```bash
+git diff --name-only origin/main...<branch1>
+git diff --name-only origin/main...<branch2>
+```
+PRs that touch the same file must be merged serially (each fully merged before the next is developed). Parallel development on a shared hub file (e.g., `WorkoutSessionService.kt`) leads to cascading conflicts requiring multiple manual resolutions.
+
 **NOT NULL FK lookups**: When a service method receives an entity referenced via a NOT NULL FK column validated upstream (e.g. `workout_sessions.workout_group_id`), do not add a redundant `repository.findById()` call — the FK constraint guarantees existence. Add lookups only when the ID arrives from unvalidated user input.
 
 ## Frontend (React + TypeScript + Vite)
@@ -120,6 +135,8 @@ After a **planning skill** (`/grill-me`, `/to-prd`) concludes and the plan is ag
 
 Never re-invoke the same skill twice in one session. If a skill invocation didn't give the right result, use `/new` before retrying — re-invoking re-sends the full skill context and it persists in the window for every subsequent turn.
 
+In **batched-merge sessions** (merging many PRs in sequence), start a fresh `/new` session every 5–6 PRs to prevent context compaction from interrupting mid-task. The checkpoint system provides sufficient handoff continuity between waves.
+
 ## Pre-push gate (mandatory)
 
 Before every `git push`, run all of the following locally. **Do not push if any step fails.**
@@ -152,6 +169,15 @@ When the PR touches `useEffect` hooks, run through this checklist before pushing
 Always surface the PR URL immediately after `gh pr create` so the user doesn't have to ask.
 
 **Copilot reviewer on fix commits**: When a follow-up fix commit is pushed to a PR, the Copilot reviewer does not always produce a new inline review — it may only run the `copilot: completed - success` check. Accept the passing `copilot` check as the gate for fix commits rather than waiting for a full re-review that may not arrive.
+
+**Re-triggering stale CI without a dummy commit**: When a PR's CI run is stale (no checks triggered after a push), use `gh run rerun` instead of an empty commit:
+```bash
+# Re-run the most recent failed run on a branch
+gh run list --branch <branch> --limit 1 --json databaseId -q '.[0].databaseId' | xargs -I{} gh run rerun {} --failed --repo clertonraf/satzwerk
+# Or trigger a fresh workflow run
+gh workflow run CI --ref <branch> --repo clertonraf/satzwerk
+```
+Empty commits (`git commit --allow-empty -m "ci: trigger CI"`) pollute git history and should be avoided.
 
 ## Worktree cleanup
 
