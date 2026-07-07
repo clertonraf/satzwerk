@@ -1,6 +1,6 @@
 package com.satzwerk.sessions
 
-import com.satzwerk.common.RequestContext
+import com.satzwerk.common.ConflictException
 import com.satzwerk.common.body
 import com.satzwerk.common.handleErrors
 import com.satzwerk.common.validateOrBadRequest
@@ -17,8 +17,7 @@ class SessionStartHandler(
     private val validator: Validator,
 ) {
     suspend fun start(request: ServerRequest): ServerResponse =
-        handleErrors(withConflict = true) {
-            val ctx = RequestContext(request)
+        handleErrors(request, extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) { ctx ->
             val body = ctx.body<StartSessionRequest>()
             validateOrBadRequest(validator, body) {
                 val response = workoutSessionService.start(ctx.userId(), body.workoutGroupId)
@@ -27,15 +26,13 @@ class SessionStartHandler(
         }
 
     suspend fun getStartOptions(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             val response = workoutSessionService.getStartOptions(ctx.userId())
             ServerResponse.ok().bodyValueAndAwait(response)
         }
 
     suspend fun getOpenPlanDetail(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             val response = workoutSessionService.getOpenPlanDetail(ctx.userId())
             ServerResponse.ok().bodyValueAndAwait(response)
         }

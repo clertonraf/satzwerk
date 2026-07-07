@@ -1,6 +1,5 @@
 package com.satzwerk.workouts
 
-import com.satzwerk.common.RequestContext
 import com.satzwerk.common.body
 import com.satzwerk.common.handleErrors
 import com.satzwerk.common.validateOrBadRequest
@@ -18,8 +17,7 @@ class WorkoutExerciseHandler(
     private val validator: Validator,
 ) {
     suspend fun create(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             val body = ctx.body<CreateWorkoutExerciseRequest>()
             validateOrBadRequest(validator, body) {
                 val response =
@@ -34,8 +32,7 @@ class WorkoutExerciseHandler(
         }
 
     suspend fun update(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             val body = ctx.body<UpdateWorkoutExerciseRequest>()
             validateOrBadRequest(validator, body) {
                 val response =
@@ -51,8 +48,7 @@ class WorkoutExerciseHandler(
         }
 
     suspend fun delete(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             workoutExerciseService.delete(
                 ctx.userId(),
                 ctx.pathId("planId"),
@@ -63,8 +59,7 @@ class WorkoutExerciseHandler(
         }
 
     suspend fun reorder(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             val body = ctx.body<ReorderRequest>()
             validateOrBadRequest(validator, body) {
                 val response =
