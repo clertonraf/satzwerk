@@ -1,5 +1,7 @@
 package com.satzwerk.auth
 
+import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -17,6 +19,8 @@ import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import java.security.Principal
+import java.time.Instant
+import java.util.UUID
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -44,6 +48,9 @@ class AuthIntegrationTest {
 
     @Autowired
     lateinit var client: WebTestClient
+
+    @Autowired
+    lateinit var refreshTokenRepository: RefreshTokenRepository
 
     @Test
     fun `register creates user and returns token pair`() {
@@ -260,5 +267,56 @@ class AuthIntegrationTest {
                 "ok" to true,
                 "user" to principal.name,
             )
+    }
+
+    @Test
+    fun `refresh cleans up expired tokens older than 30 days`(): Unit =
+        runBlocking {
+            val suffix = UUID.randomUUID()
+            val registered = registerUser("cleanup-$suffix@test.com")
+
+            // Seed a stale expired token for this user (>30 days old) directly.
+            refreshTokenRepository.save(
+                RefreshToken(
+                    userId = extractUserId(registered.accessToken),
+                    tokenHash = "stale-hash-$suffix",
+                    expiresAt = Instant.now().minusSeconds(31L * 86400L),
+                ),
+            )
+            val beforeCount = refreshTokenRepository.count()
+
+            client
+                .post()
+                .uri("/api/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(mapOf("refreshToken" to registered.refreshToken))
+                .exchange()
+                .expectStatus().isOk
+
+            val afterCount = refreshTokenRepository.count()
+            // The stale token should have been deleted during cleanup.
+            assertEquals(beforeCount - 1, afterCount)
+        }
+
+    private fun registerUser(email: String): AuthResponse =
+        client
+            .post()
+            .uri("/api/auth/register")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf("email" to email, "password" to "password123", "displayName" to "Cleanup User"),
+            )
+            .exchange()
+            .expectStatus().isCreated
+            .expectBody(AuthResponse::class.java)
+            .returnResult()
+            .responseBody!!
+
+    private fun extractUserId(accessToken: String): UUID {
+        // JWT payload is Base64-encoded; decode to get the subject (user UUID).
+        val payload = accessToken.split(".")[1]
+        val decoded = String(java.util.Base64.getUrlDecoder().decode(payload + "=="))
+        val sub = Regex("\"sub\":\"([^\"]+)\"").find(decoded)?.groupValues?.get(1)
+        return UUID.fromString(requireNotNull(sub) { "sub claim missing from token" })
     }
 }

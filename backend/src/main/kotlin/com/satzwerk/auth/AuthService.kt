@@ -58,7 +58,8 @@ class AuthService(
 
         refreshTokenRepository.save(token.copy(revokedAt = Instant.now()))
         val pair = issueTokenPair(token.userId)
-        cleanupOldTokens()
+        // Cleanup runs best-effort: a transient DB error must not roll back the completed rotation.
+        runCatching { cleanupOldTokens() }
         return pair
     }
 
