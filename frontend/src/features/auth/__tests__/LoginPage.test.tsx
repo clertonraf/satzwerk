@@ -82,6 +82,16 @@ describe('LoginPage', () => {
     expect(await screen.findByText('Check your connection and try again')).toBeInTheDocument()
   })
 
+  it('shows generic message on Axios error with no response and no request (setup/cancellation error)', async () => {
+    const user = userEvent.setup()
+    mockLogin.mockRejectedValueOnce(makeAxiosError(null, undefined, false))
+
+    render(<MemoryRouter><LoginPage /></MemoryRouter>)
+    await submitForm(user)
+
+    expect(await screen.findByText('Unable to log in right now')).toBeInTheDocument()
+  })
+
   it('shows rate-limit message on 429', async () => {
     const user = userEvent.setup()
     mockLogin.mockRejectedValueOnce(makeAxiosError(429))

@@ -55,15 +55,15 @@ export default function LoginPage() {
     } catch (error) {
       let message = 'Unable to log in right now'
       if (isAxiosError(error)) {
-        if (!error.response) {
+        if (!error.response && !!error.request) {
           message = 'Check your connection and try again'
-        } else if (error.response.status === 401) {
+        } else if (error.response?.status === 401) {
           message = 'Incorrect email or password'
-        } else if (error.response.status === 429) {
+        } else if (error.response?.status === 429) {
           message = 'Too many attempts — please wait a moment'
-        } else if (error.response.status >= 500) {
+        } else if (error.response && error.response.status >= 500) {
           message = 'Something went wrong on our end — try again shortly'
-        } else {
+        } else if (error.response) {
           const body = error.response.data as { message?: string } | null
           message = body?.message ?? 'Unable to log in right now'
         }
