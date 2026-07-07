@@ -53,12 +53,22 @@ export default function LoginPage() {
       tokenService.saveRefreshToken(response.refreshToken)
       navigate(redirectTo, { replace: true })
     } catch (error) {
-      setError('root', {
-        message:
-          isAxiosError(error) && error.response?.status === 401
-            ? 'Incorrect email or password'
-            : 'Unable to log in right now',
-      })
+      let message = 'Unable to log in right now'
+      if (isAxiosError(error)) {
+        if (!error.response && !!error.request) {
+          message = 'Check your connection and try again'
+        } else if (error.response?.status === 401) {
+          message = 'Incorrect email or password'
+        } else if (error.response?.status === 429) {
+          message = 'Too many attempts — please wait a moment'
+        } else if (error.response && error.response.status >= 500) {
+          message = 'Something went wrong on our end — try again shortly'
+        } else if (error.response) {
+          const body = error.response.data as { message?: string } | null
+          message = body?.message ?? 'Unable to log in right now'
+        }
+      }
+      setError('root', { message })
     }
   })
 
