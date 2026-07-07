@@ -7,7 +7,7 @@ import { QueryClientWrapper } from '@/test/QueryClientWrapper'
 import { exerciseService } from '@/services/exerciseService'
 import type { WorkoutPlanDetail } from '@/services/planService'
 import { sessionService } from '@/services/sessionService'
-import { useWorkoutSession } from '@/features/sessions/useWorkoutSession'
+import { useWorkoutSessionMachine } from '@/features/sessions/useWorkoutSessionMachine'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 
 vi.mock('@/services/sessionService', () => ({
@@ -25,8 +25,8 @@ vi.mock('@/services/exerciseService', () => ({
   },
 }))
 
-vi.mock('@/features/sessions/useWorkoutSession', () => ({
-  useWorkoutSession: vi.fn(),
+vi.mock('@/features/sessions/useWorkoutSessionMachine', () => ({
+  useWorkoutSessionMachine: vi.fn(),
 }))
 
 vi.mock('@/hooks/useOnlineStatus', () => ({
@@ -35,17 +35,12 @@ vi.mock('@/hooks/useOnlineStatus', () => ({
 
 const defaultWorkoutSessionState = {
   session: null,
+  pendingSetLogs: [],
   conflictSession: null,
   stalePlanError: null,
+  phase: 'idle' as const,
   isSessionLoading: false,
-  handleStartSession: vi.fn(),
-  handleLogSet: vi.fn(),
-  handleUpdateSetLog: vi.fn(),
-  handleDeleteSetLog: vi.fn(),
-  handleCompleteSession: vi.fn(),
-  handleForfeitSession: vi.fn(),
-  handleDiscardConflict: vi.fn(),
-  clearConflictState: vi.fn(),
+  dispatch: vi.fn(),
   isStartPending: false,
   isAddSetPending: false,
   isUpdateSetPending: false,
@@ -86,7 +81,7 @@ function buildWorkoutPlanDetail(overrides?: Partial<WorkoutPlanDetail>): Workout
 
 describe('SessionPage', () => {
   beforeEach(() => {
-    vi.mocked(useWorkoutSession).mockReturnValue(defaultWorkoutSessionState)
+    vi.mocked(useWorkoutSessionMachine).mockReturnValue(defaultWorkoutSessionState)
     vi.mocked(useOnlineStatus).mockReturnValue(true)
     vi.mocked(exerciseService.list).mockResolvedValue([])
     vi.mocked(sessionService.history).mockResolvedValue([])
@@ -157,8 +152,9 @@ describe('SessionPage', () => {
   })
 
   it('shows exercises for an existing workout session after page refresh', async () => {
-    vi.mocked(useWorkoutSession).mockReturnValue({
+    vi.mocked(useWorkoutSessionMachine).mockReturnValue({
       ...defaultWorkoutSessionState,
+      phase: 'open',
       session: {
         id: 'session-1',
         workoutGroupId: 'group-1',

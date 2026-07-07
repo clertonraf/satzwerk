@@ -20,11 +20,12 @@ class SessionRouter {
     @Bean
     fun sessionRoutes(
         workoutSessionService: WorkoutSessionService,
+        setLogService: SetLogService,
         validator: Validator,
     ) = coRouter {
         "/api/sessions".nest {
             sessionStartRoutes(workoutSessionService, validator)
-            sessionSetLogRoutes(workoutSessionService, validator)
+            sessionSetLogRoutes(workoutSessionService, setLogService, validator)
             sessionLifecycleRoutes(workoutSessionService)
         }
     }
@@ -66,6 +67,7 @@ private fun CoRouterFunctionDsl.sessionStartRoutes(
 
 private fun CoRouterFunctionDsl.sessionSetLogRoutes(
     workoutSessionService: WorkoutSessionService,
+    setLogService: SetLogService,
     validator: Validator,
 ) {
     POST("/{id}/set-logs") { request ->
@@ -73,8 +75,8 @@ private fun CoRouterFunctionDsl.sessionSetLogRoutes(
             val ctx = RequestContext(request)
             val body = ctx.body<AddSetLogRequest>()
             validateOrBadRequest(validator, body) {
-                val response = workoutSessionService.addSetLog(ctx.userId(), ctx.pathId("id"), body)
-                ServerResponse.status(HttpStatus.CREATED).bodyValueAndAwait(response)
+                val session = workoutSessionService.requireOwnedOpenSession(ctx.userId(), ctx.pathId("id"))
+                ServerResponse.status(HttpStatus.CREATED).bodyValueAndAwait(setLogService.add(session, body))
             }
         }
     }
@@ -83,21 +85,18 @@ private fun CoRouterFunctionDsl.sessionSetLogRoutes(
             val ctx = RequestContext(request)
             val body = ctx.body<UpdateSetLogRequest>()
             validateOrBadRequest(validator, body) {
-                val response =
-                    workoutSessionService.updateSetLog(
-                        ctx.userId(),
-                        ctx.pathId("id"),
-                        ctx.pathId("setLogId"),
-                        body,
-                    )
-                ServerResponse.ok().bodyValueAndAwait(response)
+                val session = workoutSessionService.requireOwnedOpenSession(ctx.userId(), ctx.pathId("id"))
+                ServerResponse.ok().bodyValueAndAwait(
+                    setLogService.update(session, ctx.pathId("setLogId"), body),
+                )
             }
         }
     }
     DELETE("/{id}/set-logs/{setLogId}") { request ->
         handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
             val ctx = RequestContext(request)
-            workoutSessionService.deleteSetLog(ctx.userId(), ctx.pathId("id"), ctx.pathId("setLogId"))
+            val session = workoutSessionService.requireOwnedOpenSession(ctx.userId(), ctx.pathId("id"))
+            setLogService.delete(session, ctx.pathId("setLogId"))
             ServerResponse.noContent().buildAndAwait()
         }
     }

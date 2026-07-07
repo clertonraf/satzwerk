@@ -17,14 +17,14 @@ import RestTimer from '@/features/sessions/RestTimer'
 import SetInput from '@/features/sessions/SetInput'
 import { toPounds } from '@/features/sessions/sessionHelpers'
 import { formatDisplayWeight } from '@/lib/unitFormatters'
-import type { ExerciseReferenceWeights, SetLog } from '@/services/sessionService'
+import type { ExerciseReferenceWeights, SetLogResult } from '@/services/sessionService'
 import type { WorkoutExerciseSummary } from '@/services/planService'
 
 interface ExerciseSectionProps {
   exercise: WorkoutExerciseSummary
   exerciseName: string
   exerciseUnit: 'kg' | 'lb'
-  exerciseLogs: SetLog[]
+  exerciseLogs: SetLogResult[]
   referenceWeights: ExerciseReferenceWeights | undefined
   isReferenceWeightsLoading: boolean
   isAddSetPending: boolean
@@ -110,8 +110,11 @@ export default function ExerciseSection({
             <p className="text-sm font-medium">Logged sets</p>
             <ul className="space-y-2 text-sm text-muted-foreground">
               {exerciseLogs.map((log) => (
-                <li key={log.id} className="rounded-lg border border-border px-3 py-2">
-                  {editingSetLogId === log.id ? (
+                <li
+                  key={log.id}
+                  className={`rounded-lg border border-border px-3 py-2${log.pending ? ' opacity-60' : ''}`}
+                >
+                  {!log.pending && editingSetLogId === log.id ? (
                     <SetInput
                       key={`${log.id}-${exerciseUnit}`}
                       isLoading={isUpdateSetPending}
@@ -134,13 +137,14 @@ export default function ExerciseSection({
                     <div className="flex items-center justify-between">
                       <span>
                         Set {log.setNumber}: {formatDisplayWeight(log.weight, exerciseUnit)} × {log.reps}
+                        {log.pending ? <span className="ml-2 text-xs text-muted-foreground">(syncing…)</span> : null}
                       </span>
                       <span className="flex items-center gap-1">
                         <Button
                           type="button"
                           size="sm"
                           variant="ghost"
-                          disabled={!isOnline || log.id.startsWith('queued-')}
+                          disabled={!isOnline || log.pending}
                           onClick={() => setEditingSetLogId(log.id)}
                         >
                           Edit
@@ -150,7 +154,7 @@ export default function ExerciseSection({
                           size="sm"
                           variant="ghost"
                           className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                          disabled={!isOnline || log.id.startsWith('queued-') || isDeleteSetPending}
+                          disabled={!isOnline || log.pending || isDeleteSetPending}
                           onClick={() => setPendingDeleteSetLogId(log.id)}
                         >
                           Delete

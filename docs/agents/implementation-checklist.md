@@ -62,7 +62,7 @@ assert(!result.responseHeaders.containsKey(HttpHeaders.WWW_AUTHENTICATE))
 assertFalse(result.responseHeaders.containsKey(HttpHeaders.WWW_AUTHENTICATE))
 ```
 
-> **Why**: `assert(...)` compiles to a JVM assertion instruction (`assert` bytecode), which is only evaluated when the JVM flag `-ea` is present. In Testcontainers/Spring Boot test suites, `-ea` is not set by default, so `assert(cond)` is a no-op and the test passes regardless of `cond`.
+> **Why**: Kotlin's `assert(...)` is a stdlib function. While it doesn't literally compile to the JVM `assert` bytecode instruction, it is implemented via `java.lang.RuntimeException` when assertions are enabled — but it is a no-op unless the JVM system property `kotlin.assert.always` is set or assertions are explicitly enabled at the call site. In Testcontainers/Spring Boot test suites, neither flag is set by default, so `assert(cond)` silently passes regardless of `cond`.
 
 ## Delay `URL.revokeObjectURL` in download helpers
 

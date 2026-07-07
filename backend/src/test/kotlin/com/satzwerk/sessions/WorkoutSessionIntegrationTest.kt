@@ -1,5 +1,6 @@
 package com.satzwerk.sessions
 
+import com.satzwerk.PostgresTestContainer
 import com.satzwerk.auth.AuthResponse
 import com.satzwerk.workouts.ExerciseResponse
 import com.satzwerk.workouts.WorkoutGroupResponse
@@ -12,39 +13,14 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
 import org.springframework.test.context.ActiveProfiles
-import org.springframework.test.context.DynamicPropertyRegistry
-import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.reactive.server.WebTestClient
-import org.testcontainers.containers.PostgreSQLContainer
-import org.testcontainers.junit.jupiter.Container
-import org.testcontainers.junit.jupiter.Testcontainers
 import java.math.BigDecimal
 import java.util.UUID
 
 @Suppress("LargeClass")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@Testcontainers
-class WorkoutSessionIntegrationTest {
-    companion object {
-        @Container
-        @JvmStatic
-        val postgres: PostgreSQLContainer<*> = PostgreSQLContainer("postgres:16-alpine")
-
-        @DynamicPropertySource
-        @JvmStatic
-        fun configureProperties(registry: DynamicPropertyRegistry) {
-            registry.add("spring.r2dbc.url") {
-                "r2dbc:postgresql://${postgres.host}:${postgres.getMappedPort(5432)}/${postgres.databaseName}"
-            }
-            registry.add("spring.r2dbc.username", postgres::getUsername)
-            registry.add("spring.r2dbc.password", postgres::getPassword)
-            registry.add("spring.flyway.url", postgres::getJdbcUrl)
-            registry.add("spring.flyway.user", postgres::getUsername)
-            registry.add("spring.flyway.password", postgres::getPassword)
-        }
-    }
-
+class WorkoutSessionIntegrationTest : PostgresTestContainer() {
     @Autowired
     lateinit var client: WebTestClient
 
@@ -115,6 +91,9 @@ class WorkoutSessionIntegrationTest {
         val suffix = UUID.randomUUID()
         val token = registerAndLogin("inactive-group-$suffix@test.com", "password123", "Inactive Group User")
         val ownedExerciseId = createExercise(token, "Overhead Press", "SHOULDERS")
+        // User has an active plan, but tries to start with a group from a different (inactive) plan
+        val activePlanId = createPlan(token, "Active Push")
+        activatePlan(token, activePlanId)
         val inactivePlanId = createPlan(token, "Inactive Push")
         val inactiveGroupId = createGroup(token, inactivePlanId, "Push Day", ownedExerciseId)
 
@@ -126,6 +105,24 @@ class WorkoutSessionIntegrationTest {
             .bodyValue(mapOf("workoutGroupId" to inactiveGroupId))
             .exchange()
             .expectStatus().isBadRequest
+    }
+
+    @Test
+    fun `start session returns not found when no active plan exists`() {
+        val suffix = UUID.randomUUID()
+        val token = registerAndLogin("no-active-$suffix@test.com", "password123", "No Active User")
+        val ownedExerciseId = createExercise(token, "Overhead Press", "SHOULDERS")
+        val inactivePlanId = createPlan(token, "Inactive Push")
+        val inactiveGroupId = createGroup(token, inactivePlanId, "Push Day", ownedExerciseId)
+
+        client
+            .post()
+            .uri("/api/sessions")
+            .header("Authorization", "Bearer $token")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("workoutGroupId" to inactiveGroupId))
+            .exchange()
+            .expectStatus().isNotFound
     }
 
     @Test
@@ -578,7 +575,7 @@ class WorkoutSessionIntegrationTest {
     }
 
     @Test
-    fun `reference weights returns pr as max weight across all sessions`() {
+    fun `reference weights returns the highest-ratio is_pr set across all sessions`() {
         val firstCompletedSession = startSession()
         addSetLog(firstCompletedSession.id, BigDecimal("90.0"))
         completeSession(firstCompletedSession.id)
@@ -600,6 +597,34 @@ class WorkoutSessionIntegrationTest {
             .jsonPath("$.length()").isEqualTo(1)
             .jsonPath("$[0].exerciseId").isEqualTo(exerciseId.toString())
             .jsonPath("$[0].prWeightKg").isEqualTo(110)
+    }
+
+    @Test
+    fun `reference weights selects lighter set with higher weight-to-reps ratio over heavier set`() {
+        // Set A: 100 kg x 10 reps -> ratio = 10 (is_pr initially, but beaten by Set B)
+        val firstSession = startSession()
+        addSetLog(firstSession.id, BigDecimal("100.0"), reps = 10)
+        completeSession(firstSession.id)
+
+        // Set B: 60 kg x 3 reps -> ratio = 20 (is_pr = TRUE, beats Set A's ratio)
+        val secondSession = startSession()
+        addSetLog(secondSession.id, BigDecimal("60.0"), reps = 3)
+        completeSession(secondSession.id)
+
+        val currentSession = startSession()
+
+        client
+            .get()
+            .uri("/api/sessions/${currentSession.id}/reference-weights")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(1)
+            .jsonPath("$[0].exerciseId").isEqualTo(exerciseId.toString())
+            // The 60 kg set has the highest ratio (20 vs 10) and is_pr=TRUE,
+            // so it is returned -- not the heavier 100 kg set.
+            .jsonPath("$[0].prWeightKg").isEqualTo(60)
     }
 
     @Test

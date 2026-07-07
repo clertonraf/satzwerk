@@ -1,4 +1,4 @@
-import { api } from './api'
+import { http } from './api'
 
 export interface ImportSummaryResponse {
   importedExercises: number
@@ -10,8 +10,8 @@ export interface ImportSummaryResponse {
 
 export const exportService = {
   async downloadExport(): Promise<void> {
-    const response = await api.get('/export', { responseType: 'blob' })
-    const url = URL.createObjectURL(response.data as Blob)
+    const blob = await http.get<Blob>('/export', { responseType: 'blob' })
+    const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
     a.download = 'satzwerk-export.json'
@@ -24,7 +24,6 @@ export const exportService = {
 
   async importData(jsonContent: string): Promise<ImportSummaryResponse> {
     const body = JSON.parse(jsonContent) as unknown
-    const response = await api.post<ImportSummaryResponse>('/import', body)
-    return response.data
+    return http.post<ImportSummaryResponse>('/import', body)
   },
 }

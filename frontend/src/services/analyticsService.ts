@@ -1,4 +1,4 @@
-import { api } from './api'
+import { http } from './api'
 
 export interface HeatmapEntry {
   date: string
@@ -38,27 +38,21 @@ export interface PersonalRecord {
 
 export const analyticsService = {
   heatmap: (from?: string, to?: string) =>
-    api
-      .get<HeatmapEntry[]>('/analytics/heatmap', {
-        params: { ...(from && { from }), ...(to && { to }) },
-      })
-      .then((response) => response.data),
+    http.get<HeatmapEntry[]>('/analytics/heatmap', {
+      params: { ...(from && { from }), ...(to && { to }) },
+    }),
 
-  streak: () => api.get<StreakResponse>('/analytics/streak').then((response) => response.data),
+  streak: () => http.get<StreakResponse>('/analytics/streak'),
 
-  summary: () => api.get<DashboardSummary>('/analytics/summary').then((response) => response.data),
+  summary: () => http.get<DashboardSummary>('/analytics/summary'),
 
   weeklyTrend: (weeks?: number) =>
-    api
-      .get<WeeklyTrendEntry[]>('/analytics/weekly-trend', {
-        params: { ...(weeks !== undefined && { weeks }) },
-      })
-      .then((response) => response.data),
+    http.get<WeeklyTrendEntry[]>('/analytics/weekly-trend', {
+      params: { ...(weeks !== undefined && { weeks }) },
+    }),
 
   personalRecords: (limit?: number) =>
-    api
-      .get<PersonalRecord[]>('/analytics/personal-records', {
-        params: { ...(limit !== undefined && { limit }) },
-      })
-      .then((response) => response.data),
+    http.get<PersonalRecord[]>('/analytics/personal-records', {
+      params: { ...(limit !== undefined && { limit }) },
+    }),
 }

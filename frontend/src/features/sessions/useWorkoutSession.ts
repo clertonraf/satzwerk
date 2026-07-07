@@ -10,6 +10,7 @@ export function useWorkoutSession({ onComplete, onForfeit }: { onComplete: () =>
 
   return {
     session: lifecycle.session,
+    pendingSetLogs: lifecycle.pendingSetLogs,
     conflictSession: conflict.conflictSession,
     stalePlanError: conflict.stalePlanError,
     isSessionLoading: lifecycle.isSessionLoading,

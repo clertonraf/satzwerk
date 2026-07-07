@@ -1,14 +1,16 @@
 import axios from 'axios'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toKilograms } from '@/features/sessions/sessionHelpers'
 import { useSessionTransport } from '@/features/sessions/useSessionTransport'
 import { queryKeys } from '@/services/queryKeys'
-import type { AddSetLogRequest, UpdateSetLogRequest, WorkoutSession } from '@/services/sessionService'
+import type { AddSetLogRequest, PendingSetLog, UpdateSetLogRequest, WorkoutSession } from '@/services/sessionService'
 import { sessionService } from '@/services/sessionService'
 
 export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () => void; onForfeit?: () => void }) {
   const queryClient = useQueryClient()
   const { transport, isAddPending, isUpdatePending } = useSessionTransport()
+  const [pendingSetLogs, setPendingSetLogs] = useState<PendingSetLog[]>([])
 
   const openSessionQuery = useQuery<WorkoutSession | null>({
     queryKey: queryKeys.sessions.open(),
@@ -43,6 +45,30 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
 
   const session = openSessionQuery.data ?? null
 
+  const prevSessionIdRef = useRef<string | undefined>(session?.id)
+  const prevServerSetCountRef = useRef(session?.setCount ?? 0)
+
+  // Reconcile pending logs as the server confirms them after queue flush.
+  // On session change, reset all pending. Within the same session, remove
+  // confirmed logs incrementally to handle partial flushes correctly.
+  useEffect(() => {
+    const currentId = session?.id
+    const serverCount = session?.setCount ?? 0
+
+    if (prevSessionIdRef.current !== currentId) {
+      prevSessionIdRef.current = currentId
+      prevServerSetCountRef.current = serverCount
+      setPendingSetLogs([])
+      return
+    }
+
+    const delta = serverCount - prevServerSetCountRef.current
+    if (delta > 0) {
+      setPendingSetLogs((prev) => prev.slice(delta))
+    }
+    prevServerSetCountRef.current = serverCount
+  }, [session?.id, session?.setCount])
+
   async function handleLogSet(exerciseId: string, setNumber: number, weight: number, reps: number, unit: 'kg' | 'lb') {
     if (!session) {
       return
@@ -55,10 +81,18 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
       reps,
     }
 
-    const loggedSet = await transport.addSetLog(session.id, payload)
-    const newSetLogs = [...session.setLogs, loggedSet]
-    const updatedSession = { ...session, setLogs: newSetLogs, setCount: newSetLogs.length }
-    queryClient.setQueryData(queryKeys.sessions.open(), updatedSession)
+    const result = await transport.addSetLog(session.id, payload)
+    if (result.pending) {
+      // Offline: track locally; server does not know yet
+      setPendingSetLogs((prev) => [...prev, result])
+    } else {
+      const newSetLogs = [...session.setLogs, result]
+      queryClient.setQueryData(queryKeys.sessions.open(), {
+        ...session,
+        setLogs: newSetLogs,
+        setCount: newSetLogs.length,
+      })
+    }
   }
 
   async function handleUpdateSetLog(setLogId: string, weight: number, reps: number, unit: 'kg' | 'lb') {
@@ -123,6 +157,7 @@ export function useSessionLifecycle({ onComplete, onForfeit }: { onComplete: () 
 
   return {
     session,
+    pendingSetLogs,
     isSessionLoading: openSessionQuery.isLoading,
     handleLogSet,
     handleUpdateSetLog,
