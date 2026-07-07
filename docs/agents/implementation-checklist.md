@@ -46,3 +46,71 @@ Never use `LocalDate.now()` (or equivalent) in tests that make many sequential D
 ## Rubber-duck review for layout and visual changes
 
 Before pushing a PR that touches SVG, CSS layout, or responsive behaviour, run a rubber-duck review. These areas have invisible browser-rendering edge cases that are cheap to catch early and expensive to fix after a review cycle.
+
+## Kotlin `assert()` is not a test assertion
+
+Never use Kotlin's built-in `assert(...)` in integration tests:
+
+```kotlin
+// ❌ Bad — silently skipped when JVM assertions are disabled (the default in test JVMs)
+assert(!result.responseHeaders.containsKey(HttpHeaders.WWW_AUTHENTICATE))
+
+// ✅ Good — WebTestClient assertions always execute
+.expectHeader().doesNotExist(HttpHeaders.WWW_AUTHENTICATE)
+
+// ✅ Also good — JUnit assertions always execute
+assertFalse(result.responseHeaders.containsKey(HttpHeaders.WWW_AUTHENTICATE))
+```
+
+> **Why**: `assert(...)` compiles to a JVM assertion instruction (`assert` bytecode), which is only evaluated when the JVM flag `-ea` is present. In Testcontainers/Spring Boot test suites, `-ea` is not set by default, so `assert(cond)` is a no-op and the test passes regardless of `cond`.
+
+## Delay `URL.revokeObjectURL` in download helpers
+
+After triggering a programmatic file download via an anchor click, never call `URL.revokeObjectURL` synchronously:
+
+```ts
+// ❌ Bad — can cancel the download before the browser reads the blob
+a.click()
+URL.revokeObjectURL(url)
+
+// ✅ Good — 100ms delay gives the browser time to start reading the blob
+a.click()
+setTimeout(() => URL.revokeObjectURL(url), 100)
+```
+
+> **Why**: The browser's download machinery is asynchronous. Revoking the URL synchronously after `click()` can race with the browser's fetch of the blob data, causing empty or truncated downloads in Firefox and some versions of Safari.
+
+## Introduce a `*Port` facade when a service needs ≥ 4 repositories
+
+When a service class requires 4 or more repository constructor parameters, group related repositories into a `*Port` or `*Facade` class first:
+
+```kotlin
+// ❌ Bad — triggers LongParameterList (≥ 7 params) and TooManyFunctions (> 10 methods)
+class ExportService(
+    private val userRepository: UserRepository,
+    private val exerciseRepository: ExerciseRepository,
+    private val workoutPlanRepository: WorkoutPlanRepository,
+    private val workoutGroupRepository: WorkoutGroupRepository,
+    private val workoutExerciseRepository: WorkoutExerciseRepository,
+    private val workoutSessionRepository: WorkoutSessionRepository,
+    private val setLogRepository: SetLogRepository,
+)
+
+// ✅ Good — group workout/session repos into a port; service stays within detekt thresholds
+class WorkoutDataPort(
+    private val workoutPlanRepository: WorkoutPlanRepository,
+    private val workoutGroupRepository: WorkoutGroupRepository,
+    private val workoutExerciseRepository: WorkoutExerciseRepository,
+    private val workoutSessionRepository: WorkoutSessionRepository,
+)
+
+class ExportService(
+    private val userRepository: UserRepository,
+    private val exerciseRepository: ExerciseRepository,
+    private val workoutDataPort: WorkoutDataPort,
+    private val setLogRepository: SetLogRepository,
+)
+```
+
+> **Why**: detekt's `LongParameterList.constructorThreshold = 7` triggers at 7+ parameters; `TooManyFunctions.thresholdInClasses = 11` triggers at 11+ class-level methods. Splitting into a port/facade keeps both thresholds clear and improves cohesion. Plan the port upfront — retrofitting it after detekt failures costs ~3 extra gate cycles.
+
