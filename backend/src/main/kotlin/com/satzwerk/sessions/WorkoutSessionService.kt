@@ -47,6 +47,8 @@ class WorkoutSessionService(
         val group =
             workoutGroupRepository.findById(workoutGroupId)
                 ?: throw NotFoundException("Workout group not found")
+        // getRequiredPlan enforces ownership (ForbiddenException if plan belongs to another user).
+        workoutPlanService.getRequiredPlan(userId, group.workoutPlanId)
         val activePlan = workoutPlanService.requireActivePlan(userId)
         if (group.workoutPlanId != activePlan.id) {
             throw BadRequestException("Cannot start a session for a group belonging to an inactive workout plan")
