@@ -1,7 +1,6 @@
 package com.satzwerk.analytics
 
 import com.satzwerk.common.BadRequestException
-import com.satzwerk.common.RequestContext
 import com.satzwerk.common.handleErrors
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.server.ServerRequest
@@ -24,8 +23,7 @@ class AnalyticsHandler(
     private val analyticsService: AnalyticsService,
 ) {
     suspend fun heatmap(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             val today = LocalDate.now(ZoneOffset.UTC)
             val from =
                 ctx.queryParam("from")?.let { parseDate("from", it) } ?: today.minusMonths(DEFAULT_HEATMAP_MONTHS)
@@ -34,20 +32,17 @@ class AnalyticsHandler(
         }
 
     suspend fun streak(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             ServerResponse.ok().bodyValueAndAwait(analyticsService.streak(ctx.userId()))
         }
 
     suspend fun dashboardSummary(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             ServerResponse.ok().bodyValueAndAwait(analyticsService.dashboardSummary(ctx.userId()))
         }
 
     suspend fun weeklyTrend(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             val weeks =
                 ctx.queryParam("weeks")?.let {
                     it.toIntOrNull() ?: throw BadRequestException("'weeks' must be a valid integer")
@@ -59,8 +54,7 @@ class AnalyticsHandler(
         }
 
     suspend fun personalRecords(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             val limit =
                 ctx.queryParam("limit")?.let {
                     it.toIntOrNull() ?: throw BadRequestException("'limit' must be a valid integer")

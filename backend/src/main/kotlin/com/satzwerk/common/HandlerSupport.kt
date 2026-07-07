@@ -2,6 +2,7 @@ package com.satzwerk.common
 
 import jakarta.validation.Validator
 import org.springframework.http.HttpStatus
+import org.springframework.web.reactive.function.server.ServerRequest
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import java.util.UUID
@@ -63,3 +64,13 @@ suspend fun handleErrors(
         ServerResponse.status(status).bodyValueAndAwait(ErrorResponse(e.message ?: status.reasonPhrase))
     }
 }
+
+/**
+ * [handleErrors] overload that builds a [RequestContext] from [request] and passes it to [block].
+ * Eliminates the `val ctx = RequestContext(request)` boilerplate from handler methods.
+ */
+suspend fun handleErrors(
+    request: ServerRequest,
+    extra: Map<KClass<out Throwable>, HttpStatus> = emptyMap(),
+    block: suspend (RequestContext) -> ServerResponse,
+): ServerResponse = handleErrors(extra) { block(RequestContext(request)) }

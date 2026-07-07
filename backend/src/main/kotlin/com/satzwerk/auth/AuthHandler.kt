@@ -1,10 +1,9 @@
 package com.satzwerk.auth
 
 import com.satzwerk.common.ErrorResponse
-import com.satzwerk.common.RequestContext
+import com.satzwerk.common.ValidationErrorResponse
 import com.satzwerk.common.body
 import com.satzwerk.common.handleErrors
-import com.satzwerk.common.validateOrBadRequest
 import jakarta.validation.Validator
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
@@ -18,11 +17,19 @@ class AuthHandler(
     private val validator: Validator,
 ) {
     suspend fun register(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
-            val body = ctx.body<RegisterRequest>()
+        handleErrors(request) { ctx ->
             try {
-                validateOrBadRequest(validator, body) {
+                val body = ctx.body<RegisterRequest>()
+                val violations = validator.validate(body)
+                if (violations.isNotEmpty()) {
+                    ServerResponse
+                        .badRequest()
+                        .bodyValueAndAwait(
+                            ValidationErrorResponse(
+                                violations.associate { it.propertyPath.toString() to it.message },
+                            ),
+                        )
+                } else {
                     val tokenPair = authService.register(body.email, body.password, body.displayName)
                     ServerResponse
                         .status(HttpStatus.CREATED)
@@ -36,11 +43,19 @@ class AuthHandler(
         }
 
     suspend fun login(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
-            val body = ctx.body<LoginRequest>()
+        handleErrors(request) { ctx ->
             try {
-                validateOrBadRequest(validator, body) {
+                val body = ctx.body<LoginRequest>()
+                val violations = validator.validate(body)
+                if (violations.isNotEmpty()) {
+                    ServerResponse
+                        .badRequest()
+                        .bodyValueAndAwait(
+                            ValidationErrorResponse(
+                                violations.associate { it.propertyPath.toString() to it.message },
+                            ),
+                        )
+                } else {
                     val tokenPair = authService.login(body.email, body.password)
                     ServerResponse.ok().bodyValueAndAwait(AuthResponse(tokenPair.accessToken, tokenPair.refreshToken))
                 }
@@ -50,11 +65,19 @@ class AuthHandler(
         }
 
     suspend fun refresh(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
-            val body = ctx.body<RefreshRequest>()
+        handleErrors(request) { ctx ->
             try {
-                validateOrBadRequest(validator, body) {
+                val body = ctx.body<RefreshRequest>()
+                val violations = validator.validate(body)
+                if (violations.isNotEmpty()) {
+                    ServerResponse
+                        .badRequest()
+                        .bodyValueAndAwait(
+                            ValidationErrorResponse(
+                                violations.associate { it.propertyPath.toString() to it.message },
+                            ),
+                        )
+                } else {
                     val tokenPair = authService.refresh(body.refreshToken)
                     ServerResponse.ok().bodyValueAndAwait(AuthResponse(tokenPair.accessToken, tokenPair.refreshToken))
                 }

@@ -1,7 +1,6 @@
 package com.satzwerk.workouts
 
 import com.satzwerk.common.ErrorResponse
-import com.satzwerk.common.RequestContext
 import com.satzwerk.common.body
 import com.satzwerk.common.handleErrors
 import com.satzwerk.common.validateOrBadRequest
@@ -25,13 +24,13 @@ class WorkoutPlanHandler(
 ) {
     suspend fun create(request: ServerRequest): ServerResponse =
         handleErrors(
+            request,
             extra =
                 mapOf(
                     WebClientRequestException::class to HttpStatus.SERVICE_UNAVAILABLE,
                     WebClientResponseException::class to HttpStatus.SERVICE_UNAVAILABLE,
                 ),
-        ) {
-            val ctx = RequestContext(request)
+        ) { ctx ->
             val body = ctx.body<CreatePlanRequest>()
             validateOrBadRequest(validator, body) {
                 val response = workoutPlanService.create(ctx.userId(), body)
@@ -41,25 +40,25 @@ class WorkoutPlanHandler(
 
     suspend fun list(request: ServerRequest): ServerResponse =
         handleErrors(
+            request,
             extra =
                 mapOf(
                     WebClientRequestException::class to HttpStatus.SERVICE_UNAVAILABLE,
                     WebClientResponseException::class to HttpStatus.SERVICE_UNAVAILABLE,
                 ),
-        ) {
-            val ctx = RequestContext(request)
+        ) { ctx ->
             ServerResponse.ok().bodyValueAndAwait(workoutPlanService.list(ctx.userId()))
         }
 
     suspend fun import(request: ServerRequest): ServerResponse =
         handleErrors(
+            request,
             extra =
                 mapOf(
                     WebClientRequestException::class to HttpStatus.SERVICE_UNAVAILABLE,
                     WebClientResponseException::class to HttpStatus.SERVICE_UNAVAILABLE,
                 ),
-        ) {
-            val ctx = RequestContext(request)
+        ) { ctx ->
             val multipartData = request.multipartData().awaitSingle()
             val filePart =
                 multipartData.getFirst("file") as? FilePart
@@ -73,13 +72,13 @@ class WorkoutPlanHandler(
 
     suspend fun getDetail(request: ServerRequest): ServerResponse =
         handleErrors(
+            request,
             extra =
                 mapOf(
                     WebClientRequestException::class to HttpStatus.SERVICE_UNAVAILABLE,
                     WebClientResponseException::class to HttpStatus.SERVICE_UNAVAILABLE,
                 ),
-        ) {
-            val ctx = RequestContext(request)
+        ) { ctx ->
             val response =
                 workoutPlanService.getDetail(
                     ctx.userId(),
@@ -90,13 +89,13 @@ class WorkoutPlanHandler(
 
     suspend fun update(request: ServerRequest): ServerResponse =
         handleErrors(
+            request,
             extra =
                 mapOf(
                     WebClientRequestException::class to HttpStatus.SERVICE_UNAVAILABLE,
                     WebClientResponseException::class to HttpStatus.SERVICE_UNAVAILABLE,
                 ),
-        ) {
-            val ctx = RequestContext(request)
+        ) { ctx ->
             val body = ctx.body<UpdatePlanRequest>()
             validateOrBadRequest(validator, body) {
                 val response =
@@ -111,13 +110,13 @@ class WorkoutPlanHandler(
 
     suspend fun delete(request: ServerRequest): ServerResponse =
         handleErrors(
+            request,
             extra =
                 mapOf(
                     WebClientRequestException::class to HttpStatus.SERVICE_UNAVAILABLE,
                     WebClientResponseException::class to HttpStatus.SERVICE_UNAVAILABLE,
                 ),
-        ) {
-            val ctx = RequestContext(request)
+        ) { ctx ->
             workoutPlanService.delete(
                 ctx.userId(),
                 ctx.pathId("planId"),
@@ -127,13 +126,13 @@ class WorkoutPlanHandler(
 
     suspend fun activate(request: ServerRequest): ServerResponse =
         handleErrors(
+            request,
             extra =
                 mapOf(
                     WebClientRequestException::class to HttpStatus.SERVICE_UNAVAILABLE,
                     WebClientResponseException::class to HttpStatus.SERVICE_UNAVAILABLE,
                 ),
-        ) {
-            val ctx = RequestContext(request)
+        ) { ctx ->
             workoutPlanService.activate(
                 ctx.userId(),
                 ctx.pathId("planId"),

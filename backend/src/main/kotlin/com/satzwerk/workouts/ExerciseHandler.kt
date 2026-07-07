@@ -1,6 +1,5 @@
 package com.satzwerk.workouts
 
-import com.satzwerk.common.RequestContext
 import com.satzwerk.common.body
 import com.satzwerk.common.handleErrors
 import com.satzwerk.common.validateOrBadRequest
@@ -18,8 +17,7 @@ class ExerciseHandler(
     private val validator: Validator,
 ) {
     suspend fun create(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             val body = ctx.body<CreateExerciseRequest>()
             validateOrBadRequest(validator, body) {
                 val response = exerciseService.create(ctx.userId(), body)
@@ -28,8 +26,7 @@ class ExerciseHandler(
         }
 
     suspend fun list(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             val response =
                 exerciseService.list(
                     ctx.userId(),
@@ -39,8 +36,7 @@ class ExerciseHandler(
         }
 
     suspend fun getById(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             val response =
                 exerciseService.getOwned(
                     ctx.userId(),
@@ -50,8 +46,7 @@ class ExerciseHandler(
         }
 
     suspend fun update(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             val response =
                 exerciseService.update(
                     ctx.userId(),
@@ -62,8 +57,7 @@ class ExerciseHandler(
         }
 
     suspend fun delete(request: ServerRequest): ServerResponse =
-        handleErrors {
-            val ctx = RequestContext(request)
+        handleErrors(request) { ctx ->
             exerciseService.delete(
                 ctx.userId(),
                 ctx.pathId("id"),
