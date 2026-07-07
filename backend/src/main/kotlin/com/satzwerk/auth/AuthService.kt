@@ -2,6 +2,8 @@ package com.satzwerk.auth
 
 import com.satzwerk.users.User
 import com.satzwerk.users.UserRepository
+import org.slf4j.LoggerFactory
+import org.springframework.dao.DataAccessException
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import java.time.Instant
@@ -16,6 +18,8 @@ class AuthService(
     private val passwordEncoder: PasswordEncoder,
     private val jwtService: JwtService,
 ) {
+    private val logger = LoggerFactory.getLogger(AuthService::class.java)
+
     suspend fun register(
         email: String,
         password: String,
@@ -59,7 +63,11 @@ class AuthService(
         refreshTokenRepository.save(token.copy(revokedAt = Instant.now()))
         val pair = issueTokenPair(token.userId)
         // Cleanup runs best-effort: a transient DB error must not roll back the completed rotation.
-        runCatching { cleanupOldTokens() }
+        try {
+            cleanupOldTokens()
+        } catch (e: DataAccessException) {
+            logger.warn("Post-refresh token cleanup failed", e)
+        }
         return pair
     }
 
