@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook } from '@testing-library/react'
 import axios, { type AxiosError } from 'axios'
 import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { queryKeys } from '@/services/queryKeys'
 import { sessionService } from '@/services/sessionService'
 import { useWorkoutSessionMachine } from '../useWorkoutSessionMachine'
@@ -37,6 +37,10 @@ describe('useWorkoutSessionMachine', () => {
     mockUseOnlineStatus.mockReturnValue(true)
     vi.mocked(sessionService.start).mockReset()
     vi.mocked(sessionService.getOpen).mockReset()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('invalidates start options when START fails with stale plan (400)', async () => {

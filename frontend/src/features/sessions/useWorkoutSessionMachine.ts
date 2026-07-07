@@ -32,7 +32,9 @@ export function useWorkoutSessionMachine({
   const isOnline = useOnlineStatus()
   const { transport, isAddPending, isUpdatePending } = useSessionTransport()
 
-  const [phase, setPhase] = useState<SessionPhase>('idle')
+  // machineOverride captures the two phases that can't be derived from query data.
+  // null means phase is derived from the open-session query result.
+  const [machineOverride, setMachineOverride] = useState<'conflict' | 'completing' | null>(null)
   const [conflictSession, setConflictSession] = useState<WorkoutSession | null>(null)
   const [pendingGroupId, setPendingGroupId] = useState<string | null>(null)
   const [stalePlanError, setStalePlanError] = useState<string | null>(null)
@@ -41,18 +43,21 @@ export function useWorkoutSessionMachine({
     queryKey: queryKeys.sessions.open(),
     queryFn: async () => {
       try {
-        const session = await sessionService.getOpen()
-        if (session) setPhase('open')
-        return session
+        return await sessionService.getOpen()
       } catch (error) {
         if (axios.isAxiosError(error) && error.response?.status === 404) {
-          setPhase('idle')
           return null
         }
         throw error
       }
     },
   })
+
+  const session = openSessionQuery.data ?? null
+
+  // Derive phase from query data so background refetches stay safe.
+  // machineOverride takes precedence when the machine is in conflict or completing.
+  const phase: SessionPhase = machineOverride ?? (session ? 'open' : 'idle')
 
   const startMutation = useMutation({
     mutationFn: (workoutGroupId: string) => sessionService.start(workoutGroupId),
@@ -71,8 +76,6 @@ export function useWorkoutSessionMachine({
       sessionService.deleteSetLog(sessionId, setLogId),
   })
 
-  const session = openSessionQuery.data ?? null
-
   // declared as plain function (not useCallback) to avoid instability from transport dep
   async function dispatch(event: SessionEvent) {
       switch (event.type) {
@@ -84,14 +87,14 @@ export function useWorkoutSessionMachine({
             queryClient.setQueryData(queryKeys.sessions.open(), started)
             setPendingGroupId(null)
             setConflictSession(null)
-            setPhase('open')
+            setMachineOverride(null)
           } catch (error) {
             if (axios.isAxiosError(error) && error.response?.status === 409) {
               const openSession = await sessionService.getOpen()
               queryClient.setQueryData(queryKeys.sessions.open(), openSession)
               setPendingGroupId(event.workoutGroupId)
               setConflictSession(openSession)
-              setPhase('conflict')
+              setMachineOverride('conflict')
               return
             }
             if (axios.isAxiosError(error) && error.response?.status === 400) {
@@ -106,9 +109,10 @@ export function useWorkoutSessionMachine({
 
         case 'RESUME': {
           // Keep the existing open session; just clear conflict state.
+          if (!conflictSession) return
           setConflictSession(null)
           setPendingGroupId(null)
-          setPhase('open')
+          setMachineOverride(null)
           break
         }
 
@@ -119,7 +123,7 @@ export function useWorkoutSessionMachine({
           queryClient.setQueryData(queryKeys.sessions.open(), null)
           setConflictSession(null)
           setPendingGroupId(null)
-          setPhase('idle')
+          setMachineOverride(null)
           if (nextGroupId) {
             await dispatch({ type: 'START', workoutGroupId: nextGroupId })
           }
@@ -128,14 +132,14 @@ export function useWorkoutSessionMachine({
 
         case 'COMPLETE': {
           if (!session) return
-          setPhase('completing')
+          setMachineOverride('completing')
           const completed = await completeMutation.mutateAsync(session.id)
           queryClient.setQueryData(queryKeys.sessions.open(), null)
           queryClient.setQueryData<WorkoutSession[]>(queryKeys.sessions.history(), (current = []) => [
             completed,
             ...current,
           ])
-          setPhase('idle')
+          setMachineOverride(null)
           onComplete()
           break
         }
@@ -144,7 +148,7 @@ export function useWorkoutSessionMachine({
           if (!session) return
           await discardMutation.mutateAsync(session.id)
           queryClient.setQueryData(queryKeys.sessions.open(), null)
-          setPhase('idle')
+          setMachineOverride(null)
           onForfeit?.()
           break
         }
@@ -158,11 +162,10 @@ export function useWorkoutSessionMachine({
             reps: event.reps,
           }
           const logged = await transport.addSetLog(session.id, payload)
-          const newLogs = [...session.setLogs, logged]
-          queryClient.setQueryData(queryKeys.sessions.open(), {
-            ...session,
-            setLogs: newLogs,
-            setCount: newLogs.length,
+          queryClient.setQueryData<WorkoutSession>(queryKeys.sessions.open(), (current) => {
+            if (!current) return current
+            const newLogs = [...current.setLogs, logged]
+            return { ...current, setLogs: newLogs, setCount: newLogs.length }
           })
           break
         }
@@ -174,11 +177,14 @@ export function useWorkoutSessionMachine({
             reps: event.reps,
           }
           const updated = await transport.updateSetLog(session.id, event.setLogId, payload)
-          const existing = session.setLogs.find((l) => l.id === event.setLogId)
-          const merged = existing ? { ...existing, weight: updated.weight, reps: updated.reps } : updated
-          queryClient.setQueryData(queryKeys.sessions.open(), {
-            ...session,
-            setLogs: session.setLogs.map((l) => (l.id === event.setLogId ? merged : l)),
+          queryClient.setQueryData<WorkoutSession>(queryKeys.sessions.open(), (current) => {
+            if (!current) return current
+            return {
+              ...current,
+              setLogs: current.setLogs.map((l) =>
+                l.id === event.setLogId ? { ...l, weight: updated.weight, reps: updated.reps } : l,
+              ),
+            }
           })
           break
         }
