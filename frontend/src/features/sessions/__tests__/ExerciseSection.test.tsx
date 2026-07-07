@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ExerciseSection from '../ExerciseSection'
-import type { SetLog } from '@/services/sessionService'
+import type { PendingSetLog, SubmittedSetLog } from '@/services/sessionService'
 import { formatDisplayWeight } from '@/lib/unitFormatters'
 
 const makeExercise = () => ({
@@ -16,13 +16,25 @@ const makeExercise = () => ({
   orderIndex: 0,
 })
 
-const makeSetLog = (overrides: Partial<SetLog> = {}): SetLog => ({
+const makeSetLog = (overrides: Partial<SubmittedSetLog> = {}): SubmittedSetLog => ({
   id: 'log-1',
   exerciseId: 'exercise-1',
   setNumber: 1,
   weight: 80,
   reps: 5,
   loggedAt: '2026-01-01T00:00:00Z',
+  pending: false,
+  ...overrides,
+})
+
+const makePendingSetLog = (overrides: Partial<PendingSetLog> = {}): PendingSetLog => ({
+  id: 'queued-session-1-exercise-1-1-123',
+  exerciseId: 'exercise-1',
+  setNumber: 1,
+  weight: 80,
+  reps: 5,
+  loggedAt: '2026-01-01T00:00:00Z',
+  pending: true,
   ...overrides,
 })
 
@@ -77,8 +89,8 @@ describe('ExerciseSection', () => {
     expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
   })
 
-  it('disables Edit for queued set logs', () => {
-    renderSection({ exerciseLogs: [makeSetLog({ id: 'queued-session-1-exercise-1-1-123' })] })
+  it('disables Edit for pending (offline-queued) set logs', () => {
+    renderSection({ exerciseLogs: [makePendingSetLog()] })
     expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled()
   })
 
@@ -94,14 +106,19 @@ describe('ExerciseSection', () => {
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
   })
 
-  it('disables Delete for queued set logs', () => {
-    renderSection({ exerciseLogs: [makeSetLog({ id: 'queued-session-1-exercise-1-1-123' })] })
+  it('disables Delete for pending (offline-queued) set logs', () => {
+    renderSection({ exerciseLogs: [makePendingSetLog()] })
     expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled()
   })
 
   it('disables Delete when isDeleteSetPending is true', () => {
     renderSection({ exerciseLogs: [makeSetLog()], isDeleteSetPending: true })
     expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled()
+  })
+
+  it('shows "(syncing…)" indicator for pending set logs', () => {
+    renderSection({ exerciseLogs: [makePendingSetLog()] })
+    expect(screen.getByText(/syncing/i)).toBeInTheDocument()
   })
 
   it('calls onDeleteSetLog when Delete is clicked and confirmed in dialog', async () => {

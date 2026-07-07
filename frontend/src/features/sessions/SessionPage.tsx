@@ -20,6 +20,7 @@ export default function SessionPage() {
 
   const {
     session,
+    pendingSetLogs,
     conflictSession,
     stalePlanError,
     isSessionLoading,
@@ -134,6 +135,7 @@ export default function SessionPage() {
           ) : (
             <SessionWorkout
               session={session}
+              pendingSetLogs={pendingSetLogs}
               currentGroupEntry={currentGroupEntry}
               exercisesById={exercisesById}
               referenceWeightsMap={referenceWeightsMap}

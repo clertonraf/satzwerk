@@ -1,11 +1,12 @@
 import { Button } from '@/components/ui/button'
 import ExerciseSection from '@/features/sessions/ExerciseSection'
 import type { WorkoutGroupCatalogEntry } from '@/lib/domainBuilders'
-import type { ExerciseReferenceWeights, SetLog, WorkoutSession } from '@/services/sessionService'
+import type { ExerciseReferenceWeights, PendingSetLog, SetLogResult, WorkoutSession } from '@/services/sessionService'
 import type { Exercise } from '@/services/exerciseService'
 
 interface SessionWorkoutProps {
   session: WorkoutSession
+  pendingSetLogs: PendingSetLog[]
   currentGroupEntry: WorkoutGroupCatalogEntry | undefined
   exercisesById: Map<string, Exercise>
   referenceWeightsMap: Map<string, ExerciseReferenceWeights>
@@ -28,6 +29,7 @@ interface SessionWorkoutProps {
 
 export default function SessionWorkout({
   session,
+  pendingSetLogs,
   currentGroupEntry,
   exercisesById,
   referenceWeightsMap,
@@ -47,7 +49,10 @@ export default function SessionWorkout({
   onComplete,
   onForfeit,
 }: SessionWorkoutProps) {
-  const logsByExerciseId = session.setLogs.reduce<Map<string, SetLog[]>>((acc, log) => {
+  const confirmedLogs: SetLogResult[] = session.setLogs.map((log) => ({ ...log, pending: false }))
+  const allLogs: SetLogResult[] = [...confirmedLogs, ...pendingSetLogs]
+
+  const logsByExerciseId = allLogs.reduce<Map<string, SetLogResult[]>>((acc, log) => {
     const bucket = acc.get(log.exerciseId)
     if (bucket) {
       bucket.push(log)
