@@ -1,5 +1,6 @@
 package com.satzwerk.workouts
 
+import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.NotFoundException
 import com.satzwerk.common.Owned
 import com.satzwerk.common.assertOwner
@@ -53,10 +54,10 @@ class WorkoutPlanService(
         return getDetail(userId, requireNotNull(activePlan.id))
     }
 
-    /** Returns the active WorkoutPlan for [userId], or throws [NotFoundException] if none is active. */
+    /** Returns the active WorkoutPlan for [userId], or throws [BadRequestException] if none is active. */
     suspend fun requireActivePlan(userId: UUID): WorkoutPlan =
         workoutPlanRepository.findAllByUserIdAndIsActive(userId, true).firstOrNull()
-            ?: throw NotFoundException("No active workout plan found")
+            ?: throw BadRequestException("No active workout plan found")
 
     suspend fun update(
         userId: UUID,
