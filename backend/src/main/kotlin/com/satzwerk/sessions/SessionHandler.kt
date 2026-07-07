@@ -1,6 +1,6 @@
 package com.satzwerk.sessions
 
-import com.satzwerk.common.ErrorHandlerOption
+import com.satzwerk.common.ConflictException
 import com.satzwerk.common.RequestContext
 import com.satzwerk.common.body
 import com.satzwerk.common.handleErrors
@@ -19,14 +19,14 @@ class SessionHandler(
     private val validator: Validator,
 ) {
     suspend fun getOpen(request: ServerRequest): ServerResponse =
-        handleErrors(ErrorHandlerOption.WithConflict) {
+        handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
             val ctx = RequestContext(request)
             val response = workoutSessionService.getOpen(ctx.userId())
             ServerResponse.ok().bodyValueAndAwait(response)
         }
 
     suspend fun addSetLog(request: ServerRequest): ServerResponse =
-        handleErrors(ErrorHandlerOption.WithConflict) {
+        handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
             val ctx = RequestContext(request)
             val body = ctx.body<AddSetLogRequest>()
             validateOrBadRequest(validator, body) {
@@ -41,7 +41,7 @@ class SessionHandler(
         }
 
     suspend fun updateSetLog(request: ServerRequest): ServerResponse =
-        handleErrors(ErrorHandlerOption.WithConflict) {
+        handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
             val ctx = RequestContext(request)
             val body = ctx.body<UpdateSetLogRequest>()
             validateOrBadRequest(validator, body) {
@@ -57,7 +57,7 @@ class SessionHandler(
         }
 
     suspend fun deleteSetLog(request: ServerRequest): ServerResponse =
-        handleErrors(ErrorHandlerOption.WithConflict) {
+        handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
             val ctx = RequestContext(request)
             workoutSessionService.deleteSetLog(
                 ctx.userId(),
@@ -68,7 +68,7 @@ class SessionHandler(
         }
 
     suspend fun complete(request: ServerRequest): ServerResponse =
-        handleErrors(ErrorHandlerOption.WithConflict) {
+        handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
             val ctx = RequestContext(request)
             val response =
                 workoutSessionService.complete(
@@ -80,7 +80,7 @@ class SessionHandler(
         }
 
     suspend fun discard(request: ServerRequest): ServerResponse =
-        handleErrors(ErrorHandlerOption.WithConflict) {
+        handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
             val ctx = RequestContext(request)
             workoutSessionService.discard(
                 ctx.userId(),
@@ -90,7 +90,7 @@ class SessionHandler(
         }
 
     suspend fun history(request: ServerRequest): ServerResponse =
-        handleErrors(ErrorHandlerOption.WithConflict) {
+        handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
             val ctx = RequestContext(request)
             val response = workoutSessionService.history(ctx.userId())
             ServerResponse.ok().bodyValueAndAwait(response)

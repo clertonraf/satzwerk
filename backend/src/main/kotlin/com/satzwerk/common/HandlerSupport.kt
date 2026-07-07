@@ -2,10 +2,10 @@ package com.satzwerk.common
 
 import jakarta.validation.Validator
 import org.springframework.http.HttpStatus
-import org.springframework.web.reactive.function.client.WebClientException
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import java.util.UUID
+import kotlin.reflect.KClass
 
 fun parseUuid(value: String): UUID =
     try {
@@ -29,19 +29,23 @@ suspend fun <T : Any> validateOrBadRequest(
 }
 
 /**
- * Options for [handleErrors] that opt-in to converting additional exception types to HTTP responses.
- * Add a new object here when a new domain exception needs per-handler HTTP mapping.
+ * Wraps a handler block, converting well-known domain exceptions to HTTP responses.
+ *
+ * [ForbiddenException], [NotFoundException], and [BadRequestException] are always converted.
+ * Additional exception-to-status mappings can be supplied via [extra]:
+ *
+ * ```kotlin
+ * handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) { ... }
+ * handleErrors(
+ *     extra = mapOf(
+ *         WebClientRequestException::class to HttpStatus.SERVICE_UNAVAILABLE,
+ *         WebClientResponseException::class to HttpStatus.SERVICE_UNAVAILABLE,
+ *     ),
+ * ) { ... }
+ * ```
  */
-sealed interface ErrorHandlerOption {
-    /** Maps [ConflictException] → 409 Conflict. */
-    data object WithConflict : ErrorHandlerOption
-
-    /** Maps [WebClientException] (request or response) → 503 Service Unavailable. */
-    data object WithWebClient : ErrorHandlerOption
-}
-
 suspend fun handleErrors(
-    vararg options: ErrorHandlerOption,
+    extra: Map<KClass<out Throwable>, HttpStatus> = emptyMap(),
     block: suspend () -> ServerResponse,
 ): ServerResponse =
     try {
@@ -52,18 +56,9 @@ suspend fun handleErrors(
         ServerResponse.status(HttpStatus.NOT_FOUND).bodyValueAndAwait(ErrorResponse("Not found"))
     } catch (e: BadRequestException) {
         ServerResponse.badRequest().bodyValueAndAwait(ErrorResponse(e.message ?: "Bad request"))
-    } catch (e: ConflictException) {
-        if (ErrorHandlerOption.WithConflict in options) {
-            ServerResponse.status(HttpStatus.CONFLICT).bodyValueAndAwait(ErrorResponse("Conflict"))
-        } else {
-            throw e
-        }
-    } catch (e: WebClientException) {
-        if (ErrorHandlerOption.WithWebClient in options) {
-            ServerResponse.status(HttpStatus.SERVICE_UNAVAILABLE).bodyValueAndAwait(
-                ErrorResponse("Import service unavailable"),
-            )
-        } else {
-            throw e
-        }
+    } catch (e: Throwable) {
+        val status =
+            extra.entries.firstOrNull { (klass, _) -> klass.isInstance(e) }?.value
+                ?: throw e
+        ServerResponse.status(status).bodyValueAndAwait(ErrorResponse(e.message ?: status.reasonPhrase))
     }
