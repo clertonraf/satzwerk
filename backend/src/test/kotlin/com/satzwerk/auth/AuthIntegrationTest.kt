@@ -52,6 +52,9 @@ class AuthIntegrationTest {
     @Autowired
     lateinit var refreshTokenRepository: RefreshTokenRepository
 
+    @Autowired
+    lateinit var jwtService: JwtService
+
     @Test
     fun `register creates user and returns token pair`() {
         client
@@ -278,7 +281,7 @@ class AuthIntegrationTest {
             // Seed a stale expired token for this user (>30 days old) directly.
             refreshTokenRepository.save(
                 RefreshToken(
-                    userId = extractUserId(registered.accessToken),
+                    userId = jwtService.validateAccessToken(registered.accessToken),
                     tokenHash = "stale-hash-$suffix",
                     expiresAt = Instant.now().minusSeconds(31L * 86400L),
                 ),
@@ -311,12 +314,4 @@ class AuthIntegrationTest {
             .expectBody(AuthResponse::class.java)
             .returnResult()
             .responseBody!!
-
-    private fun extractUserId(accessToken: String): UUID {
-        // JWT payload is Base64-encoded; decode to get the subject (user UUID).
-        val payload = accessToken.split(".")[1]
-        val decoded = String(java.util.Base64.getUrlDecoder().decode(payload + "=="))
-        val sub = Regex("\"sub\":\"([^\"]+)\"").find(decoded)?.groupValues?.get(1)
-        return UUID.fromString(requireNotNull(sub) { "sub claim missing from token" })
-    }
 }
