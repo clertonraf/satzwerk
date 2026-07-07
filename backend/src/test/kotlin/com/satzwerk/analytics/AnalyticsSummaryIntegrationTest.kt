@@ -153,6 +153,22 @@ class AnalyticsSummaryIntegrationTest {
     }
 
     @Test
+    fun `summary returns currentStreak of 1 after completing a session today`() {
+        val session = startSession(authToken, workoutGroupId)
+        addSetLog(authToken, session.id, exerciseId, 1)
+        completeSession(authToken, session.id)
+
+        client
+            .get()
+            .uri("/api/analytics/summary")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.currentStreak").isEqualTo(1)
+    }
+
+    @Test
     fun `summary requires authentication`() {
         client
             .get()

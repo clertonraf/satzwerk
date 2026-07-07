@@ -59,7 +59,7 @@ private val DASHBOARD_SUMMARY_SQL =
         WHERE user_id = :userId AND completed_at IS NOT NULL) AS avg_session_duration_minutes,
         COALESCE(
             (SELECT streak_len FROM streak_ranges
-             WHERE end_day >= CURRENT_DATE - 1
+             WHERE end_day >= (NOW() AT TIME ZONE 'UTC')::DATE - 1
              ORDER BY end_day DESC LIMIT 1),
             0
         ) AS current_streak,
