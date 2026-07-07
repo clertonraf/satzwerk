@@ -10,6 +10,8 @@ import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.http.HttpStatus
 import org.springframework.http.codec.multipart.FilePart
 import org.springframework.stereotype.Component
+import org.springframework.web.reactive.function.client.WebClientRequestException
+import org.springframework.web.reactive.function.client.WebClientResponseException
 import org.springframework.web.reactive.function.server.ServerRequest
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
@@ -22,7 +24,13 @@ class WorkoutPlanHandler(
     private val validator: Validator,
 ) {
     suspend fun create(request: ServerRequest): ServerResponse =
-        handleErrors(withWebClient = true) {
+        handleErrors(
+            extra =
+                mapOf(
+                    WebClientRequestException::class to HttpStatus.SERVICE_UNAVAILABLE,
+                    WebClientResponseException::class to HttpStatus.SERVICE_UNAVAILABLE,
+                ),
+        ) {
             val ctx = RequestContext(request)
             val body = ctx.body<CreatePlanRequest>()
             validateOrBadRequest(validator, body) {
@@ -32,13 +40,25 @@ class WorkoutPlanHandler(
         }
 
     suspend fun list(request: ServerRequest): ServerResponse =
-        handleErrors(withWebClient = true) {
+        handleErrors(
+            extra =
+                mapOf(
+                    WebClientRequestException::class to HttpStatus.SERVICE_UNAVAILABLE,
+                    WebClientResponseException::class to HttpStatus.SERVICE_UNAVAILABLE,
+                ),
+        ) {
             val ctx = RequestContext(request)
             ServerResponse.ok().bodyValueAndAwait(workoutPlanService.list(ctx.userId()))
         }
 
     suspend fun import(request: ServerRequest): ServerResponse =
-        handleErrors(withWebClient = true) {
+        handleErrors(
+            extra =
+                mapOf(
+                    WebClientRequestException::class to HttpStatus.SERVICE_UNAVAILABLE,
+                    WebClientResponseException::class to HttpStatus.SERVICE_UNAVAILABLE,
+                ),
+        ) {
             val ctx = RequestContext(request)
             val multipartData = request.multipartData().awaitSingle()
             val filePart =
@@ -52,7 +72,13 @@ class WorkoutPlanHandler(
         }
 
     suspend fun getDetail(request: ServerRequest): ServerResponse =
-        handleErrors(withWebClient = true) {
+        handleErrors(
+            extra =
+                mapOf(
+                    WebClientRequestException::class to HttpStatus.SERVICE_UNAVAILABLE,
+                    WebClientResponseException::class to HttpStatus.SERVICE_UNAVAILABLE,
+                ),
+        ) {
             val ctx = RequestContext(request)
             val response =
                 workoutPlanService.getDetail(
@@ -63,7 +89,13 @@ class WorkoutPlanHandler(
         }
 
     suspend fun update(request: ServerRequest): ServerResponse =
-        handleErrors(withWebClient = true) {
+        handleErrors(
+            extra =
+                mapOf(
+                    WebClientRequestException::class to HttpStatus.SERVICE_UNAVAILABLE,
+                    WebClientResponseException::class to HttpStatus.SERVICE_UNAVAILABLE,
+                ),
+        ) {
             val ctx = RequestContext(request)
             val body = ctx.body<UpdatePlanRequest>()
             validateOrBadRequest(validator, body) {
@@ -78,7 +110,13 @@ class WorkoutPlanHandler(
         }
 
     suspend fun delete(request: ServerRequest): ServerResponse =
-        handleErrors(withWebClient = true) {
+        handleErrors(
+            extra =
+                mapOf(
+                    WebClientRequestException::class to HttpStatus.SERVICE_UNAVAILABLE,
+                    WebClientResponseException::class to HttpStatus.SERVICE_UNAVAILABLE,
+                ),
+        ) {
             val ctx = RequestContext(request)
             workoutPlanService.delete(
                 ctx.userId(),
@@ -88,7 +126,13 @@ class WorkoutPlanHandler(
         }
 
     suspend fun activate(request: ServerRequest): ServerResponse =
-        handleErrors(withWebClient = true) {
+        handleErrors(
+            extra =
+                mapOf(
+                    WebClientRequestException::class to HttpStatus.SERVICE_UNAVAILABLE,
+                    WebClientResponseException::class to HttpStatus.SERVICE_UNAVAILABLE,
+                ),
+        ) {
             val ctx = RequestContext(request)
             workoutPlanService.activate(
                 ctx.userId(),

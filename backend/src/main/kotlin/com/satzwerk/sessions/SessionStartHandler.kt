@@ -1,5 +1,6 @@
 package com.satzwerk.sessions
 
+import com.satzwerk.common.ConflictException
 import com.satzwerk.common.RequestContext
 import com.satzwerk.common.body
 import com.satzwerk.common.handleErrors
@@ -17,7 +18,7 @@ class SessionStartHandler(
     private val validator: Validator,
 ) {
     suspend fun start(request: ServerRequest): ServerResponse =
-        handleErrors(withConflict = true) {
+        handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
             val ctx = RequestContext(request)
             val body = ctx.body<StartSessionRequest>()
             validateOrBadRequest(validator, body) {
