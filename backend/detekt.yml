@@ -9,3 +9,8 @@ processors:
 
 console-reports:
   active: true
+
+exceptions:
+  TooGenericExceptionCaught:
+    excludes:
+      - '**/common/HandlerSupport.kt'
