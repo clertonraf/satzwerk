@@ -1,11 +1,11 @@
 import axios from 'axios'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toKilograms } from '@/features/sessions/sessionHelpers'
 import { useSessionTransport } from '@/features/sessions/useSessionTransport'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { queryKeys } from '@/services/queryKeys'
-import type { AddSetLogRequest, UpdateSetLogRequest, WorkoutSession } from '@/services/sessionService'
+import type { AddSetLogRequest, PendingSetLog, UpdateSetLogRequest, WorkoutSession } from '@/services/sessionService'
 import { sessionService } from '@/services/sessionService'
 
 export type SessionPhase = 'idle' | 'conflict' | 'open' | 'completing'
@@ -38,6 +38,9 @@ export function useWorkoutSessionMachine({
   const [conflictSession, setConflictSession] = useState<WorkoutSession | null>(null)
   const [pendingGroupId, setPendingGroupId] = useState<string | null>(null)
   const [stalePlanError, setStalePlanError] = useState<string | null>(null)
+  const [pendingSetLogs, setPendingSetLogs] = useState<PendingSetLog[]>([])
+  const prevSessionIdRef = useRef<string | undefined>(undefined)
+  const prevServerSetCountRef = useRef(0)
 
   const openSessionQuery = useQuery<WorkoutSession | null>({
     queryKey: queryKeys.sessions.open(),
@@ -54,6 +57,27 @@ export function useWorkoutSessionMachine({
   })
 
   const session = openSessionQuery.data ?? null
+
+  // Reconcile pending logs as the server confirms them after queue flush.
+  // On session change, reset all pending. Within the same session, remove
+  // confirmed logs incrementally to handle partial flushes correctly.
+  useEffect(() => {
+    const currentId = session?.id
+    const serverCount = session?.setCount ?? 0
+
+    if (prevSessionIdRef.current !== currentId) {
+      prevSessionIdRef.current = currentId
+      prevServerSetCountRef.current = serverCount
+      setPendingSetLogs([])
+      return
+    }
+
+    const delta = serverCount - prevServerSetCountRef.current
+    if (delta > 0) {
+      setPendingSetLogs((prev) => prev.slice(delta))
+    }
+    prevServerSetCountRef.current = serverCount
+  }, [session?.id, session?.setCount])
 
   // Derive phase from query data so background refetches stay safe.
   // machineOverride takes precedence when the machine is in conflict or completing.
@@ -161,6 +185,16 @@ export function useWorkoutSessionMachine({
             weight: toKilograms(event.weight, event.unit),
             reps: event.reps,
           }
+          const pendingLog: PendingSetLog = {
+            id: crypto.randomUUID(),
+            exerciseId: event.exerciseId,
+            setNumber: event.setNumber,
+            weight: toKilograms(event.weight, event.unit),
+            reps: event.reps,
+            loggedAt: new Date().toISOString(),
+            pending: true,
+          }
+          setPendingSetLogs((prev) => [...prev, pendingLog])
           const logged = await transport.addSetLog(session.id, payload)
           queryClient.setQueryData<WorkoutSession>(queryKeys.sessions.open(), (current) => {
             if (!current) return current
@@ -216,6 +250,7 @@ export function useWorkoutSessionMachine({
   return {
     phase,
     session,
+    pendingSetLogs,
     conflictSession,
     stalePlanError,
     dispatch,
