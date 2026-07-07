@@ -2,8 +2,7 @@ package com.satzwerk.common
 
 import jakarta.validation.Validator
 import org.springframework.http.HttpStatus
-import org.springframework.web.reactive.function.client.WebClientRequestException
-import org.springframework.web.reactive.function.client.WebClientResponseException
+import org.springframework.web.reactive.function.client.WebClientException
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import java.util.UUID
@@ -29,9 +28,20 @@ suspend fun <T : Any> validateOrBadRequest(
     return block()
 }
 
+/**
+ * Options for [handleErrors] that opt-in to converting additional exception types to HTTP responses.
+ * Add a new object here when a new domain exception needs per-handler HTTP mapping.
+ */
+sealed interface ErrorHandlerOption {
+    /** Maps [ConflictException] → 409 Conflict. */
+    data object WithConflict : ErrorHandlerOption
+
+    /** Maps [WebClientException] (request or response) → 503 Service Unavailable. */
+    data object WithWebClient : ErrorHandlerOption
+}
+
 suspend fun handleErrors(
-    withConflict: Boolean = false,
-    withWebClient: Boolean = false,
+    vararg options: ErrorHandlerOption,
     block: suspend () -> ServerResponse,
 ): ServerResponse =
     try {
@@ -43,22 +53,16 @@ suspend fun handleErrors(
     } catch (e: BadRequestException) {
         ServerResponse.badRequest().bodyValueAndAwait(ErrorResponse(e.message ?: "Bad request"))
     } catch (e: ConflictException) {
-        if (withConflict) {
+        if (ErrorHandlerOption.WithConflict in options) {
             ServerResponse.status(HttpStatus.CONFLICT).bodyValueAndAwait(ErrorResponse("Conflict"))
         } else {
             throw e
         }
-    } catch (e: WebClientRequestException) {
-        if (withWebClient) {
-            val msg = ErrorResponse("Import service unavailable")
-            ServerResponse.status(HttpStatus.SERVICE_UNAVAILABLE).bodyValueAndAwait(msg)
-        } else {
-            throw e
-        }
-    } catch (e: WebClientResponseException) {
-        if (withWebClient) {
-            val msg = ErrorResponse("Import service unavailable")
-            ServerResponse.status(HttpStatus.SERVICE_UNAVAILABLE).bodyValueAndAwait(msg)
+    } catch (e: WebClientException) {
+        if (ErrorHandlerOption.WithWebClient in options) {
+            ServerResponse.status(HttpStatus.SERVICE_UNAVAILABLE).bodyValueAndAwait(
+                ErrorResponse("Import service unavailable"),
+            )
         } else {
             throw e
         }

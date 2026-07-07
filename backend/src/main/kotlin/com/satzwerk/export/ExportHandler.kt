@@ -1,5 +1,6 @@
 package com.satzwerk.export
 
+import com.satzwerk.common.ErrorHandlerOption
 import com.satzwerk.common.RequestContext
 import com.satzwerk.common.body
 import com.satzwerk.common.handleErrors
@@ -27,7 +28,7 @@ class ExportHandler(
         }
 
     suspend fun import(request: ServerRequest): ServerResponse =
-        handleErrors(withConflict = true) {
+        handleErrors(ErrorHandlerOption.WithConflict) {
             val ctx = RequestContext(request)
             val dto = ctx.body<UserDataExportDto>()
             val summary = exportService.importForUser(ctx.userId(), dto)

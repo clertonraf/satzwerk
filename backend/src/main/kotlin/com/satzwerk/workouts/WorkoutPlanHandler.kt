@@ -1,5 +1,6 @@
 package com.satzwerk.workouts
 
+import com.satzwerk.common.ErrorHandlerOption
 import com.satzwerk.common.ErrorResponse
 import com.satzwerk.common.RequestContext
 import com.satzwerk.common.body
@@ -22,7 +23,7 @@ class WorkoutPlanHandler(
     private val validator: Validator,
 ) {
     suspend fun create(request: ServerRequest): ServerResponse =
-        handleErrors(withWebClient = true) {
+        handleErrors(ErrorHandlerOption.WithWebClient) {
             val ctx = RequestContext(request)
             val body = ctx.body<CreatePlanRequest>()
             validateOrBadRequest(validator, body) {
@@ -32,13 +33,13 @@ class WorkoutPlanHandler(
         }
 
     suspend fun list(request: ServerRequest): ServerResponse =
-        handleErrors(withWebClient = true) {
+        handleErrors(ErrorHandlerOption.WithWebClient) {
             val ctx = RequestContext(request)
             ServerResponse.ok().bodyValueAndAwait(workoutPlanService.list(ctx.userId()))
         }
 
     suspend fun import(request: ServerRequest): ServerResponse =
-        handleErrors(withWebClient = true) {
+        handleErrors(ErrorHandlerOption.WithWebClient) {
             val ctx = RequestContext(request)
             val multipartData = request.multipartData().awaitSingle()
             val filePart =
@@ -52,7 +53,7 @@ class WorkoutPlanHandler(
         }
 
     suspend fun getDetail(request: ServerRequest): ServerResponse =
-        handleErrors(withWebClient = true) {
+        handleErrors(ErrorHandlerOption.WithWebClient) {
             val ctx = RequestContext(request)
             val response =
                 workoutPlanService.getDetail(
@@ -63,7 +64,7 @@ class WorkoutPlanHandler(
         }
 
     suspend fun update(request: ServerRequest): ServerResponse =
-        handleErrors(withWebClient = true) {
+        handleErrors(ErrorHandlerOption.WithWebClient) {
             val ctx = RequestContext(request)
             val body = ctx.body<UpdatePlanRequest>()
             validateOrBadRequest(validator, body) {
@@ -78,7 +79,7 @@ class WorkoutPlanHandler(
         }
 
     suspend fun delete(request: ServerRequest): ServerResponse =
-        handleErrors(withWebClient = true) {
+        handleErrors(ErrorHandlerOption.WithWebClient) {
             val ctx = RequestContext(request)
             workoutPlanService.delete(
                 ctx.userId(),
@@ -88,7 +89,7 @@ class WorkoutPlanHandler(
         }
 
     suspend fun activate(request: ServerRequest): ServerResponse =
-        handleErrors(withWebClient = true) {
+        handleErrors(ErrorHandlerOption.WithWebClient) {
             val ctx = RequestContext(request)
             workoutPlanService.activate(
                 ctx.userId(),
