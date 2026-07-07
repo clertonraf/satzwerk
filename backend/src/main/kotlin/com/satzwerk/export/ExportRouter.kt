@@ -1,5 +1,6 @@
 package com.satzwerk.export
 
+import com.satzwerk.common.ConflictException
 import com.satzwerk.common.RequestContext
 import com.satzwerk.common.body
 import com.satzwerk.common.handleErrors
@@ -7,6 +8,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.ContentDisposition
 import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import org.springframework.web.reactive.function.server.coRouter
@@ -30,7 +32,7 @@ class ExportRouter {
                     }
                 }
                 POST("/import") { request ->
-                    handleErrors(withConflict = true) {
+                    handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
                         val ctx = RequestContext(request)
                         val dto = ctx.body<UserDataExportDto>()
                         val summary = exportService.importForUser(ctx.userId(), dto)

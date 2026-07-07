@@ -11,11 +11,20 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpStatus
 import org.springframework.http.codec.multipart.FilePart
+import org.springframework.web.reactive.function.client.WebClientRequestException
+import org.springframework.web.reactive.function.client.WebClientResponseException
 import org.springframework.web.reactive.function.server.CoRouterFunctionDsl
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import org.springframework.web.reactive.function.server.buildAndAwait
 import org.springframework.web.reactive.function.server.coRouter
+import kotlin.reflect.KClass
+
+private val webClientErrors: Map<KClass<out Throwable>, HttpStatus> =
+    mapOf(
+        WebClientRequestException::class to HttpStatus.SERVICE_UNAVAILABLE,
+        WebClientResponseException::class to HttpStatus.SERVICE_UNAVAILABLE,
+    )
 
 @Configuration
 class WorkoutPlanRouter {
@@ -41,13 +50,13 @@ private fun CoRouterFunctionDsl.planCrudRoutes(
     validator: Validator,
 ) {
     GET("") { request ->
-        handleErrors(withWebClient = true) {
+        handleErrors(extra = webClientErrors) {
             val ctx = RequestContext(request)
             ServerResponse.ok().bodyValueAndAwait(workoutPlanService.list(ctx.userId()))
         }
     }
     POST("") { request ->
-        handleErrors(withWebClient = true) {
+        handleErrors(extra = webClientErrors) {
             val ctx = RequestContext(request)
             val body = ctx.body<CreatePlanRequest>()
             validateOrBadRequest(validator, body) {
@@ -59,7 +68,7 @@ private fun CoRouterFunctionDsl.planCrudRoutes(
     }
     planImportRoute(planImportService)
     GET("/{planId}") { request ->
-        handleErrors(withWebClient = true) {
+        handleErrors(extra = webClientErrors) {
             val ctx = RequestContext(request)
             ServerResponse.ok().bodyValueAndAwait(
                 workoutPlanService.getDetail(ctx.userId(), ctx.pathId("planId")),
@@ -67,7 +76,7 @@ private fun CoRouterFunctionDsl.planCrudRoutes(
         }
     }
     PATCH("/{planId}") { request ->
-        handleErrors(withWebClient = true) {
+        handleErrors(extra = webClientErrors) {
             val ctx = RequestContext(request)
             val body = ctx.body<UpdatePlanRequest>()
             validateOrBadRequest(validator, body) {
@@ -78,14 +87,14 @@ private fun CoRouterFunctionDsl.planCrudRoutes(
         }
     }
     DELETE("/{planId}") { request ->
-        handleErrors(withWebClient = true) {
+        handleErrors(extra = webClientErrors) {
             val ctx = RequestContext(request)
             workoutPlanService.delete(ctx.userId(), ctx.pathId("planId"))
             ServerResponse.noContent().buildAndAwait()
         }
     }
     POST("/{planId}/activate") { request ->
-        handleErrors(withWebClient = true) {
+        handleErrors(extra = webClientErrors) {
             val ctx = RequestContext(request)
             workoutPlanService.activate(ctx.userId(), ctx.pathId("planId"))
             ServerResponse.noContent().buildAndAwait()
@@ -95,7 +104,7 @@ private fun CoRouterFunctionDsl.planCrudRoutes(
 
 private fun CoRouterFunctionDsl.planImportRoute(planImportService: PlanImportService) {
     POST("/import") { request ->
-        handleErrors(withWebClient = true) {
+        handleErrors(extra = webClientErrors) {
             val ctx = RequestContext(request)
             val filePart =
                 request.multipartData().awaitSingle().getFirst("file") as? FilePart

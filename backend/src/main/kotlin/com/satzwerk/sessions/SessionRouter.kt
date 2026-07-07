@@ -1,5 +1,6 @@
 package com.satzwerk.sessions
 
+import com.satzwerk.common.ConflictException
 import com.satzwerk.common.RequestContext
 import com.satzwerk.common.body
 import com.satzwerk.common.handleErrors
@@ -34,7 +35,7 @@ private fun CoRouterFunctionDsl.sessionStartRoutes(
     validator: Validator,
 ) {
     POST("") { request ->
-        handleErrors(withConflict = true) {
+        handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
             val ctx = RequestContext(request)
             val body = ctx.body<StartSessionRequest>()
             validateOrBadRequest(validator, body) {
@@ -56,7 +57,7 @@ private fun CoRouterFunctionDsl.sessionStartRoutes(
         }
     }
     GET("/open") { request ->
-        handleErrors(withConflict = true) {
+        handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
             val ctx = RequestContext(request)
             ServerResponse.ok().bodyValueAndAwait(workoutSessionService.getOpen(ctx.userId()))
         }
@@ -68,7 +69,7 @@ private fun CoRouterFunctionDsl.sessionSetLogRoutes(
     validator: Validator,
 ) {
     POST("/{id}/set-logs") { request ->
-        handleErrors(withConflict = true) {
+        handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
             val ctx = RequestContext(request)
             val body = ctx.body<AddSetLogRequest>()
             validateOrBadRequest(validator, body) {
@@ -78,7 +79,7 @@ private fun CoRouterFunctionDsl.sessionSetLogRoutes(
         }
     }
     PATCH("/{id}/set-logs/{setLogId}") { request ->
-        handleErrors(withConflict = true) {
+        handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
             val ctx = RequestContext(request)
             val body = ctx.body<UpdateSetLogRequest>()
             validateOrBadRequest(validator, body) {
@@ -94,7 +95,7 @@ private fun CoRouterFunctionDsl.sessionSetLogRoutes(
         }
     }
     DELETE("/{id}/set-logs/{setLogId}") { request ->
-        handleErrors(withConflict = true) {
+        handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
             val ctx = RequestContext(request)
             workoutSessionService.deleteSetLog(ctx.userId(), ctx.pathId("id"), ctx.pathId("setLogId"))
             ServerResponse.noContent().buildAndAwait()
@@ -104,7 +105,7 @@ private fun CoRouterFunctionDsl.sessionSetLogRoutes(
 
 private fun CoRouterFunctionDsl.sessionLifecycleRoutes(workoutSessionService: WorkoutSessionService) {
     POST("/{id}/complete") { request ->
-        handleErrors(withConflict = true) {
+        handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
             val ctx = RequestContext(request)
             val response =
                 workoutSessionService.complete(
@@ -116,14 +117,14 @@ private fun CoRouterFunctionDsl.sessionLifecycleRoutes(workoutSessionService: Wo
         }
     }
     DELETE("/{id}") { request ->
-        handleErrors(withConflict = true) {
+        handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
             val ctx = RequestContext(request)
             workoutSessionService.discard(ctx.userId(), ctx.pathId("id"))
             ServerResponse.noContent().buildAndAwait()
         }
     }
     GET("/history") { request ->
-        handleErrors(withConflict = true) {
+        handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
             val ctx = RequestContext(request)
             ServerResponse.ok().bodyValueAndAwait(workoutSessionService.history(ctx.userId()))
         }
