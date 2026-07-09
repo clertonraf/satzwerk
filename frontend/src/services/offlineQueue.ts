@@ -21,6 +21,21 @@ export const offlineQueue = {
 
   clear: () => db.queuedOps.clear(),
 
+  /**
+   * Attempts to replay all queued operations against the live API.
+   *
+   * Guarantees:
+   * - Idempotent: calling flush() when the queue is empty is a no-op.
+   * - Ordered: operations are replayed in the order they were enqueued.
+   * - Partial-success: each operation is attempted independently; a failure in one
+   *   does not prevent the others from being retried.
+   * - Retry-capped: operations that have already failed MAX_RETRIES times are
+   *   permanently dropped and counted as failed in the result.
+   *
+   * Expected call site: createFlushScheduler (via useOfflineSync) on reconnect.
+   * Do not call from multiple concurrent triggers -- parallel flush() calls will
+   * race on the same queue entries.
+   */
   flush: async (): Promise<FlushResult> => {
     const ops = await db.queuedOps.toArray()
 
@@ -28,7 +43,7 @@ export const offlineQueue = {
       return { succeeded: 0, failed: 0 }
     }
 
-    // Drop ops that have exceeded the retry cap — they are permanently failed.
+    // Drop ops that have exceeded the retry cap -- they are permanently failed.
     const exceededIds = ops.filter((op) => op.retryCount >= MAX_RETRIES).map((op) => op.id!)
     if (exceededIds.length > 0) {
       await Promise.all(exceededIds.map((id) => db.queuedOps.delete(id)))
