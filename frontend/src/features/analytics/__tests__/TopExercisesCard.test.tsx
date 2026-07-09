@@ -26,7 +26,7 @@ describe('TopExercisesCard', () => {
   it('renders exercise names and set counts', () => {
     const exercises = [
       makeExercise({ exerciseName: 'Bench Press', setCount: 42 }),
-      makeExercise({ exerciseId: 'ex-2', exerciseName: 'Squat', setCount: 35 }),
+      makeExercise({ exerciseId: 'ex-2', exerciseName: 'Squat', setCount: 1 }),
     ]
 
     render(<TopExercisesCard exercises={exercises} />)
@@ -34,7 +34,7 @@ describe('TopExercisesCard', () => {
     expect(screen.getByText('Bench Press')).toBeInTheDocument()
     expect(screen.getByText('42 sets')).toBeInTheDocument()
     expect(screen.getByText('Squat')).toBeInTheDocument()
-    expect(screen.getByText('35 sets')).toBeInTheDocument()
+    expect(screen.getByText('1 set')).toBeInTheDocument()
   })
 
   it('does not render the empty state when exercises are provided', () => {

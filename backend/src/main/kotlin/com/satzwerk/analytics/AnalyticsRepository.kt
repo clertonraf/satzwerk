@@ -213,7 +213,10 @@ class AnalyticsRepository(
                 TopExerciseRow(
                     exerciseId = row.get("exercise_id", UUID::class.java)!!,
                     exerciseName = row.get("exercise_name", String::class.java)!!,
-                    setCount = requireNotNull(row.get("set_count", java.lang.Long::class.java)).toInt(),
+                    setCount =
+                        Math.toIntExact(
+                            requireNotNull(row.get("set_count", java.lang.Long::class.java)).toLong(),
+                        ),
                 )
             }.all()
             .asFlow()

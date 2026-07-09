@@ -19,7 +19,7 @@ export default function TopExercisesCard({ exercises }: TopExercisesCardProps) {
             {exercises.map((ex) => (
               <li key={ex.exerciseId} className="flex items-center justify-between text-sm">
                 <span className="font-medium">{ex.exerciseName}</span>
-                <span className="text-muted-foreground">{ex.setCount} sets</span>
+                <span className="text-muted-foreground">{ex.setCount} {ex.setCount === 1 ? 'set' : 'sets'}</span>
               </li>
             ))}
           </ul>

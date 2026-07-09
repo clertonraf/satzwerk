@@ -104,7 +104,7 @@ class AnalyticsServiceTest {
         }
 
     @Test
-    fun `topExercises maps repository rows to TopExercise list ordered by setCount descending`(): Unit =
+    fun `topExercises maps repository rows to TopExercise domain objects`(): Unit =
         runBlocking {
             val exerciseId1 = UUID.randomUUID()
             val exerciseId2 = UUID.randomUUID()
