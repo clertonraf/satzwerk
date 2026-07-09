@@ -33,9 +33,19 @@ describe('DashboardPage', () => {
     response: { status: 404, data: {}, headers: {}, config: {}, statusText: 'Not Found' },
   })
 
+  // A minimal fake JWT with sub='user-1'; only the payload segment matters for parseJwtSub.
+  const fakeJwt = `header.${btoa(JSON.stringify({ sub: 'user-1' }))}.sig`
+
   beforeEach(() => {
-    useAuthStore.setState({ user: { id: 'user-1', email: 'test@test.com', displayName: 'Test' } })
+    useAuthStore.setState({ accessToken: fakeJwt })
     useDashboardPreferences.setState({ visibleWidgets: {} })
+    vi.mocked(analyticsService.heatmap).mockReset()
+    vi.mocked(analyticsService.streak).mockReset()
+    vi.mocked(analyticsService.summary).mockReset()
+    vi.mocked(analyticsService.weeklyTrend).mockReset()
+    vi.mocked(analyticsService.personalRecords).mockReset()
+    vi.mocked(sessionService.history).mockReset()
+    vi.mocked(sessionService.getOpen).mockReset()
     vi.mocked(analyticsService.heatmap).mockResolvedValue([])
     vi.mocked(analyticsService.streak).mockResolvedValue({ currentStreak: 0, longestStreak: 0 })
     vi.mocked(analyticsService.summary).mockResolvedValue({
@@ -55,9 +65,9 @@ describe('DashboardPage', () => {
   })
 
   afterEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     useDashboardPreferences.setState({ visibleWidgets: {} })
-    useAuthStore.setState({ user: null })
+    useAuthStore.setState({ accessToken: null })
   })
 
   it('renders the heatmap section', async () => {

@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -18,6 +19,14 @@ import { useDashboardPreferences, type DashboardWidgetId } from '@/store/dashboa
 const TREND_WEEKS = 8
 const PR_LIMIT = 5
 
+function parseJwtSub(token: string): string {
+  try {
+    return (JSON.parse(atob(token.split('.')[1])) as { sub?: string }).sub ?? ''
+  } catch {
+    return ''
+  }
+}
+
 const subtractUtcMonths = (date: Date, months: number): Date => {
   const y = date.getUTCFullYear()
   const m = date.getUTCMonth()
@@ -28,7 +37,8 @@ const subtractUtcMonths = (date: Date, months: number): Date => {
 }
 
 export default function DashboardPage() {
-  const userId = useAuthStore((s) => s.user?.id ?? '')
+  const accessToken = useAuthStore((s) => s.accessToken)
+  const userId = useMemo(() => (accessToken ? parseJwtSub(accessToken) : ''), [accessToken])
   const visibleWidgets = useDashboardPreferences((s) => s.getVisibleWidgets(userId))
   const setVisibleWidgets = useDashboardPreferences((s) => s.setVisibleWidgets)
 
