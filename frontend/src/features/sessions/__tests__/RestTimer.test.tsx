@@ -19,7 +19,6 @@ describe('RestTimer', () => {
 
     expect(screen.getByText(/1:00/i)).toBeInTheDocument()
   })
-})
 
   it('starts countdown at the passed defaultSeconds when started', async () => {
     const user = userEvent.setup()
@@ -40,3 +39,4 @@ describe('RestTimer', () => {
 
     expect(screen.getByText(/1:30/i)).toBeInTheDocument()
   })
+})

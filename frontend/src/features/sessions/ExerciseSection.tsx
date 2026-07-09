@@ -105,7 +105,7 @@ export default function ExerciseSection({
             onLogSet(exercise.exerciseId, setNumber, weight, reps, exerciseUnit)
           }}
         />
-        <RestTimer defaultSeconds={techniqueRestSeconds ?? 90} />
+        <RestTimer defaultSeconds={techniqueRestSeconds ?? undefined} />
 
         {exerciseLogs.length > 0 ? (
           <div className="space-y-2">
