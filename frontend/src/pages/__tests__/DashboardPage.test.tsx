@@ -129,6 +129,7 @@ describe('DashboardPage', () => {
       notes: null,
       setLogs: [],
       setCount: 0,
+      exerciseCount: 0,
     }
 
     vi.mocked(analyticsService.heatmap).mockResolvedValue([])
@@ -191,6 +192,7 @@ describe('DashboardPage', () => {
         notes: null,
         setLogs: [],
         setCount: 0,
+        exerciseCount: 0,
       },
     ])
 

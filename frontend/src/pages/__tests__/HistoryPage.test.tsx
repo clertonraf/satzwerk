@@ -53,6 +53,7 @@ function makeSession(overrides: Partial<WorkoutSession> = {}): WorkoutSession {
     notes: null,
     setLogs,
     setCount: setLogs.length,
+    exerciseCount: 0,
     ...overrides,
   }
 }

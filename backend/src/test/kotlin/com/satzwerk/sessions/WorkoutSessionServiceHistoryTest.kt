@@ -23,6 +23,7 @@ class WorkoutSessionServiceHistoryTest {
             completedAt = Instant.parse("2024-01-10T11:00:00Z"),
             notes = null,
             setCount = 12,
+            exerciseCount = 3,
         )
 
     @Test
@@ -51,6 +52,7 @@ class WorkoutSessionServiceHistoryTest {
             assertEquals(historyRow.startedAt, result[0].startedAt)
             assertEquals(historyRow.completedAt, result[0].completedAt)
             assertEquals(historyRow.setCount, result[0].setCount)
+            assertEquals(historyRow.exerciseCount, result[0].exerciseCount)
             assertTrue(result[0].setLogs.isEmpty())
             verify(queryRepo).findHistoryWithDetails(userId)
         }

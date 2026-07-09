@@ -164,6 +164,7 @@ describe('SessionPage', () => {
         notes: null,
         setLogs: [],
         setCount: 0,
+        exerciseCount: 0,
       },
     })
     vi.mocked(exerciseService.list).mockResolvedValue([

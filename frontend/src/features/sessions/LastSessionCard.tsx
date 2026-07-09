@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { WorkoutSession } from '@/services/sessionService'
+import { computeAvgMinPerExercise } from '@/features/sessions/sessionHelpers'
 
 interface LastSessionCardProps {
   session: WorkoutSession
@@ -12,6 +13,11 @@ export default function LastSessionCard({ session }: LastSessionCardProps) {
   const durationMinutes =
     completedDate
       ? Math.round((completedDate.getTime() - startedDate.getTime()) / 60_000)
+      : null
+
+  const avgMinPerExercise =
+    durationMinutes !== null
+      ? computeAvgMinPerExercise(durationMinutes, session.exerciseCount)
       : null
 
   const displayDate = (completedDate ?? startedDate).toLocaleDateString(undefined, {
@@ -31,6 +37,7 @@ export default function LastSessionCard({ session }: LastSessionCardProps) {
         <div className="flex gap-3 text-xs text-muted-foreground">
           {durationMinutes !== null && <span>{durationMinutes} min</span>}
           <span>{session.setCount} sets</span>
+          {avgMinPerExercise !== null && <span>{avgMinPerExercise} min/exercise</span>}
         </div>
       </CardContent>
     </Card>

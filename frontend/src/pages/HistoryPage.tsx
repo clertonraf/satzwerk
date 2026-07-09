@@ -3,20 +3,23 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { buildWorkoutGroupCatalog } from '@/lib/domainBuilders'
-import { computeSetCompletionPercentage, formatSessionDate } from '@/features/sessions/sessionHelpers'
+import { computeAvgMinPerExercise, computeSetCompletionPercentage, formatSessionDate } from '@/features/sessions/sessionHelpers'
 import type { WorkoutSession, SetLog } from '@/services/sessionService'
 import { exerciseService, type Exercise } from '@/services/exerciseService'
 import { planService } from '@/services/planService'
 import { queryKeys } from '@/services/queryKeys'
 import { sessionService } from '@/services/sessionService'
 
-function formatDuration(startedAt: string, completedAt: string | null): string | null {
+function computeDurationMinutes(startedAt: string, completedAt: string | null): number | null {
   if (!completedAt) return null
-  const ms = new Date(completedAt).getTime() - new Date(startedAt).getTime()
-  const minutes = Math.round(ms / 60000)
-  if (minutes < 60) return `${minutes} min`
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
+  return Math.round((new Date(completedAt).getTime() - new Date(startedAt).getTime()) / 60_000)
+}
+
+function formatDuration(durationMinutes: number | null): string | null {
+  if (durationMinutes === null) return null
+  if (durationMinutes < 60) return `${durationMinutes} min`
+  const h = Math.floor(durationMinutes / 60)
+  const m = durationMinutes % 60
   return m > 0 ? `${h}h ${m}m` : `${h}h`
 }
 
@@ -47,8 +50,12 @@ function SessionHistoryItem({ session, groupTitle, planName, exerciseMap, totalT
     }, {})
   }, [detailQuery.data])
 
-  const duration = formatDuration(session.startedAt, session.completedAt)
+  const durationMinutes = computeDurationMinutes(session.startedAt, session.completedAt)
+  const avgMinPerExercise =
+    durationMinutes !== null ? computeAvgMinPerExercise(durationMinutes, session.exerciseCount) : null
   const completionPct = computeSetCompletionPercentage(session.setCount, totalTargetSets)
+
+  const duration = formatDuration(durationMinutes)
 
   return (
     <li className="rounded-lg border border-border">
@@ -66,6 +73,9 @@ function SessionHistoryItem({ session, groupTitle, planName, exerciseMap, totalT
           <div className="text-right">
             <p className="text-sm text-muted-foreground">{formatSessionDate(session.completedAt ?? session.startedAt)}</p>
             {duration ? <p className="text-xs text-muted-foreground">{duration}</p> : null}
+            {avgMinPerExercise !== null ? (
+              <p className="text-xs text-muted-foreground">{avgMinPerExercise} min/exercise</p>
+            ) : null}
             {completionPct !== null ? (
               <p className="text-xs text-muted-foreground">{completionPct}% sets completed</p>
             ) : null}

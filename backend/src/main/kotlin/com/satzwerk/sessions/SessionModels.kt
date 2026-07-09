@@ -16,6 +16,7 @@ data class WorkoutSessionResponse(
     val notes: String?,
     val setLogs: List<SetLogResponse>,
     val setCount: Int,
+    val exerciseCount: Int,
 )
 
 data class SetLogResponse(

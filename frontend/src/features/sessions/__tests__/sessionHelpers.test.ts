@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildGroupStatsMap } from '@/lib/domainBuilders'
-import { computeSetCompletionPercentage, formatGroupStats, sortGroupOptions } from '../sessionHelpers'
+import { computeAvgMinPerExercise, computeSetCompletionPercentage, formatGroupStats, sortGroupOptions } from '../sessionHelpers'
 import type { WorkoutGroupCatalogEntry } from '@/lib/domainBuilders'
 import type { WorkoutPlanDetail } from '@/services/planService'
 import type { WorkoutSession } from '@/services/sessionService'
@@ -14,6 +14,7 @@ const makeSession = (overrides: Partial<WorkoutSession> = {}): WorkoutSession =>
   notes: null,
   setLogs: [],
   setCount: 12,
+  exerciseCount: 3,
   ...overrides,
 })
 
@@ -174,6 +175,23 @@ describe('computeSetCompletionPercentage', () => {
 
   it('returns null when totalTargetSets is negative', () => {
     expect(computeSetCompletionPercentage(5, -1)).toBeNull()
+  })
+})
 
+describe('computeAvgMinPerExercise', () => {
+  it('returns null when exerciseCount is 0', () => {
+    expect(computeAvgMinPerExercise(60, 0)).toBeNull()
+  })
+
+  it('divides duration by exercise count and rounds to 1 decimal', () => {
+    expect(computeAvgMinPerExercise(60, 4)).toBe(15)
+  })
+
+  it('rounds fractional results to 1 decimal place', () => {
+    expect(computeAvgMinPerExercise(65, 4)).toBe(16.3)
+  })
+
+  it('returns the full duration when there is 1 exercise', () => {
+    expect(computeAvgMinPerExercise(45, 1)).toBe(45)
   })
 })

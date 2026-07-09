@@ -53,6 +53,7 @@ function makeSession(setCount: number): WorkoutSession {
       loggedAt: '2026-01-01T00:00:00Z',
     })),
     setCount,
+    exerciseCount: 0,
   }
 }
 

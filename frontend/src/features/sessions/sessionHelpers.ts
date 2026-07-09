@@ -29,6 +29,11 @@ export function toPounds(weightKg: number) {
   return weightKg * 2.20462
 }
 
+export function computeAvgMinPerExercise(durationMinutes: number, exerciseCount: number): number | null {
+  if (exerciseCount === 0) return null
+  return Math.round((durationMinutes / exerciseCount) * 10) / 10
+}
+
 export function formatGroupStats(count: number, lastCompletedAt: string | null, now: Date = new Date()) {
   if (count === 0 || !lastCompletedAt) {
     return 'Never'

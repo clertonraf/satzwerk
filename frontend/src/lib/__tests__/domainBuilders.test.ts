@@ -12,6 +12,7 @@ const makeSession = (overrides: Partial<WorkoutSession> = {}): WorkoutSession =>
   notes: null,
   setLogs: [],
   setCount: 12,
+  exerciseCount: 3,
   ...overrides,
 })
 
