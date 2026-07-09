@@ -43,6 +43,7 @@ function buildSession(overrides: Partial<WorkoutSession> = {}): WorkoutSession {
     notes: null,
     setLogs: [],
     setCount: 0,
+    exerciseCount: 0,
     ...overrides,
   }
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildGroupStatsMap } from '@/lib/domainBuilders'
-import { formatGroupStats } from '../sessionHelpers'
+import { formatGroupStats, computeAvgMinPerExercise } from '../sessionHelpers'
 import type { WorkoutSession } from '@/services/sessionService'
 
 const makeSession = (overrides: Partial<WorkoutSession> = {}): WorkoutSession => ({
@@ -12,6 +12,7 @@ const makeSession = (overrides: Partial<WorkoutSession> = {}): WorkoutSession =>
   notes: null,
   setLogs: [],
   setCount: 12,
+  exerciseCount: 3,
   ...overrides,
 })
 
@@ -82,5 +83,23 @@ describe('buildGroupStatsMap', () => {
       count: 1,
       lastCompletedAt: '2026-06-08T12:00:00.000Z',
     })
+  })
+})
+
+describe('computeAvgMinPerExercise', () => {
+  it('returns null when exerciseCount is 0', () => {
+    expect(computeAvgMinPerExercise(60, 0)).toBeNull()
+  })
+
+  it('divides duration by exercise count and rounds to 1 decimal', () => {
+    expect(computeAvgMinPerExercise(60, 4)).toBe(15)
+  })
+
+  it('rounds fractional results to 1 decimal place', () => {
+    expect(computeAvgMinPerExercise(65, 4)).toBe(16.3)
+  })
+
+  it('returns the full duration when there is 1 exercise', () => {
+    expect(computeAvgMinPerExercise(45, 1)).toBe(45)
   })
 })

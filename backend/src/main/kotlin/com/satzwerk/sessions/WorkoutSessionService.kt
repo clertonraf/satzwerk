@@ -100,6 +100,7 @@ class WorkoutSessionService(
                 notes = row.notes,
                 setLogs = emptyList(),
                 setCount = row.setCount,
+                exerciseCount = row.exerciseCount,
             )
         }
 
@@ -182,6 +183,7 @@ fun WorkoutSession.toResponse(
         notes = notes,
         setLogs = setLogs,
         setCount = setLogs.size,
+        exerciseCount = setLogs.map { it.exerciseId }.distinct().size,
     )
 
 fun SetLog.toResponse(): SetLogResponse =

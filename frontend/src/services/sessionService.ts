@@ -10,6 +10,7 @@ export interface WorkoutSession {
   notes: string | null
   setLogs: SetLog[]
   setCount: number
+  exerciseCount: number
 }
 
 export interface SetLog {

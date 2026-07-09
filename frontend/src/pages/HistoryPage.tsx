@@ -3,7 +3,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { buildWorkoutGroupCatalog } from '@/lib/domainBuilders'
-import { formatSessionDate } from '@/features/sessions/sessionHelpers'
+import { formatSessionDate, computeAvgMinPerExercise } from '@/features/sessions/sessionHelpers'
 import type { WorkoutSession, SetLog } from '@/services/sessionService'
 import { exerciseService, type Exercise } from '@/services/exerciseService'
 import { planService } from '@/services/planService'
@@ -46,6 +46,13 @@ function SessionHistoryItem({ session, groupTitle, planName, exerciseMap }: Sess
     }, {})
   }, [detailQuery.data])
 
+  const durationMs = session.completedAt
+    ? new Date(session.completedAt).getTime() - new Date(session.startedAt).getTime()
+    : null
+  const durationMinutes = durationMs !== null ? Math.round(durationMs / 60_000) : null
+  const avgMinPerExercise =
+    durationMinutes !== null ? computeAvgMinPerExercise(durationMinutes, session.exerciseCount) : null
+
   const duration = formatDuration(session.startedAt, session.completedAt)
 
   return (
@@ -64,6 +71,9 @@ function SessionHistoryItem({ session, groupTitle, planName, exerciseMap }: Sess
           <div className="text-right">
             <p className="text-sm text-muted-foreground">{formatSessionDate(session.completedAt ?? session.startedAt)}</p>
             {duration ? <p className="text-xs text-muted-foreground">{duration}</p> : null}
+            {avgMinPerExercise !== null ? (
+              <p className="text-xs text-muted-foreground">{avgMinPerExercise} min/exercise</p>
+            ) : null}
           </div>
           {isOpen ? (
             <ChevronUp className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />

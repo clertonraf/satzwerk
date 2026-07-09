@@ -17,6 +17,7 @@ data class SessionHistoryRow(
     val completedAt: Instant?,
     val notes: String?,
     val setCount: Int,
+    val exerciseCount: Int,
 )
 
 internal data class PersonalRecordRow(
@@ -40,7 +41,8 @@ class SessionQueryRepository(
                     ws.started_at,
                     ws.completed_at,
                     ws.notes,
-                    COUNT(sl.id) AS set_count
+                    COUNT(sl.id) AS set_count,
+                    COUNT(DISTINCT sl.exercise_id) AS exercise_count
                 FROM workout_sessions ws
                 JOIN workout_groups wg ON ws.workout_group_id = wg.id
                 LEFT JOIN set_logs sl ON sl.workout_session_id = ws.id
@@ -59,6 +61,7 @@ class SessionQueryRepository(
                     completedAt = row.get("completed_at", Instant::class.java),
                     notes = row.get("notes", String::class.java),
                     setCount = row.get("set_count", java.lang.Long::class.java)?.toInt() ?: 0,
+                    exerciseCount = row.get("exercise_count", java.lang.Long::class.java)?.toInt() ?: 0,
                 )
             }.all()
             .asFlow()
