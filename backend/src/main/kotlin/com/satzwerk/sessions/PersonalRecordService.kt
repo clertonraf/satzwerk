@@ -17,20 +17,6 @@ class PersonalRecordService(
     private val sessionQueryRepository: SessionQueryRepository,
     private val workoutExerciseRepository: WorkoutExerciseRepository,
 ) {
-    suspend fun history(userId: UUID): List<WorkoutSessionResponse> =
-        sessionQueryRepository.findHistoryWithDetails(userId).map { row ->
-            WorkoutSessionResponse(
-                id = row.id,
-                workoutGroupId = row.workoutGroupId,
-                workoutGroupTitle = row.workoutGroupTitle,
-                startedAt = row.startedAt,
-                completedAt = row.completedAt,
-                notes = row.notes,
-                setLogs = emptyList(),
-                setCount = row.setCount,
-            )
-        }
-
     suspend fun findReferenceWeights(
         userId: UUID,
         workoutGroupId: UUID,
