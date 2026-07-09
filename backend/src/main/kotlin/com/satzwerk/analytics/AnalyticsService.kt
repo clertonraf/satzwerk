@@ -6,6 +6,7 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 private const val DEFAULT_PR_LIMIT = 5
+private const val DEFAULT_TOP_EXERCISES_LIMIT = 5
 private const val DEFAULT_TREND_WEEKS = 8
 
 @Service
@@ -67,6 +68,18 @@ class AnalyticsService(
                 weightKg = row.weightKg,
                 reps = row.reps,
                 achievedAt = row.achievedAt,
+            )
+        }
+
+    suspend fun topExercises(
+        userId: UUID,
+        limit: Int = DEFAULT_TOP_EXERCISES_LIMIT,
+    ): List<TopExercise> =
+        analyticsRepository.findTopExercisesBySetCount(userId, limit).map { row ->
+            TopExercise(
+                exerciseId = row.exerciseId,
+                exerciseName = row.exerciseName,
+                setCount = row.setCount,
             )
         }
 }

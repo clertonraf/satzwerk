@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import axios from 'axios'
 import DashboardPage from '../DashboardPage'
 import { QueryClientWrapper } from '@/test/QueryClientWrapper'
-import { analyticsService } from '@/services/analyticsService'
+import { analyticsService, type DashboardSummary } from '@/services/analyticsService'
 import { sessionService } from '@/services/sessionService'
 import { queryKeys } from '@/services/queryKeys'
 import { useDashboardPreferences } from '@/store/dashboardPreferences'
@@ -18,6 +18,7 @@ vi.mock('@/services/analyticsService', () => ({
     summary: vi.fn(),
     weeklyTrend: vi.fn(),
     personalRecords: vi.fn(),
+    topExercises: vi.fn(),
   },
 }))
 
@@ -27,6 +28,17 @@ vi.mock('@/services/sessionService', () => ({
     getOpen: vi.fn(),
   },
 }))
+
+const defaultSummary: DashboardSummary = {
+  currentStreak: 0,
+  longestStreak: 0,
+  sessionsThisMonth: 0,
+  prsThisMonth: 0,
+  totalSessions: 0,
+  setsThisWeek: 0,
+  activePlanDays: null,
+  avgSessionDurationMinutes: null,
+}
 
 describe('DashboardPage', () => {
   const notFoundError = Object.assign(new axios.AxiosError('Not Found'), {
@@ -45,22 +57,15 @@ describe('DashboardPage', () => {
     vi.mocked(analyticsService.summary).mockReset()
     vi.mocked(analyticsService.weeklyTrend).mockReset()
     vi.mocked(analyticsService.personalRecords).mockReset()
+    vi.mocked(analyticsService.topExercises).mockReset()
     vi.mocked(sessionService.history).mockReset()
     vi.mocked(sessionService.getOpen).mockReset()
     vi.mocked(analyticsService.heatmap).mockResolvedValue([])
     vi.mocked(analyticsService.streak).mockResolvedValue({ currentStreak: 0, longestStreak: 0 })
-    vi.mocked(analyticsService.summary).mockResolvedValue({
-      currentStreak: 0,
-      longestStreak: 0,
-      sessionsThisMonth: 0,
-      prsThisMonth: 0,
-      totalSessions: 0,
-      setsThisWeek: 0,
-      activePlanDays: null,
-      avgSessionDurationMinutes: null,
-    })
+    vi.mocked(analyticsService.summary).mockResolvedValue(defaultSummary)
     vi.mocked(analyticsService.weeklyTrend).mockResolvedValue([])
     vi.mocked(analyticsService.personalRecords).mockResolvedValue([])
+    vi.mocked(analyticsService.topExercises).mockResolvedValue([])
     vi.mocked(sessionService.history).mockResolvedValue([])
     vi.mocked(sessionService.getOpen).mockRejectedValue(notFoundError)
   })
@@ -141,6 +146,38 @@ describe('DashboardPage', () => {
     )
 
     expect(await screen.findByRole('link', { name: 'Resume session' })).toBeInTheDocument()
+  })
+
+  it('renders TopExercisesCard with exercises when query resolves with data', async () => {
+    vi.mocked(analyticsService.topExercises).mockResolvedValue([
+      { exerciseId: 'ex-1', exerciseName: 'Bench Press', setCount: 42 },
+    ])
+
+    render(
+      <QueryClientWrapper>
+        <MemoryRouter>
+          <DashboardPage />
+        </MemoryRouter>
+      </QueryClientWrapper>
+    )
+
+    expect(await screen.findByText('Bench Press')).toBeInTheDocument()
+    expect(screen.getByText('42 sets')).toBeInTheDocument()
+  })
+
+  it('does not render TopExercisesCard content when query errors', async () => {
+    vi.mocked(analyticsService.topExercises).mockRejectedValue(new Error('Network error'))
+
+    render(
+      <QueryClientWrapper>
+        <MemoryRouter>
+          <DashboardPage />
+        </MemoryRouter>
+      </QueryClientWrapper>
+    )
+
+    expect(await screen.findByRole('link', { name: 'Start session' })).toBeInTheDocument()
+    expect(screen.queryByText('Most trained exercises')).not.toBeInTheDocument()
   })
 
   it('does not render LastSessionCard when last-session widget is hidden', async () => {

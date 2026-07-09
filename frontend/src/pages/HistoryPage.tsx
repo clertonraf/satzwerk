@@ -3,7 +3,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { buildWorkoutGroupCatalog } from '@/lib/domainBuilders'
-import { formatSessionDate, computeAvgMinPerExercise } from '@/features/sessions/sessionHelpers'
+import { computeAvgMinPerExercise, computeSetCompletionPercentage, formatSessionDate } from '@/features/sessions/sessionHelpers'
 import type { WorkoutSession, SetLog } from '@/services/sessionService'
 import { exerciseService, type Exercise } from '@/services/exerciseService'
 import { planService } from '@/services/planService'
@@ -28,9 +28,10 @@ interface SessionHistoryItemProps {
   groupTitle: string
   planName: string
   exerciseMap: Record<string, Exercise>
+  totalTargetSets: number
 }
 
-function SessionHistoryItem({ session, groupTitle, planName, exerciseMap }: SessionHistoryItemProps) {
+function SessionHistoryItem({ session, groupTitle, planName, exerciseMap, totalTargetSets }: SessionHistoryItemProps) {
   const [isOpen, setIsOpen] = useState(false)
 
   const detailQuery = useQuery({
@@ -52,6 +53,7 @@ function SessionHistoryItem({ session, groupTitle, planName, exerciseMap }: Sess
   const durationMinutes = computeDurationMinutes(session.startedAt, session.completedAt)
   const avgMinPerExercise =
     durationMinutes !== null ? computeAvgMinPerExercise(durationMinutes, session.exerciseCount) : null
+  const completionPct = computeSetCompletionPercentage(session.setCount, totalTargetSets)
 
   const duration = formatDuration(durationMinutes)
 
@@ -73,6 +75,9 @@ function SessionHistoryItem({ session, groupTitle, planName, exerciseMap }: Sess
             {duration ? <p className="text-xs text-muted-foreground">{duration}</p> : null}
             {avgMinPerExercise !== null ? (
               <p className="text-xs text-muted-foreground">{avgMinPerExercise} min/exercise</p>
+            ) : null}
+            {completionPct !== null ? (
+              <p className="text-xs text-muted-foreground">{completionPct}% sets completed</p>
             ) : null}
           </div>
           {isOpen ? (
@@ -140,12 +145,22 @@ export default function HistoryPage() {
     queryFn: () => exerciseService.list(),
   })
 
-  const planDetails = planDetailsQueries.flatMap((query) => (query.data ? [query.data] : []))
+  const planDetails = useMemo(
+    () => planDetailsQueries.flatMap((query) => (query.data ? [query.data] : [])),
+    [planDetailsQueries],
+  )
   const groupCatalog = useMemo(() => buildWorkoutGroupCatalog(planDetails), [planDetails])
   const exerciseMap = useMemo(
     () => Object.fromEntries((exercisesQuery.data ?? []).map((e) => [e.id, e])),
     [exercisesQuery.data],
   )
+  const targetSetsMap = useMemo(() => {
+    const map = new Map<string, number>()
+    Object.values(groupCatalog).forEach(({ group }) => {
+      map.set(group.id, group.exercises.reduce((sum, ex) => sum + ex.sets, 0))
+    })
+    return map
+  }, [groupCatalog])
 
   if (historyQuery.error || plansQuery.error || planDetailsQueries.some((query) => query.error)) {
     return <p className="text-sm text-destructive">Could not load workout history.</p>
@@ -175,6 +190,7 @@ export default function HistoryPage() {
                   groupTitle={groupEntry?.group.title ?? 'Workout group'}
                   planName={groupEntry?.plan.name ?? 'Workout plan'}
                   exerciseMap={exerciseMap}
+                  totalTargetSets={targetSetsMap.get(session.workoutGroupId) ?? 0}
                 />
               )
             })}

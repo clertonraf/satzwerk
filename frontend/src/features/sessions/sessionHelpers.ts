@@ -82,3 +82,15 @@ export function sortGroupOptions(
     return aTime - bTime || a.group.orderIndex - b.group.orderIndex
   })
 }
+
+/**
+ * Returns the set completion percentage (0-100+, rounded to nearest integer),
+ * or null when totalTargetSets is 0 or negative.
+ */
+export function computeSetCompletionPercentage(
+  setCount: number,
+  totalTargetSets: number,
+): number | null {
+  if (totalTargetSets <= 0) return null
+  return Math.round((setCount / totalTargetSets) * 100)
+}

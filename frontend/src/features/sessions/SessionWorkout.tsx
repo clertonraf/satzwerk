@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import ExerciseSection from '@/features/sessions/ExerciseSection'
+import { computeSetCompletionPercentage } from '@/features/sessions/sessionHelpers'
 import type { WorkoutGroupCatalogEntry } from '@/lib/domainBuilders'
 import type { ExerciseReferenceWeights, PendingSetLog, SetLogResult, WorkoutSession } from '@/services/sessionService'
 import type { Exercise } from '@/services/exerciseService'
@@ -52,6 +53,9 @@ export default function SessionWorkout({
   const confirmedLogs: SetLogResult[] = session.setLogs.map((log) => ({ ...log, pending: false }))
   const allLogs: SetLogResult[] = [...confirmedLogs, ...pendingSetLogs]
 
+  const totalTargetSets = currentGroupEntry?.group.exercises.reduce((sum, ex) => sum + ex.sets, 0) ?? 0
+  const completionPct = computeSetCompletionPercentage(allLogs.length, totalTargetSets)
+
   const logsByExerciseId = allLogs.reduce<Map<string, SetLogResult[]>>((acc, log) => {
     const bucket = acc.get(log.exerciseId)
     if (bucket) {
@@ -101,6 +105,12 @@ export default function SessionWorkout({
             : 'Workout details are unavailable offline. Logged sets stay saved and will sync when you reconnect.'}
         </p>
       )}
+
+      {completionPct !== null ? (
+        <p className="text-sm text-muted-foreground">
+          {allLogs.length} / {totalTargetSets} sets · {completionPct}%
+        </p>
+      ) : null}
 
       <div className="flex justify-between">
         <Button
