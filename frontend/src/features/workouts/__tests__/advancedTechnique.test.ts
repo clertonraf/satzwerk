@@ -129,7 +129,7 @@ describe('getAdvancedTechniqueRestSeconds', () => {
     ['GIRONDA', 30],
     ['REST_PAUSE', 20],
     ['SST', 0],
-  ] as const)('returns %i seconds for %s', (technique, expected) => {
+  ] as const)('%s returns %i seconds', (technique, expected) => {
     expect(getAdvancedTechniqueRestSeconds(technique)).toBe(expected)
   })
 })
