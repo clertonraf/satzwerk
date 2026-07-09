@@ -7,8 +7,11 @@ import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
 import java.math.BigDecimal
+import java.time.Instant
 import java.util.UUID
 
 class PersonalRecordServiceTest {
@@ -60,5 +63,23 @@ class PersonalRecordServiceTest {
     fun `calculateIsPr returns false for zero or negative reps`(): Unit =
         runBlocking {
             assertFalse(queryRepo(null).calculateIsPr(userId, exerciseId, BigDecimal("80"), 0))
+        }
+
+    @Test
+    fun `calculateIsPr forwards existing loggedAt and id to findMaxRatioForExercise`(): Unit =
+        runBlocking {
+            val existingId = UUID.randomUUID()
+            val existingLoggedAt = Instant.parse("2024-06-01T10:00:00Z")
+            val existing = SetLogRef(existingId, existingLoggedAt)
+            val repo = queryRepo(null)
+
+            repo.calculateIsPr(userId, exerciseId, BigDecimal("80"), 5, existing)
+
+            verify(repo).findMaxRatioForExercise(
+                eq(userId),
+                eq(exerciseId),
+                eq(existingLoggedAt),
+                eq(existingId),
+            )
         }
 }
