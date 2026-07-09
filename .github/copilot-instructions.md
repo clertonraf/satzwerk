@@ -119,16 +119,17 @@ When adding `useQuery` for an **existing** `queryKey`, the `queryFn` error-handl
 
 **Mock isolation**: Always call `vi.mocked(fn).mockReset()` before reassigning mock implementations in `beforeEach`. This clears both the call history and the implementation from the previous test, preventing cross-test coupling. Applies to any mock that is reconfigured per-test (not just set once at the top level).
 
-**Test fixture consistency**: `setCount` must equal `setLogs.length` in `WorkoutSession` test fixtures. Use a `buildSession({ setLogs: [...] })` helper that derives `setCount` automatically from the provided array — never set them independently.
+**Test fixture consistency**: `setCount` must equal `setLogs.length` in `WorkoutSession` test fixtures. Build a `buildSession()` helper that accepts `setLogs` and derives `setCount` from the array length — never set them as independent constants that can drift.
 
 **React async test pattern (hooks with async state + dispatches)**: When testing hooks that mix `useQuery` with async dispatch operations:
-- Pre-seed the React Query cache in `beforeEach`: `queryClient.setQueryData(queryKeys.sessions.open(), null)` with `staleTime: Infinity` to prevent the initial fetch from racing with dispatches.
+- Create the QueryClient with `defaultOptions: { queries: { retry: false, staleTime: Infinity } }` so pre-seeded cache data is not immediately refetched.
+- Pre-seed the React Query cache in `beforeEach` via `queryClient.setQueryData(queryKeys.sessions.open(), null)` to prevent the initial query from racing with dispatches.
 - Declare `dispatchPromises: Promise<void>[] = []` (initialized, not just declared) to avoid TS2454 under `tsc -b`.
 - Wrap promise *resolution* inside `act()` — any code that triggers a React state update (including resolving a deferred transport promise) must be inside `act()`.
 - Use `await act(async () => { resolver(); await Promise.all(dispatchPromises); })` for final cleanup in reconciliation tests.
 - Never use `null as never` or `undefined as never` in mock setup. For the 404→null mapping use a proper rejection: `mockRejectedValue(Object.assign(new Error('Not Found'), { isAxiosError: true, response: { status: 404 } }))`. For void-returning services use plain `undefined`.
 
-**SetLog type fields**: `SetLog` has only `id, exerciseId, setNumber, weight, reps, loggedAt`. `isPr` and `pending` are NOT part of `SetLog` — they exist only on `SubmittedSetLog` and `PendingSetLog` respectively. Do not add them to base `SetLog` test fixtures.
+**SetLog type fields**: `SetLog` (`id, exerciseId, setNumber, weight, reps, loggedAt`) has no `pending` or `isPr` field. `SubmittedSetLog = SetLog & { pending: false }` and `PendingSetLog = Omit<SetLog, 'id'> & { id: string; pending: true }`. `isPr` is a backend-only concept and does not exist anywhere in the frontend session types. Do not add `pending` or `isPr` to plain `SetLog` test fixtures.
 
 **Build / run / test:**
 ```bash
