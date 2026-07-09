@@ -45,6 +45,28 @@ class AnalyticsServiceTest {
         }
 
     @Test
+    fun `dashboardSummary computes current streak when most recent workout is today`(): Unit =
+        runBlocking {
+            val today = LocalDate.now(ZoneOffset.UTC)
+            val days = listOf(today, today.minusDays(1), today.minusDays(2))
+
+            val result = service(workoutDays = days).dashboardSummary(userId)
+
+            assertEquals(3, result.currentStreak)
+        }
+
+    @Test
+    fun `dashboardSummary computes current streak when most recent workout is yesterday`(): Unit =
+        runBlocking {
+            val today = LocalDate.now(ZoneOffset.UTC)
+            val days = listOf(today.minusDays(1), today.minusDays(2))
+
+            val result = service(workoutDays = days).dashboardSummary(userId)
+
+            assertEquals(2, result.currentStreak)
+        }
+
+    @Test
     fun `dashboardSummary computes longest streak from Kotlin calculator`(): Unit =
         runBlocking {
             val today = LocalDate.now(ZoneOffset.UTC)
