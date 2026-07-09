@@ -35,7 +35,7 @@ describe('RestTimer', () => {
     expect(screen.getByText(/0:20/i)).toBeInTheDocument()
   })
 
-  it('starts countdown at 90 seconds by default', async () => {
+  it('uses internal 90-second default when no defaultSeconds prop is provided', async () => {
     const user = userEvent.setup()
 
     render(<RestTimer />)

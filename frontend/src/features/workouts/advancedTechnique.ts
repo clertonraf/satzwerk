@@ -63,5 +63,7 @@ const advancedTechniqueRestSeconds: Record<AdvancedTechniqueValue, number> = {
 
 export function getAdvancedTechniqueRestSeconds(value: string | null | undefined): number | null {
   if (!value) return null
-  return (advancedTechniqueRestSeconds as Record<string, number>)[value] ?? null
+  return Object.hasOwn(advancedTechniqueRestSeconds, value)
+    ? (advancedTechniqueRestSeconds as Record<string, number>)[value]
+    : null
 }
