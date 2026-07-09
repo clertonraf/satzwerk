@@ -60,6 +60,17 @@ function makePendingSetLog(overrides: Partial<PendingSetLog> = {}): PendingSetLo
   }
 }
 
+function buildSetLog(setNumber: number): WorkoutSession['setLogs'][number] {
+  return {
+    id: `log-${setNumber}`,
+    exerciseId: 'ex-1',
+    setNumber,
+    weight: 80 + setNumber * 5,
+    reps: 5,
+    loggedAt: '2024-01-01T00:00:00Z',
+  }
+}
+
 describe('useWorkoutSessionMachine', () => {
   let queryClient: QueryClient
 
@@ -79,9 +90,10 @@ describe('useWorkoutSessionMachine', () => {
     mockUseOnlineStatus.mockReturnValue(true)
     mockAddSetLog.mockReset()
     vi.mocked(sessionService.start).mockReset()
-    // Mock getOpen to reject with a 404 AxiosError, matching production queryFn
-    // behaviour (which maps 404 → null). This is type-safe and exercises the
-    // error-handling path in the open-session queryFn.
+    // Mock getOpen with a 404 AxiosError — type-safe default for the conflict path,
+    // where the machine explicitly calls sessionService.getOpen() after a 409.
+    // The open-session cache is pre-seeded with null above, so the useQuery's
+    // initial fetch never fires and this mock is only consumed by direct getOpen() calls.
     vi.mocked(sessionService.getOpen).mockRejectedValue(
       Object.assign(new Error('Not Found'), { isAxiosError: true, response: { status: 404 } }),
     )
@@ -366,7 +378,10 @@ describe('useWorkoutSessionMachine', () => {
 
       // Simulate partial server confirmation: server confirms 2 of 3 sets
       await act(async () => {
-        queryClient.setQueryData(queryKeys.sessions.open(), buildSession({ setCount: 2 }))
+        queryClient.setQueryData(
+          queryKeys.sessions.open(),
+          buildSession({ setLogs: [buildSetLog(1), buildSetLog(2)], setCount: 2 }),
+        )
       })
 
       await waitFor(() => expect(result.current.pendingSetLogs).toHaveLength(1))
@@ -403,7 +418,10 @@ describe('useWorkoutSessionMachine', () => {
       expect(result.current.pendingSetLogs).toHaveLength(2)
 
       await act(async () => {
-        queryClient.setQueryData(queryKeys.sessions.open(), buildSession({ setCount: 2 }))
+        queryClient.setQueryData(
+          queryKeys.sessions.open(),
+          buildSession({ setLogs: [buildSetLog(1), buildSetLog(2)], setCount: 2 }),
+        )
       })
 
       await waitFor(() => expect(result.current.pendingSetLogs).toHaveLength(0))
