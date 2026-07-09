@@ -4,7 +4,6 @@ import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.NotFoundException
 import com.satzwerk.sessions.SetLog
-import com.satzwerk.sessions.SetLogRepository
 import com.satzwerk.sessions.WorkoutSession
 import com.satzwerk.users.UserRepository
 import com.satzwerk.workouts.Exercise
@@ -27,7 +26,6 @@ class ExportService(
     private val userRepository: UserRepository,
     private val exerciseRepository: ExerciseRepository,
     private val workoutDataPort: WorkoutDataPort,
-    private val setLogRepository: SetLogRepository,
 ) {
     suspend fun exportForUser(userId: UUID): UserDataExportDto {
         val user = userRepository.findById(userId) ?: throw NotFoundException("User not found")
@@ -95,32 +93,31 @@ class ExportService(
         userId: UUID,
         plans: List<ExportWorkoutPlanDto>,
         exerciseIdMap: Map<UUID, UUID>,
-    ): Pair<MutableMap<UUID, UUID>, Int> {
+    ): Pair<Map<UUID, UUID>, Int> {
         val groupIdMap = mutableMapOf<UUID, UUID>()
         for (exportedPlan in plans) {
-            val savedPlan = workoutDataPort.savePlan(toNewWorkoutPlan(userId, exportedPlan))
-            val newPlanId = requireNotNull(savedPlan.id)
-            for (exportedGroup in exportedPlan.groups) {
-                val savedGroup = workoutDataPort.saveGroup(toNewWorkoutGroup(newPlanId, exportedGroup))
-                val newGroupId = requireNotNull(savedGroup.id)
-                groupIdMap[exportedGroup.id] = newGroupId
-                importGroupExercises(newGroupId, exportedGroup.exercises, exerciseIdMap)
-            }
+            val groupSpecs =
+                exportedPlan.groups.map { exportedGroup ->
+                    val exercises =
+                        exportedGroup.exercises.map { exportedWe ->
+                            val mappedId =
+                                exerciseIdMap[exportedWe.exerciseId]
+                                    ?: throw BadRequestException(
+                                        "Export references unknown exercise id ${exportedWe.exerciseId}",
+                                    )
+                            toNewWorkoutExercise(UUID(0, 0), mappedId, exportedWe)
+                        }
+                    ImportGroupSpec(
+                        exportedId = exportedGroup.id,
+                        group = toNewWorkoutGroup(UUID(0, 0), exportedGroup),
+                        exercises = exercises,
+                    )
+                }
+            groupIdMap.putAll(
+                workoutDataPort.importPlanWithGroups(toNewWorkoutPlan(userId, exportedPlan), groupSpecs),
+            )
         }
         return groupIdMap to plans.size
-    }
-
-    private suspend fun importGroupExercises(
-        groupId: UUID,
-        workoutExercises: List<ExportWorkoutExerciseDto>,
-        exerciseIdMap: Map<UUID, UUID>,
-    ) {
-        for (exportedWe in workoutExercises) {
-            val mappedId =
-                exerciseIdMap[exportedWe.exerciseId]
-                    ?: throw BadRequestException("Export references unknown exercise id ${exportedWe.exerciseId}")
-            workoutDataPort.saveWorkoutExercise(toNewWorkoutExercise(groupId, mappedId, exportedWe))
-        }
     }
 
     private suspend fun importSessions(
@@ -134,16 +131,18 @@ class ExportService(
             val mappedGroupId =
                 groupIdMap[exportedSession.workoutGroupId]
                     ?: throw BadRequestException("Export references unknown group id ${exportedSession.workoutGroupId}")
-            val savedSession =
-                workoutDataPort.saveSession(toNewWorkoutSession(userId, mappedGroupId, exportedSession))
-            val newSessionId = requireNotNull(savedSession.id)
-            for (exportedSetLog in exportedSession.setLogs) {
-                val mappedId =
-                    exerciseIdMap[exportedSetLog.exerciseId]
-                        ?: throw BadRequestException("Unknown exercise id ${exportedSetLog.exerciseId}")
-                workoutDataPort.saveSetLog(toNewSetLog(newSessionId, mappedId, exportedSetLog))
-                setLogCount++
-            }
+            val setLogs =
+                exportedSession.setLogs.map { exportedSetLog ->
+                    val mappedId =
+                        exerciseIdMap[exportedSetLog.exerciseId]
+                            ?: throw BadRequestException("Unknown exercise id ${exportedSetLog.exerciseId}")
+                    toNewSetLog(UUID(0, 0), mappedId, exportedSetLog)
+                }
+            setLogCount +=
+                workoutDataPort.importSessionWithSetLogs(
+                    toNewWorkoutSession(userId, mappedGroupId, exportedSession),
+                    setLogs,
+                )
         }
         return sessions.size to setLogCount
     }
@@ -174,10 +173,7 @@ class ExportService(
 
     private suspend fun exportSessions(userId: UUID): List<ExportWorkoutSessionDto> {
         val sessions = workoutDataPort.findAllSessions(userId)
-        val sessionIds = sessions.mapNotNull { it.id }
-        val logsBySession =
-            setLogRepository.findAllByWorkoutSessionIdIn(sessionIds)
-                .groupBy { it.workoutSessionId }
+        val logsBySession = workoutDataPort.findSetLogsBySessionIds(sessions.mapNotNull { it.id })
         return sessions.map { session ->
             toExportSessionDto(session, logsBySession[session.id] ?: emptyList())
         }

@@ -13,9 +13,19 @@ import com.satzwerk.workouts.WorkoutPlanRepository
 import org.springframework.stereotype.Component
 import java.util.UUID
 
+/** Identifies a workout group to be imported together with its exercises. */
+data class ImportGroupSpec(
+    val exportedId: UUID,
+    val group: WorkoutGroup,
+    val exercises: List<WorkoutExercise>,
+)
+
 /**
- * Groups the five workout/session repositories behind a single injectable boundary,
- * keeping ExportService constructor parameter count within the detekt threshold.
+ * Deep persistence boundary for import/export operations.
+ *
+ * Provides query methods for the export path and deep write methods for the import path.
+ * The import methods own the ID-wiring between plan → group → exercise and session → set-log,
+ * so callers construct template entities without knowing the newly-assigned IDs.
  */
 @Component
 class WorkoutDataPort(
@@ -38,13 +48,47 @@ class WorkoutDataPort(
 
     suspend fun findAllSessions(userId: UUID): List<WorkoutSession> = workoutSessionRepository.findAllByUserId(userId)
 
-    suspend fun savePlan(plan: WorkoutPlan): WorkoutPlan = workoutPlanRepository.save(plan)
+    suspend fun findSetLogsBySessionIds(sessionIds: List<UUID>): Map<UUID, List<SetLog>> =
+        setLogRepository.findAllByWorkoutSessionIdIn(sessionIds).groupBy { it.workoutSessionId }
 
-    suspend fun saveGroup(group: WorkoutGroup): WorkoutGroup = workoutGroupRepository.save(group)
+    /**
+     * Saves [plan] along with each group and its exercises, wiring the generated IDs at each level.
+     *
+     * @return a map from each [ImportGroupSpec.exportedId] to the newly-assigned group ID,
+     *         allowing callers to remap session references from the original export.
+     */
+    suspend fun importPlanWithGroups(
+        plan: WorkoutPlan,
+        groupSpecs: List<ImportGroupSpec>,
+    ): Map<UUID, UUID> {
+        val savedPlan = workoutPlanRepository.save(plan)
+        val newPlanId = requireNotNull(savedPlan.id)
+        val groupIdMap = mutableMapOf<UUID, UUID>()
+        for (spec in groupSpecs) {
+            val savedGroup = workoutGroupRepository.save(spec.group.copy(workoutPlanId = newPlanId))
+            val newGroupId = requireNotNull(savedGroup.id)
+            groupIdMap[spec.exportedId] = newGroupId
+            for (exercise in spec.exercises) {
+                workoutExerciseRepository.save(exercise.copy(workoutGroupId = newGroupId))
+            }
+        }
+        return groupIdMap
+    }
 
-    suspend fun saveWorkoutExercise(we: WorkoutExercise): WorkoutExercise = workoutExerciseRepository.save(we)
-
-    suspend fun saveSession(session: WorkoutSession): WorkoutSession = workoutSessionRepository.save(session)
-
-    suspend fun saveSetLog(setLog: SetLog): SetLog = setLogRepository.save(setLog)
+    /**
+     * Saves [session] and all [setLogs], wiring [SetLog.workoutSessionId] to the newly-assigned session ID.
+     *
+     * @return the number of set logs saved.
+     */
+    suspend fun importSessionWithSetLogs(
+        session: WorkoutSession,
+        setLogs: List<SetLog>,
+    ): Int {
+        val savedSession = workoutSessionRepository.save(session)
+        val newSessionId = requireNotNull(savedSession.id)
+        for (setLog in setLogs) {
+            setLogRepository.save(setLog.copy(workoutSessionId = newSessionId))
+        }
+        return setLogs.size
+    }
 }
