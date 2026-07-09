@@ -130,6 +130,10 @@ describe('getAdvancedTechniqueRestSeconds', () => {
     expect(getAdvancedTechniqueRestSeconds('UNKNOWN')).toBeNull()
   })
 
+  it('returns null for toString (prototype-chain safety)', () => {
+    expect(getAdvancedTechniqueRestSeconds('toString')).toBeNull()
+  })
+
   it.each([
     ['GVT', 60],
     ['FST_7', 30],
