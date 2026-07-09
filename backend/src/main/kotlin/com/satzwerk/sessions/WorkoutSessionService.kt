@@ -19,6 +19,7 @@ class WorkoutSessionService(
     private val workoutPlanService: WorkoutPlanService,
     private val personalRecordService: PersonalRecordService,
     private val setLogService: SetLogService,
+    private val sessionQueryRepository: SessionQueryRepository,
 ) {
     suspend fun getStartOptions(userId: UUID): WorkoutPlanDetailResponse = workoutPlanService.getActiveDetail(userId)
 
@@ -88,7 +89,19 @@ class WorkoutSessionService(
         workoutSessionRepository.deleteById(sessionId)
     }
 
-    suspend fun history(userId: UUID): List<WorkoutSessionResponse> = personalRecordService.history(userId)
+    suspend fun history(userId: UUID): List<WorkoutSessionResponse> =
+        sessionQueryRepository.findHistoryWithDetails(userId).map { row ->
+            WorkoutSessionResponse(
+                id = row.id,
+                workoutGroupId = row.workoutGroupId,
+                workoutGroupTitle = row.workoutGroupTitle,
+                startedAt = row.startedAt,
+                completedAt = row.completedAt,
+                notes = row.notes,
+                setLogs = emptyList(),
+                setCount = row.setCount,
+            )
+        }
 
     suspend fun getById(
         userId: UUID,
