@@ -3,6 +3,7 @@ import {
   ADVANCED_TECHNIQUE_OPTIONS,
   formatAdvancedTechnique,
   getAdvancedTechniqueDescription,
+  getAdvancedTechniqueRestSeconds,
 } from '../advancedTechnique'
 
 describe('ADVANCED_TECHNIQUE_OPTIONS completeness', () => {
@@ -103,8 +104,6 @@ describe('getAdvancedTechniqueDescription', () => {
     expect(description).toMatch(/8 sets of 8/i)
   })
 })
-
-import { getAdvancedTechniqueRestSeconds } from '../advancedTechnique'
 
 describe('getAdvancedTechniqueRestSeconds', () => {
   it('returns null for null input', () => {
