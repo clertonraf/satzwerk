@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildGroupStatsMap } from '@/lib/domainBuilders'
-import { formatGroupStats } from '../sessionHelpers'
+import { formatGroupStats, computeSetCompletionPercentage } from '../sessionHelpers'
 import type { WorkoutSession } from '@/services/sessionService'
 
 const makeSession = (overrides: Partial<WorkoutSession> = {}): WorkoutSession => ({
@@ -85,14 +85,12 @@ describe('buildGroupStatsMap', () => {
   })
 })
 
-import { computeSetCompletionPercentage } from '../sessionHelpers'
-
 describe('computeSetCompletionPercentage', () => {
   it('returns 80 for 12/15 sets', () => {
     expect(computeSetCompletionPercentage(12, 15)).toBe(80)
   })
 
-  it('rounds down: 1/3 → 33', () => {
+  it('rounds to nearest integer: 1/3 → 33', () => {
     expect(computeSetCompletionPercentage(1, 3)).toBe(33)
   })
 
