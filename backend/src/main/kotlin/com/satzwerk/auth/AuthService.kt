@@ -8,7 +8,6 @@ import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import java.time.Instant
 
-private const val CLEANUP_DAYS_THRESHOLD = 30L
 private const val SECONDS_PER_DAY = 86400L
 
 @Service
@@ -72,7 +71,7 @@ class AuthService(
     }
 
     private suspend fun cleanupOldTokens() {
-        val cutoff = Instant.now().minusSeconds(CLEANUP_DAYS_THRESHOLD * SECONDS_PER_DAY)
+        val cutoff = Instant.now().minusSeconds(REFRESH_TOKEN_RETENTION_DAYS * SECONDS_PER_DAY)
         refreshTokenRepository.deleteByExpiresAtBefore(cutoff)
         refreshTokenRepository.deleteByRevokedAtIsNotNullAndRevokedAtBefore(cutoff)
     }
