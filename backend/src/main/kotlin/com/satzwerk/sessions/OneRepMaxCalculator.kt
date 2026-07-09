@@ -7,7 +7,7 @@ internal const val EPLEY_DIVISOR = "30"
 
 private const val EPLEY_DIVISION_SCALE = 10
 
-/** Estimates one-rep max using the Epley formula: weight × (1 + reps / 30). */
+/** Estimates one-rep max using the Epley formula: weight × (1 + reps / 30). Result is rounded to 2 decimal places. */
 internal fun epley(
     weight: BigDecimal,
     reps: Int,
