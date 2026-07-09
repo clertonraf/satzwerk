@@ -4,6 +4,11 @@ import userEvent from '@testing-library/user-event'
 import RestTimer from '../RestTimer'
 
 describe('RestTimer', () => {
+  it('renders nothing when defaultSeconds is 0', () => {
+    const { container } = render(<RestTimer defaultSeconds={0} />)
+    expect(container).toBeEmptyDOMElement()
+  })
+
   it('renders a start button initially', () => {
     render(<RestTimer />)
 

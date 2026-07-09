@@ -38,6 +38,11 @@ export default function RestTimer({ defaultSeconds = 90 }: RestTimerProps) {
 
   const label = useMemo(() => formatSeconds(secondsLeft), [secondsLeft])
 
+  // Zero or negative rest (e.g. SST technique) means no rest is needed; skip the timer entirely.
+  if (defaultSeconds <= 0) {
+    return null
+  }
+
   if (!isRunning) {
     return (
       <Button
