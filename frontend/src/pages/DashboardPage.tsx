@@ -45,9 +45,9 @@ export default function DashboardPage() {
   const setVisibleWidgets = useDashboardPreferences((s) => s.setVisibleWidgets)
 
   const handleToggle = (widgetId: DashboardWidgetId, visible: boolean) => {
-    const updated = visible
-      ? [...visibleWidgets, widgetId]
-      : visibleWidgets.filter((id) => id !== widgetId)
+    if (!userId) return
+    const current = useDashboardPreferences.getState().getVisibleWidgets(userId)
+    const updated = visible ? [...current, widgetId] : current.filter((id) => id !== widgetId)
     setVisibleWidgets(userId, updated)
   }
 
