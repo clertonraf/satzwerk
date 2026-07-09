@@ -17,7 +17,9 @@ export default function RestTimer({ defaultSeconds = 90 }: RestTimerProps) {
   const [secondsLeft, setSecondsLeft] = useState(defaultSeconds)
 
   useEffect(() => {
-    if (!isRunning) {
+    // Also stop when defaultSeconds changes to <= 0 at runtime; adding it to deps
+    // triggers cleanup of the previous interval before starting a new one.
+    if (!isRunning || defaultSeconds <= 0) {
       return
     }
 
@@ -34,12 +36,12 @@ export default function RestTimer({ defaultSeconds = 90 }: RestTimerProps) {
     }, 1000)
 
     return () => window.clearInterval(interval)
-  }, [isRunning])
+  }, [isRunning, defaultSeconds])
 
   const label = useMemo(() => formatSeconds(secondsLeft), [secondsLeft])
 
-  // Zero or negative rest (e.g. SST technique) means no rest is needed; skip the timer entirely.
-  // React unmounts the component, which triggers the interval cleanup via the isRunning effect.
+  // Zero or negative rest (e.g. SST technique) means no rest is needed; render nothing.
+  // The interval is already stopped above because defaultSeconds <= 0 guards the effect.
   if (defaultSeconds <= 0) {
     return null
   }
