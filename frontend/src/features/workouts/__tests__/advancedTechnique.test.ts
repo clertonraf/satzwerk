@@ -103,3 +103,33 @@ describe('getAdvancedTechniqueDescription', () => {
     expect(description).toMatch(/8 sets of 8/i)
   })
 })
+
+import { getAdvancedTechniqueRestSeconds } from '../advancedTechnique'
+
+describe('getAdvancedTechniqueRestSeconds', () => {
+  it('returns null for null input', () => {
+    expect(getAdvancedTechniqueRestSeconds(null)).toBeNull()
+  })
+
+  it('returns null for undefined input', () => {
+    expect(getAdvancedTechniqueRestSeconds(undefined)).toBeNull()
+  })
+
+  it('returns null for empty string', () => {
+    expect(getAdvancedTechniqueRestSeconds('')).toBeNull()
+  })
+
+  it('returns null for unknown technique', () => {
+    expect(getAdvancedTechniqueRestSeconds('UNKNOWN')).toBeNull()
+  })
+
+  it.each([
+    ['GVT', 60],
+    ['FST_7', 30],
+    ['GIRONDA', 30],
+    ['REST_PAUSE', 20],
+    ['SST', 0],
+  ] as const)('returns %i seconds for %s', (technique, expected) => {
+    expect(getAdvancedTechniqueRestSeconds(technique)).toBe(expected)
+  })
+})

@@ -52,3 +52,16 @@ export function getAdvancedTechniqueDescription(value: string | null | undefined
 
   return (advancedTechniqueDescriptions as Record<string, string>)[value] ?? null
 }
+
+const advancedTechniqueRestSeconds: Record<AdvancedTechniqueValue, number> = {
+  GVT: 60,
+  FST_7: 30,
+  GIRONDA: 30,
+  REST_PAUSE: 20,
+  SST: 0,
+}
+
+export function getAdvancedTechniqueRestSeconds(value: string | null | undefined): number | null {
+  if (!value) return null
+  return (advancedTechniqueRestSeconds as Record<string, number>)[value] ?? null
+}

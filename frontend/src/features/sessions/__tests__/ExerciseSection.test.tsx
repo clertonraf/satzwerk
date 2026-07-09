@@ -138,3 +138,32 @@ describe('ExerciseSection', () => {
     expect(onDeleteSetLog).not.toHaveBeenCalled()
   })
 })
+
+describe('ExerciseSection rest timer defaultSeconds wiring', () => {
+  it('passes 90 as defaultSeconds to RestTimer when exercise has no advanced technique', async () => {
+    const user = userEvent.setup()
+    renderSection({ exercise: makeExercise() })
+
+    await user.click(screen.getByRole('button', { name: /start rest/i }))
+
+    expect(screen.getByText(/1:30/i)).toBeInTheDocument()
+  })
+
+  it('passes GVT rest duration (60s) to RestTimer when exercise technique is GVT', async () => {
+    const user = userEvent.setup()
+    renderSection({ exercise: { ...makeExercise(), advancedTechnique: 'GVT' } })
+
+    await user.click(screen.getByRole('button', { name: /start rest/i }))
+
+    expect(screen.getByText(/1:00/i)).toBeInTheDocument()
+  })
+
+  it('passes REST_PAUSE rest duration (20s) to RestTimer when exercise technique is REST_PAUSE', async () => {
+    const user = userEvent.setup()
+    renderSection({ exercise: { ...makeExercise(), advancedTechnique: 'REST_PAUSE' } })
+
+    await user.click(screen.getByRole('button', { name: /start rest/i }))
+
+    expect(screen.getByText(/0:20/i)).toBeInTheDocument()
+  })
+})

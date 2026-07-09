@@ -16,6 +16,7 @@ import ExerciseReferenceRow from '@/features/sessions/ExerciseReferenceRow'
 import RestTimer from '@/features/sessions/RestTimer'
 import SetInput from '@/features/sessions/SetInput'
 import { toPounds } from '@/features/sessions/sessionHelpers'
+import { getAdvancedTechniqueRestSeconds } from '@/features/workouts/advancedTechnique'
 import { formatDisplayWeight } from '@/lib/unitFormatters'
 import type { ExerciseReferenceWeights, SetLogResult } from '@/services/sessionService'
 import type { WorkoutExerciseSummary } from '@/services/planService'
@@ -57,6 +58,7 @@ export default function ExerciseSection({
   const [pendingDeleteSetLogId, setPendingDeleteSetLogId] = useState<string | null>(null)
   const pendingDeleteLog = pendingDeleteSetLogId ? exerciseLogs.find((l) => l.id === pendingDeleteSetLogId) : null
   const nextSetNumber = exerciseLogs.length + 1
+  const techniqueRestSeconds = getAdvancedTechniqueRestSeconds(exercise.advancedTechnique)
 
   return (
     <Card className="border-border bg-background/70 shadow-none">
@@ -103,7 +105,7 @@ export default function ExerciseSection({
             onLogSet(exercise.exerciseId, setNumber, weight, reps, exerciseUnit)
           }}
         />
-        <RestTimer />
+        <RestTimer defaultSeconds={techniqueRestSeconds ?? 90} />
 
         {exerciseLogs.length > 0 ? (
           <div className="space-y-2">

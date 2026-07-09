@@ -20,3 +20,23 @@ describe('RestTimer', () => {
     expect(screen.getByText(/1:00/i)).toBeInTheDocument()
   })
 })
+
+  it('starts countdown at the passed defaultSeconds when started', async () => {
+    const user = userEvent.setup()
+
+    render(<RestTimer defaultSeconds={20} />)
+
+    await user.click(screen.getByRole('button', { name: /start rest/i }))
+
+    expect(screen.getByText(/0:20/i)).toBeInTheDocument()
+  })
+
+  it('starts countdown at 90 seconds by default', async () => {
+    const user = userEvent.setup()
+
+    render(<RestTimer />)
+
+    await user.click(screen.getByRole('button', { name: /start rest/i }))
+
+    expect(screen.getByText(/1:30/i)).toBeInTheDocument()
+  })
