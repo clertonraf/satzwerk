@@ -1,3 +1,5 @@
+import type { WorkoutGroupCatalogEntry } from '@/lib/domainBuilders'
+
 export function formatSessionDate(value: string | null | undefined) {
   if (!value) {
     return 'In progress'
@@ -46,8 +48,6 @@ export function formatGroupStats(count: number, lastCompletedAt: string | null, 
   return `Done ${count}×, ${daysAgo} days ago`
 }
 
-import type { WorkoutGroupCatalogEntry } from '@/lib/domainBuilders'
-
 /**
  * Sorts workout group catalog entries for session startup:
  * 1. Never-done groups first, in plan orderIndex order.
@@ -55,7 +55,7 @@ import type { WorkoutGroupCatalogEntry } from '@/lib/domainBuilders'
  */
 export function sortGroupOptions(
   entries: WorkoutGroupCatalogEntry[],
-  groupStatsMap: Map<string, { lastCompletedAt: string | null }>,
+  groupStatsMap: ReadonlyMap<string, { lastCompletedAt: string | null }>,
 ): WorkoutGroupCatalogEntry[] {
   return [...entries].sort((a, b) => {
     const aLast = groupStatsMap.get(a.group.id)?.lastCompletedAt ?? null

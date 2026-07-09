@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { buildGroupStatsMap } from '@/lib/domainBuilders'
-import { formatGroupStats } from '../sessionHelpers'
+import { formatGroupStats, sortGroupOptions } from '../sessionHelpers'
+import type { WorkoutGroupCatalogEntry } from '@/lib/domainBuilders'
+import type { WorkoutPlanDetail } from '@/services/planService'
 import type { WorkoutSession } from '@/services/sessionService'
 
 const makeSession = (overrides: Partial<WorkoutSession> = {}): WorkoutSession => ({
@@ -85,9 +87,6 @@ describe('buildGroupStatsMap', () => {
   })
 })
 
-import { sortGroupOptions } from '../sessionHelpers'
-import type { WorkoutGroupCatalogEntry } from '@/lib/domainBuilders'
-import type { WorkoutPlanDetail } from '@/services/planService'
 
 const basePlan: WorkoutPlanDetail = {
   id: 'plan-1',
