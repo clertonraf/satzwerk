@@ -31,9 +31,15 @@ export default function ExerciseReferenceRow({
       ? `Previous: ${formatDisplayWeight(referenceWeights.previousWeightKg, unit)}`
       : null,
     referenceWeights.prWeightKg != null ? `PR: ${formatDisplayWeight(referenceWeights.prWeightKg, unit)}` : null,
-    referenceWeights.estimatedOneRepMaxKg != null
-      ? `Est. 1RM: ${formatDisplayWeight(referenceWeights.estimatedOneRepMaxKg, unit)}`
-      : null,
+    (() => {
+      const min = referenceWeights.estimatedOneRepMaxMinKg
+      const max = referenceWeights.estimatedOneRepMaxMaxKg
+      if (min != null && max != null) {
+        return `Est. 1RM: ${formatDisplayWeight(min, unit)} – ${formatDisplayWeight(max, unit)}`
+      }
+      const single = min ?? max
+      return single != null ? `Est. 1RM: ${formatDisplayWeight(single, unit)}` : null
+    })(),
     referenceWeights.suggestedWeightKg != null
       ? `Suggested: ${formatDisplayWeight(referenceWeights.suggestedWeightKg, unit)}`
       : null,

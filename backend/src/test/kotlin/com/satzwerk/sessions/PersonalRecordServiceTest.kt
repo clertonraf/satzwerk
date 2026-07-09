@@ -150,7 +150,7 @@ class PersonalRecordServiceAssemblyTest {
         }
 
     @Test
-    fun `findReferenceWeights computes estimatedOneRepMaxKg from personal record via Epley`(): Unit =
+    fun `findReferenceWeights computes estimatedOneRepMax range from personal record via Epley and Brzycki`(): Unit =
         runBlocking {
             val exId = UUID.randomUUID()
             val exerciseRepo =
@@ -175,13 +175,14 @@ class PersonalRecordServiceAssemblyTest {
 
             val result = service.findReferenceWeights(userId, groupId, sessionId)
 
-            // Epley: 100 * (1 + 5/30) = 100 * 1.1666... = 116.67
-            assertEquals(BigDecimal("116.67"), result[0].estimatedOneRepMaxKg)
+            // Brzycki: 100 * 36 / 32 = 112.50 (min); Epley: 100 * (1 + 5/30) = 116.67 (max)
+            assertEquals(BigDecimal("112.50"), result[0].estimatedOneRepMaxMinKg)
+            assertEquals(BigDecimal("116.67"), result[0].estimatedOneRepMaxMaxKg)
             assertEquals(BigDecimal("100.00"), result[0].prWeightKg)
         }
 
     @Test
-    fun `findReferenceWeights returns null estimatedOneRepMaxKg when no personal record`(): Unit =
+    fun `findReferenceWeights returns null estimatedOneRepMax range when no personal record`(): Unit =
         runBlocking {
             val exId = UUID.randomUUID()
             val exerciseRepo =
@@ -203,15 +204,16 @@ class PersonalRecordServiceAssemblyTest {
 
             val result = service.findReferenceWeights(userId, groupId, sessionId)
 
-            assertNull(result[0].estimatedOneRepMaxKg)
+            assertNull(result[0].estimatedOneRepMaxMinKg)
+            assertNull(result[0].estimatedOneRepMaxMaxKg)
             assertNull(result[0].suggestedWeightKg)
         }
 
     @Test
-    fun `findReferenceWeights computes suggestedWeightKg from estimatedOneRepMax`(): Unit =
+    fun `findReferenceWeights computes suggestedWeightKg from Epley 1RM for internal inverse consistency`(): Unit =
         runBlocking {
             val exId = UUID.randomUUID()
-            // toFailure = false, no technique -> Epley inverse: 116.67 / (1 + 8/30) = 92.11
+            // Epley: 100 * (1 + 5/30) = 116.67; suggest = 116.67 / (1 + 8/30) = 92.11
             val exerciseRepo =
                 mock<WorkoutExerciseRepository> {
                     onBlocking {
@@ -234,7 +236,7 @@ class PersonalRecordServiceAssemblyTest {
 
             val result = service.findReferenceWeights(userId, groupId, sessionId)
 
-            // oneRepMax = 116.67; suggest = 116.67 / (1 + 8/30) = 92.11
+            // Epley-based suggestion: 116.67 / (1 + 8/30) = 92.11
             assertEquals(BigDecimal("92.11"), result[0].suggestedWeightKg)
         }
 }
