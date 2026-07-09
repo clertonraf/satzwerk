@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import ContributionHeatmap from '@/features/analytics/ContributionHeatmap'
+import DashboardSettingsButton from '@/features/analytics/DashboardSettingsButton'
 import DashboardSummaryGrid from '@/features/analytics/DashboardSummaryGrid'
 import RecentPRsCard from '@/features/analytics/RecentPRsCard'
 import WeeklyTrendChart from '@/features/analytics/WeeklyTrendChart'
@@ -11,6 +12,8 @@ import LastSessionCard from '@/features/sessions/LastSessionCard'
 import { analyticsService } from '@/services/analyticsService'
 import { queryKeys } from '@/services/queryKeys'
 import { sessionService } from '@/services/sessionService'
+import { useAuthStore } from '@/store/auth'
+import { useDashboardPreferences, type DashboardWidgetId } from '@/store/dashboardPreferences'
 
 const TREND_WEEKS = 8
 const PR_LIMIT = 5
@@ -25,6 +28,18 @@ const subtractUtcMonths = (date: Date, months: number): Date => {
 }
 
 export default function DashboardPage() {
+  const userId = useAuthStore((s) => s.user?.id ?? '')
+  const visibleWidgets = useDashboardPreferences((s) => s.getVisibleWidgets(userId))
+  const setVisibleWidgets = useDashboardPreferences((s) => s.setVisibleWidgets)
+
+  const handleToggle = (widgetId: DashboardWidgetId, visible: boolean) => {
+    const updated = visible
+      ? [...visibleWidgets, widgetId]
+      : visibleWidgets.filter((id) => id !== widgetId)
+    setVisibleWidgets(userId, updated)
+  }
+
+  const isVisible = (id: DashboardWidgetId) => visibleWidgets.includes(id)
   const now = new Date()
   const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
   const fromDate = subtractUtcMonths(todayUtc, 3).toISOString().slice(0, 10)
@@ -69,31 +84,42 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <DashboardSummaryGrid data={summary} isLoading={summaryLoading} isError={summaryError} />
+      {isVisible('summary-grid') && (
+        <DashboardSummaryGrid data={summary} isLoading={summaryLoading} isError={summaryError} />
+      )}
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">Activity</h2>
-        <div className="rounded-xl border border-border bg-card p-4">
-          {heatmapLoading ? null : <ContributionHeatmap entries={heatmapEntries} from={fromDate} to={toDate} />}
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Activity</h2>
+          <DashboardSettingsButton visibleWidgets={visibleWidgets} onToggle={handleToggle} />
         </div>
+        {isVisible('activity-heatmap') && (
+          <div className="rounded-xl border border-border bg-card p-4">
+            {heatmapLoading ? null : <ContributionHeatmap entries={heatmapEntries} from={fromDate} to={toDate} />}
+          </div>
+        )}
       </section>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {lastSession ? <LastSessionCard session={lastSession} /> : null}
-        {!personalRecordsLoading && !personalRecordsError && <RecentPRsCard records={personalRecords ?? []} />}
+        {isVisible('last-session') && lastSession ? <LastSessionCard session={lastSession} /> : null}
+        {isVisible('recent-prs') && !personalRecordsLoading && !personalRecordsError && (
+          <RecentPRsCard records={personalRecords ?? []} />
+        )}
       </div>
 
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">Weekly Trend</h2>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Sets per week</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {!weeklyTrendLoading && !weeklyTrendError && <WeeklyTrendChart entries={weeklyTrend ?? []} />}
-          </CardContent>
-        </Card>
-      </section>
+      {isVisible('weekly-trend') && (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">Weekly Trend</h2>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Sets per week</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!weeklyTrendLoading && !weeklyTrendError && <WeeklyTrendChart entries={weeklyTrend ?? []} />}
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
       <div className="flex gap-3">
         <Button asChild>
