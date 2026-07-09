@@ -201,7 +201,7 @@ class AnalyticsRepository(
                 SELECT sl.exercise_id, e.name AS exercise_name, COUNT(sl.id) AS set_count
                 FROM set_logs sl
                 JOIN workout_sessions ws ON sl.workout_session_id = ws.id
-                JOIN exercises e ON sl.exercise_id = e.id
+                JOIN exercises e ON sl.exercise_id = e.id AND e.user_id = :userId
                 WHERE ws.user_id = :userId
                 GROUP BY sl.exercise_id, e.name
                 ORDER BY set_count DESC, e.name ASC
@@ -213,7 +213,7 @@ class AnalyticsRepository(
                 TopExerciseRow(
                     exerciseId = row.get("exercise_id", UUID::class.java)!!,
                     exerciseName = row.get("exercise_name", String::class.java)!!,
-                    setCount = row.get("set_count", java.lang.Long::class.java)?.toInt() ?: 0,
+                    setCount = requireNotNull(row.get("set_count", java.lang.Long::class.java)).toInt(),
                 )
             }.all()
             .asFlow()
