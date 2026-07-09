@@ -29,7 +29,22 @@ class PersonalRecordService(
         val uniqueExercises = workoutExercises.distinctBy { it.exerciseId }
         val exerciseIds = uniqueExercises.map { it.exerciseId }
         val workoutExerciseMap = uniqueExercises.associateBy { it.exerciseId }
-        return sessionQueryRepository.findReferenceWeights(userId, exerciseIds, sessionId, workoutExerciseMap)
+
+        val previousWeights = sessionQueryRepository.findPreviousWeights(userId, exerciseIds, sessionId)
+        val personalRecords = sessionQueryRepository.findPersonalRecords(userId, exerciseIds)
+
+        return exerciseIds.map { exerciseId ->
+            val previousWeight = previousWeights[exerciseId]
+            val pr = personalRecords[exerciseId]
+            val oneRepMax = pr.toEstimatedOneRepMaxKg()
+            ExerciseReferenceWeights(
+                exerciseId = exerciseId,
+                previousWeightKg = previousWeight,
+                prWeightKg = pr?.prWeight,
+                estimatedOneRepMaxKg = oneRepMax,
+                suggestedWeightKg = oneRepMax?.let { computeSuggestedWeight(it, workoutExerciseMap[exerciseId]) },
+            )
+        }
     }
 }
 
@@ -58,4 +73,11 @@ internal suspend fun SessionQueryRepository.calculateIsPr(
         findMaxRatioForExercise(userId, exerciseId, beforeDate, existing?.id)
     val currentRatio = weight.divide(reps.toBigDecimal(), PR_RATIO_SCALE, RoundingMode.HALF_UP)
     return prevMaxRatio == null || currentRatio > prevMaxRatio
+}
+
+private fun PersonalRecordRow?.toEstimatedOneRepMaxKg(): BigDecimal? {
+    if (this?.prWeight == null || prReps == null) {
+        return null
+    }
+    return epley(prWeight, prReps)
 }

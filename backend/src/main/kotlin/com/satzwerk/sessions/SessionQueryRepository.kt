@@ -1,6 +1,5 @@
 package com.satzwerk.sessions
 
-import com.satzwerk.workouts.WorkoutExercise
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.reactive.asFlow
 import kotlinx.coroutines.reactor.awaitSingleOrNull
@@ -20,12 +19,7 @@ data class SessionHistoryRow(
     val setCount: Int,
 )
 
-private data class PreviousWeightRow(
-    val exerciseId: UUID,
-    val previousWeight: BigDecimal?,
-)
-
-private data class PersonalRecordRow(
+internal data class PersonalRecordRow(
     val exerciseId: UUID,
     val prWeight: BigDecimal?,
     val prReps: Int?,
@@ -70,41 +64,12 @@ class SessionQueryRepository(
             .asFlow()
             .toList()
 
-    suspend fun findReferenceWeights(
+    /** Returns the most recent weight per exercise from completed sessions, excluding [currentSessionId]. */
+    internal suspend fun findPreviousWeights(
         userId: UUID,
         exerciseIds: List<UUID>,
         currentSessionId: UUID,
-        workoutExerciseMap: Map<UUID, WorkoutExercise>,
-    ): List<ExerciseReferenceWeights> {
-        if (exerciseIds.isEmpty()) {
-            return emptyList()
-        }
-
-        val previousWeights = findPreviousWeights(userId, exerciseIds, currentSessionId)
-        val personalRecords = findPersonalRecords(userId, exerciseIds)
-
-        return exerciseIds.map { exerciseId ->
-            val previousWeight = previousWeights[exerciseId]?.previousWeight
-            val personalRecord = personalRecords[exerciseId]
-            val oneRepMax = personalRecord.toEstimatedOneRepMaxKg()
-            ExerciseReferenceWeights(
-                exerciseId = exerciseId,
-                previousWeightKg = previousWeight,
-                prWeightKg = personalRecord?.prWeight,
-                estimatedOneRepMaxKg = oneRepMax,
-                suggestedWeightKg =
-                    oneRepMax?.let {
-                        computeSuggestedWeight(it, workoutExerciseMap[exerciseId])
-                    },
-            )
-        }
-    }
-
-    private suspend fun findPreviousWeights(
-        userId: UUID,
-        exerciseIds: List<UUID>,
-        currentSessionId: UUID,
-    ): Map<UUID, PreviousWeightRow> =
+    ): Map<UUID, BigDecimal?> =
         databaseClient
             .sql(
                 """
@@ -123,16 +88,15 @@ class SessionQueryRepository(
             .bind("exerciseIds", exerciseIds.toTypedArray())
             .bind("currentSessionId", currentSessionId)
             .map { row, _ ->
-                PreviousWeightRow(
-                    exerciseId = row.get("exercise_id", UUID::class.java)!!,
-                    previousWeight = row.get("previous_weight", BigDecimal::class.java),
-                )
+                row.get("exercise_id", UUID::class.java)!! to
+                    row.get("previous_weight", BigDecimal::class.java)
             }.all()
             .asFlow()
             .toList()
-            .associateBy(PreviousWeightRow::exerciseId)
+            .toMap()
 
-    private suspend fun findPersonalRecords(
+    /** Returns the best personal-record row (by weight/reps ratio) per exercise. */
+    internal suspend fun findPersonalRecords(
         userId: UUID,
         exerciseIds: List<UUID>,
     ): Map<UUID, PersonalRecordRow> =
@@ -206,12 +170,5 @@ class SessionQueryRepository(
             .map { row, _ -> row.get("max_ratio", BigDecimal::class.java) }
             .one()
             .awaitSingleOrNull()
-    }
-
-    private fun PersonalRecordRow?.toEstimatedOneRepMaxKg(): BigDecimal? {
-        if (this?.prWeight == null || prReps == null) {
-            return null
-        }
-        return epley(prWeight, prReps)
     }
 }
