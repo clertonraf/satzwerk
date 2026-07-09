@@ -3,6 +3,7 @@ import { ALL_WIDGET_IDS, useDashboardPreferences } from '../dashboardPreferences
 
 afterEach(() => {
   useDashboardPreferences.setState({ visibleWidgets: {} })
+  localStorage.removeItem('satzwerk-dashboard-prefs')
 })
 
 describe('useDashboardPreferences', () => {
