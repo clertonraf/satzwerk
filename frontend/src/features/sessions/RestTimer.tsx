@@ -39,6 +39,7 @@ export default function RestTimer({ defaultSeconds = 90 }: RestTimerProps) {
   const label = useMemo(() => formatSeconds(secondsLeft), [secondsLeft])
 
   // Zero or negative rest (e.g. SST technique) means no rest is needed; skip the timer entirely.
+  // React unmounts the component, which triggers the interval cleanup via the isRunning effect.
   if (defaultSeconds <= 0) {
     return null
   }
