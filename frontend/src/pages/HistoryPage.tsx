@@ -135,7 +135,10 @@ export default function HistoryPage() {
     queryFn: () => exerciseService.list(),
   })
 
-  const planDetails = planDetailsQueries.flatMap((query) => (query.data ? [query.data] : []))
+  const planDetails = useMemo(
+    () => planDetailsQueries.flatMap((query) => (query.data ? [query.data] : [])),
+    [planDetailsQueries],
+  )
   const groupCatalog = useMemo(() => buildWorkoutGroupCatalog(planDetails), [planDetails])
   const exerciseMap = useMemo(
     () => Object.fromEntries((exercisesQuery.data ?? []).map((e) => [e.id, e])),
