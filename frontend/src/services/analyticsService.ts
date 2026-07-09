@@ -36,6 +36,12 @@ export interface PersonalRecord {
   achievedAt: string
 }
 
+export interface TopExercise {
+  exerciseId: string
+  exerciseName: string
+  setCount: number
+}
+
 export const analyticsService = {
   heatmap: (from?: string, to?: string) =>
     http.get<HeatmapEntry[]>('/analytics/heatmap', {
@@ -53,6 +59,11 @@ export const analyticsService = {
 
   personalRecords: (limit?: number) =>
     http.get<PersonalRecord[]>('/analytics/personal-records', {
+      params: { ...(limit !== undefined && { limit }) },
+    }),
+
+  topExercises: (limit?: number) =>
+    http.get<TopExercise[]>('/analytics/top-exercises', {
       params: { ...(limit !== undefined && { limit }) },
     }),
 }

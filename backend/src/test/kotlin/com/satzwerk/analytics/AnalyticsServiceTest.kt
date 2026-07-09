@@ -102,4 +102,30 @@ class AnalyticsServiceTest {
             assertEquals(2, result.sessionsThisMonth)
             assertEquals(15, result.setsThisWeek)
         }
+
+    @Test
+    fun `topExercises maps repository rows to TopExercise list ordered by setCount descending`(): Unit =
+        runBlocking {
+            val exerciseId1 = UUID.randomUUID()
+            val exerciseId2 = UUID.randomUUID()
+            val rows =
+                listOf(
+                    TopExerciseRow(exerciseId = exerciseId1, exerciseName = "Bench Press", setCount = 42),
+                    TopExerciseRow(exerciseId = exerciseId2, exerciseName = "Squat", setCount = 35),
+                )
+            val repo =
+                mock<AnalyticsRepository> {
+                    onBlocking { findDashboardSummary(any()) } doReturn emptySummaryRow
+                    onBlocking { findWorkoutDays(any()) } doReturn emptyList()
+                    onBlocking { findTopExercisesBySetCount(any(), any()) } doReturn rows
+                }
+            val result = AnalyticsService(repo).topExercises(userId, limit = 2)
+
+            assertEquals(2, result.size)
+            assertEquals("Bench Press", result[0].exerciseName)
+            assertEquals(42, result[0].setCount)
+            assertEquals(exerciseId1, result[0].exerciseId)
+            assertEquals("Squat", result[1].exerciseName)
+            assertEquals(35, result[1].setCount)
+        }
 }

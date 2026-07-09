@@ -20,5 +20,6 @@ export const queryKeys = {
     summary: () => ['summary'] as const,
     weeklyTrend: (weeks?: number) => ['weekly-trend', weeks] as const,
     personalRecords: (limit?: number) => ['personal-records', limit] as const,
+    topExercises: (limit: number) => ['top-exercises', limit] as const,
   },
 } as const

@@ -45,6 +45,12 @@ data class PersonalRecord(
     val achievedAt: Instant,
 )
 
+data class TopExercise(
+    val exerciseId: UUID,
+    val exerciseName: String,
+    val setCount: Int,
+)
+
 fun intensityTier(count: Int): Int =
     when {
         count == NO_INTENSITY -> NO_INTENSITY

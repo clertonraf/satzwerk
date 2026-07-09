@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
@@ -13,6 +13,10 @@ vi.mock('@/services/analyticsService', () => ({
   analyticsService: {
     heatmap: vi.fn(),
     streak: vi.fn(),
+    summary: vi.fn(),
+    weeklyTrend: vi.fn(),
+    personalRecords: vi.fn(),
+    topExercises: vi.fn(),
   },
 }))
 
@@ -26,6 +30,17 @@ vi.mock('@/services/sessionService', () => ({
 describe('DashboardPage', () => {
   const notFoundError = Object.assign(new axios.AxiosError('Not Found'), {
     response: { status: 404, data: {}, headers: {}, config: {}, statusText: 'Not Found' },
+  })
+
+  beforeEach(() => {
+    vi.mocked(analyticsService.heatmap).mockResolvedValue([])
+    vi.mocked(analyticsService.streak).mockResolvedValue({ currentStreak: 0, longestStreak: 0 })
+    vi.mocked(analyticsService.summary).mockResolvedValue(null as never)
+    vi.mocked(analyticsService.weeklyTrend).mockResolvedValue([])
+    vi.mocked(analyticsService.personalRecords).mockResolvedValue([])
+    vi.mocked(analyticsService.topExercises).mockResolvedValue([])
+    vi.mocked(sessionService.history).mockResolvedValue([])
+    vi.mocked(sessionService.getOpen).mockRejectedValue(notFoundError)
   })
 
   afterEach(() => {
@@ -100,5 +115,37 @@ describe('DashboardPage', () => {
     )
 
     expect(await screen.findByRole('link', { name: 'Resume session' })).toBeInTheDocument()
+  })
+
+  it('renders TopExercisesCard with exercises when query resolves with data', async () => {
+    vi.mocked(analyticsService.topExercises).mockResolvedValue([
+      { exerciseId: 'ex-1', exerciseName: 'Bench Press', setCount: 42 },
+    ])
+
+    render(
+      <QueryClientWrapper>
+        <MemoryRouter>
+          <DashboardPage />
+        </MemoryRouter>
+      </QueryClientWrapper>
+    )
+
+    expect(await screen.findByText('Bench Press')).toBeInTheDocument()
+    expect(screen.getByText('42 sets')).toBeInTheDocument()
+  })
+
+  it('does not render TopExercisesCard content when query errors', async () => {
+    vi.mocked(analyticsService.topExercises).mockRejectedValue(new Error('Network error'))
+
+    render(
+      <QueryClientWrapper>
+        <MemoryRouter>
+          <DashboardPage />
+        </MemoryRouter>
+      </QueryClientWrapper>
+    )
+
+    expect(await screen.findByRole('link', { name: 'Start session' })).toBeInTheDocument()
+    expect(screen.queryByText('Most trained exercises')).not.toBeInTheDocument()
   })
 })

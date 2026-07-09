@@ -11,6 +11,7 @@ import java.time.LocalDate
 import java.util.UUID
 
 private const val DEFAULT_WEEKLY_TREND_WEEKS = 8
+private const val DEFAULT_TOP_EXERCISES_LIMIT = 5
 
 private val DASHBOARD_SUMMARY_SQL =
     """
@@ -189,6 +190,34 @@ class AnalyticsRepository(
             }.all()
             .asFlow()
             .toList()
+
+    suspend fun findTopExercisesBySetCount(
+        userId: UUID,
+        limit: Int = DEFAULT_TOP_EXERCISES_LIMIT,
+    ): List<TopExerciseRow> =
+        databaseClient
+            .sql(
+                """
+                SELECT sl.exercise_id, e.name AS exercise_name, COUNT(sl.id) AS set_count
+                FROM set_logs sl
+                JOIN workout_sessions ws ON sl.workout_session_id = ws.id
+                JOIN exercises e ON sl.exercise_id = e.id
+                WHERE ws.user_id = :userId
+                GROUP BY sl.exercise_id, e.name
+                ORDER BY set_count DESC, e.name ASC
+                LIMIT :limit
+                """.trimIndent(),
+            ).bind("userId", userId)
+            .bind("limit", limit)
+            .map { row, _ ->
+                TopExerciseRow(
+                    exerciseId = row.get("exercise_id", UUID::class.java)!!,
+                    exerciseName = row.get("exercise_name", String::class.java)!!,
+                    setCount = row.get("set_count", java.lang.Long::class.java)?.toInt() ?: 0,
+                )
+            }.all()
+            .asFlow()
+            .toList()
 }
 
 data class DashboardSummaryRow(
@@ -212,4 +241,10 @@ data class PersonalRecordRow(
     val weightKg: BigDecimal,
     val reps: Int,
     val achievedAt: Instant,
+)
+
+data class TopExerciseRow(
+    val exerciseId: UUID,
+    val exerciseName: String,
+    val setCount: Int,
 )

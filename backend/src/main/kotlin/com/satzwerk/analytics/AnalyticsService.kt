@@ -69,6 +69,18 @@ class AnalyticsService(
                 achievedAt = row.achievedAt,
             )
         }
+
+    suspend fun topExercises(
+        userId: UUID,
+        limit: Int = DEFAULT_PR_LIMIT,
+    ): List<TopExercise> =
+        analyticsRepository.findTopExercisesBySetCount(userId, limit).map { row ->
+            TopExercise(
+                exerciseId = row.exerciseId,
+                exerciseName = row.exerciseName,
+                setCount = row.setCount,
+            )
+        }
 }
 
 /**

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import ContributionHeatmap from '@/features/analytics/ContributionHeatmap'
 import DashboardSummaryGrid from '@/features/analytics/DashboardSummaryGrid'
 import RecentPRsCard from '@/features/analytics/RecentPRsCard'
+import TopExercisesCard from '@/features/analytics/TopExercisesCard'
 import WeeklyTrendChart from '@/features/analytics/WeeklyTrendChart'
 import LastSessionCard from '@/features/sessions/LastSessionCard'
 import { analyticsService } from '@/services/analyticsService'
@@ -14,6 +15,7 @@ import { sessionService } from '@/services/sessionService'
 
 const TREND_WEEKS = 8
 const PR_LIMIT = 5
+const TOP_EXERCISES_LIMIT = 5
 
 const subtractUtcMonths = (date: Date, months: number): Date => {
   const y = date.getUTCFullYear()
@@ -45,6 +47,10 @@ export default function DashboardPage() {
   const { data: personalRecords, isLoading: personalRecordsLoading, isError: personalRecordsError } = useQuery({
     queryKey: queryKeys.analytics.personalRecords(PR_LIMIT),
     queryFn: () => analyticsService.personalRecords(PR_LIMIT),
+  })
+  const { data: topExercises, isLoading: topExercisesLoading, isError: topExercisesError } = useQuery({
+    queryKey: queryKeys.analytics.topExercises(TOP_EXERCISES_LIMIT),
+    queryFn: () => analyticsService.topExercises(TOP_EXERCISES_LIMIT),
   })
   const { data: history = [] } = useQuery({
     queryKey: queryKeys.sessions.history(),
@@ -81,6 +87,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {lastSession ? <LastSessionCard session={lastSession} /> : null}
         {!personalRecordsLoading && !personalRecordsError && <RecentPRsCard records={personalRecords ?? []} />}
+        {!topExercisesLoading && !topExercisesError && <TopExercisesCard exercises={topExercises ?? []} />}
       </div>
 
       <section>
