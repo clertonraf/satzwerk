@@ -3,6 +3,7 @@ import {
   ADVANCED_TECHNIQUE_OPTIONS,
   formatAdvancedTechnique,
   getAdvancedTechniqueDescription,
+  getAdvancedTechniqueRestSeconds,
 } from '../advancedTechnique'
 
 describe('ADVANCED_TECHNIQUE_OPTIONS completeness', () => {
@@ -54,6 +55,10 @@ describe('formatAdvancedTechnique', () => {
   it('falls back to the raw value for unknown techniques', () => {
     expect(formatAdvancedTechnique('UNKNOWN')).toBe('UNKNOWN')
   })
+
+  it('falls back to the raw value for prototype property names', () => {
+    expect(formatAdvancedTechnique('toString')).toBe('toString')
+  })
 })
 
 describe('getAdvancedTechniqueDescription', () => {
@@ -71,6 +76,10 @@ describe('getAdvancedTechniqueDescription', () => {
 
   it('returns null for unknown technique values', () => {
     expect(getAdvancedTechniqueDescription('UNKNOWN')).toBeNull()
+  })
+
+  it('returns null for prototype property names', () => {
+    expect(getAdvancedTechniqueDescription('toString')).toBeNull()
   })
 
   it('returns description for SST', () => {
@@ -101,5 +110,37 @@ describe('getAdvancedTechniqueDescription', () => {
     const description = getAdvancedTechniqueDescription('GIRONDA')
     expect(description).not.toBeNull()
     expect(description).toMatch(/8 sets of 8/i)
+  })
+})
+
+describe('getAdvancedTechniqueRestSeconds', () => {
+  it('returns null for null input', () => {
+    expect(getAdvancedTechniqueRestSeconds(null)).toBeNull()
+  })
+
+  it('returns null for undefined input', () => {
+    expect(getAdvancedTechniqueRestSeconds(undefined)).toBeNull()
+  })
+
+  it('returns null for empty string', () => {
+    expect(getAdvancedTechniqueRestSeconds('')).toBeNull()
+  })
+
+  it('returns null for unknown technique', () => {
+    expect(getAdvancedTechniqueRestSeconds('UNKNOWN')).toBeNull()
+  })
+
+  it('returns null for toString (prototype-chain safety)', () => {
+    expect(getAdvancedTechniqueRestSeconds('toString')).toBeNull()
+  })
+
+  it.each([
+    ['GVT', 60],
+    ['FST_7', 30],
+    ['GIRONDA', 30],
+    ['REST_PAUSE', 20],
+    ['SST', 0],
+  ] as const)('%s returns %i seconds', (technique, expected) => {
+    expect(getAdvancedTechniqueRestSeconds(technique)).toBe(expected)
   })
 })

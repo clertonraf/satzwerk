@@ -59,6 +59,7 @@ data class ExerciseReferenceWeights(
     val exerciseId: UUID,
     val previousWeightKg: BigDecimal?,
     val prWeightKg: BigDecimal?,
-    val estimatedOneRepMaxKg: BigDecimal?,
+    val estimatedOneRepMaxMinKg: BigDecimal?,
+    val estimatedOneRepMaxMaxKg: BigDecimal?,
     val suggestedWeightKg: BigDecimal?,
 )

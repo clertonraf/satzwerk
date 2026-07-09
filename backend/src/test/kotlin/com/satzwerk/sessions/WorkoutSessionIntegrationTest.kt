@@ -528,7 +528,8 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
             .jsonPath("$[0].exerciseId").isEqualTo(exerciseId.toString())
             .jsonPath("$[0].previousWeightKg").isEmpty
             .jsonPath("$[0].prWeightKg").isEmpty
-            .jsonPath("$[0].estimatedOneRepMaxKg").isEmpty
+            .jsonPath("$[0].estimatedOneRepMaxMinKg").isEmpty
+            .jsonPath("$[0].estimatedOneRepMaxMaxKg").isEmpty
             .jsonPath("$[0].suggestedWeightKg").isEmpty
     }
 
@@ -650,7 +651,7 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
     }
 
     @Test
-    fun `reference weights calculates estimated one rep max using epley formula`() {
+    fun `reference weights calculates estimated one rep max range using epley and brzycki formulas`() {
         val session = startSession()
         addSetLog(session.id, BigDecimal("100.0"), reps = 5)
 
@@ -664,7 +665,10 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
             .jsonPath("$.length()").isEqualTo(1)
             .jsonPath("$[0].exerciseId").isEqualTo(exerciseId.toString())
             .jsonPath("$[0].prWeightKg").isEqualTo(100)
-            .jsonPath("$[0].estimatedOneRepMaxKg").isEqualTo(116.67)
+            // Brzycki (min): 100 * 36 / 32 = 112.50
+            .jsonPath("$[0].estimatedOneRepMaxMinKg").isEqualTo(112.50)
+            // Epley (max): 100 * (1 + 5/30) = 116.67
+            .jsonPath("$[0].estimatedOneRepMaxMaxKg").isEqualTo(116.67)
     }
 
     @Test
@@ -693,8 +697,7 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
     }
 
     @Test
-    fun `reference weights epley formula is accurate for single rep set`() {
-        // 300kg x 1 rep: expected = 300 * (1 + 1/30) = 310.00 exactly
+    fun `reference weights formula range is accurate for single rep set`() {
         val session = startSession()
         addSetLog(session.id, BigDecimal("300.0"), reps = 1)
 
@@ -705,7 +708,9 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
             .exchange()
             .expectStatus().isOk
             .expectBody()
-            .jsonPath("$[0].estimatedOneRepMaxKg").isEqualTo(310.00)
+            // Brzycki (min): 300 * 36 / 36 = 300.00; Epley (max): 300 * (1 + 1/30) = 310.00
+            .jsonPath("$[0].estimatedOneRepMaxMinKg").isEqualTo(300.00)
+            .jsonPath("$[0].estimatedOneRepMaxMaxKg").isEqualTo(310.00)
     }
 
     @Test
