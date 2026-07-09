@@ -367,7 +367,7 @@ describe('useWorkoutSessionMachine', () => {
 
       // Start 3 dispatches without awaiting so setPendingSetLogs fires for each
       // before transport resolves. The sync state updates are flushed by act().
-      let dispatchPromises: Promise<void>[]
+      let dispatchPromises: Promise<void>[] = []
       await act(async () => {
         dispatchPromises = [
           result.current.dispatch({ type: 'LOG_SET', exerciseId: 'ex-1', setNumber: 1, weight: 80, reps: 5, unit: 'kg' }),
@@ -392,7 +392,7 @@ describe('useWorkoutSessionMachine', () => {
       // Resolve deferred transport and await dispatch completion to clean up
       await act(async () => {
         resolvers.forEach((r) => r())
-        await Promise.all(dispatchPromises!)
+        await Promise.all(dispatchPromises)
       })
     })
 
@@ -409,7 +409,7 @@ describe('useWorkoutSessionMachine', () => {
         { wrapper: Wrapper },
       )
 
-      let dispatchPromises: Promise<void>[]
+      let dispatchPromises: Promise<void>[] = []
       await act(async () => {
         dispatchPromises = [
           result.current.dispatch({ type: 'LOG_SET', exerciseId: 'ex-1', setNumber: 1, weight: 80, reps: 5, unit: 'kg' }),
@@ -431,7 +431,7 @@ describe('useWorkoutSessionMachine', () => {
 
       await act(async () => {
         resolvers.forEach((r) => r())
-        await Promise.all(dispatchPromises!)
+        await Promise.all(dispatchPromises)
       })
     })
 
@@ -448,7 +448,7 @@ describe('useWorkoutSessionMachine', () => {
         { wrapper: Wrapper },
       )
 
-      let dispatchPromises: Promise<void>[]
+      let dispatchPromises: Promise<void>[] = []
       await act(async () => {
         dispatchPromises = [
           result.current.dispatch({ type: 'LOG_SET', exerciseId: 'ex-1', setNumber: 1, weight: 80, reps: 5, unit: 'kg' }),
@@ -468,7 +468,7 @@ describe('useWorkoutSessionMachine', () => {
 
       await act(async () => {
         resolvers.forEach((r) => r())
-        await Promise.all(dispatchPromises!)
+        await Promise.all(dispatchPromises)
       })
     })
     it('clears pendingSetLogs after dispatch even when transport returns a queued (pending: true) result', async () => {
