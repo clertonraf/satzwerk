@@ -229,7 +229,7 @@ describe('useWorkoutSessionMachine', () => {
 
       const newSession = buildSession({ id: 'new-session', workoutGroupId: 'group-1' })
       vi.mocked(sessionService.start).mockResolvedValueOnce(newSession)
-      vi.mocked(sessionService.discard).mockResolvedValue(undefined as never)
+      vi.mocked(sessionService.discard).mockResolvedValue(undefined)
 
       const { result } = renderHook(
         () => useWorkoutSessionMachine({ onComplete: vi.fn(), onForfeit: vi.fn() }),
@@ -281,7 +281,7 @@ describe('useWorkoutSessionMachine', () => {
     it('discards session, clears open session cache, and calls onForfeit', async () => {
       const session = buildSession()
       queryClient.setQueryData(queryKeys.sessions.open(), session)
-      vi.mocked(sessionService.discard).mockResolvedValue(undefined as never)
+      vi.mocked(sessionService.discard).mockResolvedValue(undefined)
       const onForfeit = vi.fn()
 
       const { result } = renderHook(
@@ -308,12 +308,10 @@ describe('useWorkoutSessionMachine', () => {
         weight: 80,
         reps: 5,
         loggedAt: '2024-01-01T00:00:00Z',
-        isPr: false,
-        pending: false,
       }
       const session = buildSession({ setLogs: [setLog], setCount: 1 })
       queryClient.setQueryData(queryKeys.sessions.open(), session)
-      vi.mocked(sessionService.deleteSetLog).mockResolvedValue(undefined as never)
+      vi.mocked(sessionService.deleteSetLog).mockResolvedValue(undefined)
       const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue()
 
       const { result } = renderHook(
