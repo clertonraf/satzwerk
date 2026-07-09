@@ -2,10 +2,12 @@ package com.satzwerk.sessions
 
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.mockito.kotlin.any
 import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
 import java.time.Instant
 import java.util.UUID
 
@@ -28,7 +30,7 @@ class WorkoutSessionServiceHistoryTest {
         runBlocking {
             val queryRepo =
                 mock<SessionQueryRepository> {
-                    onBlocking { findHistoryWithDetails(any()) } doReturn listOf(historyRow)
+                    onBlocking { findHistoryWithDetails(eq(userId)) } doReturn listOf(historyRow)
                 }
             val service =
                 WorkoutSessionService(
@@ -49,6 +51,7 @@ class WorkoutSessionServiceHistoryTest {
             assertEquals(historyRow.startedAt, result[0].startedAt)
             assertEquals(historyRow.completedAt, result[0].completedAt)
             assertEquals(historyRow.setCount, result[0].setCount)
-            assertEquals(emptyList<Any>(), result[0].setLogs)
+            assertTrue(result[0].setLogs.isEmpty())
+            verify(queryRepo).findHistoryWithDetails(userId)
         }
 }
