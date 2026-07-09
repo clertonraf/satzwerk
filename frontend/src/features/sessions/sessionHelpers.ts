@@ -55,7 +55,7 @@ export function formatGroupStats(count: number, lastCompletedAt: string | null, 
  */
 export function sortGroupOptions(
   entries: WorkoutGroupCatalogEntry[],
-  groupStatsMap: ReadonlyMap<string, { lastCompletedAt: string | null }>,
+  groupStatsMap: ReadonlyMap<string, { count: number; lastCompletedAt: string | null }>,
 ): WorkoutGroupCatalogEntry[] {
   return [...entries].sort((a, b) => {
     const aLast = groupStatsMap.get(a.group.id)?.lastCompletedAt ?? null
