@@ -33,8 +33,9 @@ describe('DashboardPage', () => {
     response: { status: 404, data: {}, headers: {}, config: {}, statusText: 'Not Found' },
   })
 
-  // A minimal fake JWT with sub='user-1'; only the payload segment matters for parseJwtSub.
-  const fakeJwt = `header.${btoa(JSON.stringify({ sub: 'user-1' }))}.sig`
+  // Minimal fake JWT with sub='user-1' encoded as base64url (matching real JWT format).
+  const fakeJwtPayload = btoa(JSON.stringify({ sub: 'user-1' })).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  const fakeJwt = `header.${fakeJwtPayload}.sig`
 
   beforeEach(() => {
     useAuthStore.setState({ accessToken: fakeJwt })
@@ -67,6 +68,7 @@ describe('DashboardPage', () => {
   afterEach(() => {
     vi.resetAllMocks()
     useDashboardPreferences.setState({ visibleWidgets: {} })
+    localStorage.removeItem('satzwerk-dashboard-prefs')
     useAuthStore.setState({ accessToken: null })
   })
 
@@ -151,7 +153,7 @@ describe('DashboardPage', () => {
         completedAt: '2026-06-07T10:00:00Z',
         notes: null,
         setLogs: [],
-        setCount: 5,
+        setCount: 0,
       },
     ])
 

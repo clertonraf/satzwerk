@@ -21,7 +21,9 @@ const PR_LIMIT = 5
 
 function parseJwtSub(token: string): string {
   try {
-    return (JSON.parse(atob(token.split('.')[1])) as { sub?: string }).sub ?? ''
+    const raw = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    const padded = raw.padEnd(raw.length + ((4 - (raw.length % 4)) % 4), '=')
+    return (JSON.parse(atob(padded)) as { sub?: string }).sub ?? ''
   } catch {
     return ''
   }
