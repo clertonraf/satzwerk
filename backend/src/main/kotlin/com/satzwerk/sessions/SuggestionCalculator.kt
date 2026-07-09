@@ -9,7 +9,6 @@ private const val SUGGESTION_REPS_SCALE = 10
 private const val GIRONDA_PERCENT = "0.55"
 private const val FST_7_PERCENT = "0.65"
 private const val GVT_PERCENT = "0.60"
-private const val EPLEY_DIVISOR = "30"
 
 internal fun computeSuggestedWeight(
     oneRepMaxKg: BigDecimal,

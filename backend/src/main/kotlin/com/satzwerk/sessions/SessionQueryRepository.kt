@@ -7,7 +7,6 @@ import kotlinx.coroutines.reactor.awaitSingleOrNull
 import org.springframework.r2dbc.core.DatabaseClient
 import org.springframework.stereotype.Repository
 import java.math.BigDecimal
-import java.math.RoundingMode
 import java.time.Instant
 import java.util.UUID
 
@@ -31,9 +30,6 @@ private data class PersonalRecordRow(
     val prWeight: BigDecimal?,
     val prReps: Int?,
 )
-
-private const val EPLEY_DIVISOR = "30"
-private const val EPLEY_DIVISION_SCALE = 10
 
 @Repository
 class SessionQueryRepository(
@@ -218,18 +214,4 @@ class SessionQueryRepository(
         }
         return epley(prWeight, prReps)
     }
-
-    private fun epley(
-        weight: BigDecimal,
-        reps: Int,
-    ): BigDecimal =
-        weight.multiply(
-            BigDecimal.ONE.add(
-                reps.toBigDecimal().divide(
-                    BigDecimal(EPLEY_DIVISOR),
-                    EPLEY_DIVISION_SCALE,
-                    RoundingMode.HALF_UP,
-                ),
-            ),
-        ).setScale(2, RoundingMode.HALF_UP)
 }
