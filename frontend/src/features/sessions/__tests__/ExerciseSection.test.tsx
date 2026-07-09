@@ -166,4 +166,10 @@ describe('ExerciseSection rest timer defaultSeconds wiring', () => {
 
     expect(screen.getByText(/0:20/i)).toBeInTheDocument()
   })
+
+  it('renders no RestTimer for SST technique (0s rest)', () => {
+    renderSection({ exercise: { ...makeExercise(), advancedTechnique: 'SST' } })
+
+    expect(screen.queryByRole('button', { name: /start rest/i })).not.toBeInTheDocument()
+  })
 })
