@@ -42,7 +42,9 @@ export function formatAdvancedTechnique(value: string | null | undefined) {
     return null
   }
 
-  return (advancedTechniqueLabels as Record<string, string>)[value] ?? value
+  return Object.hasOwn(advancedTechniqueLabels, value)
+    ? (advancedTechniqueLabels as Record<string, string>)[value]
+    : value
 }
 
 export function getAdvancedTechniqueDescription(value: string | null | undefined): string | null {
@@ -50,7 +52,9 @@ export function getAdvancedTechniqueDescription(value: string | null | undefined
     return null
   }
 
-  return (advancedTechniqueDescriptions as Record<string, string>)[value] ?? null
+  return Object.hasOwn(advancedTechniqueDescriptions, value)
+    ? (advancedTechniqueDescriptions as Record<string, string>)[value]
+    : null
 }
 
 const advancedTechniqueRestSeconds: Record<AdvancedTechniqueValue, number> = {
