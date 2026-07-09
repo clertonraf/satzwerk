@@ -1,8 +1,35 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useReducer } from 'react'
 import { Button } from '@/components/ui/button'
 
 interface RestTimerProps {
   defaultSeconds?: number
+}
+
+interface RestTimerState {
+  isRunning: boolean
+  secondsLeft: number
+}
+
+type RestTimerAction =
+  | { type: 'start'; defaultSeconds: number }
+  | { type: 'stop'; defaultSeconds: number }
+  | { type: 'tick' }
+  | { type: 'reset-to-zero' }
+
+function restTimerReducer(state: RestTimerState, action: RestTimerAction): RestTimerState {
+  switch (action.type) {
+    case 'start':
+      return { isRunning: true, secondsLeft: action.defaultSeconds }
+    case 'stop':
+      return { isRunning: false, secondsLeft: action.defaultSeconds }
+    case 'tick':
+      if (state.secondsLeft <= 1) {
+        return { isRunning: false, secondsLeft: 0 }
+      }
+      return { ...state, secondsLeft: state.secondsLeft - 1 }
+    case 'reset-to-zero':
+      return { isRunning: false, secondsLeft: 0 }
+  }
 }
 
 function formatSeconds(totalSeconds: number) {
@@ -13,12 +40,16 @@ function formatSeconds(totalSeconds: number) {
 }
 
 export default function RestTimer({ defaultSeconds = 90 }: RestTimerProps) {
-  return <RestTimerContent key={defaultSeconds} defaultSeconds={defaultSeconds} />
-}
+  const [{ isRunning, secondsLeft }, dispatch] = useReducer(restTimerReducer, {
+    isRunning: false,
+    secondsLeft: defaultSeconds,
+  })
 
-function RestTimerContent({ defaultSeconds }: { defaultSeconds: number }) {
-  const [isRunning, setIsRunning] = useState(false)
-  const [secondsLeft, setSecondsLeft] = useState(defaultSeconds)
+  useEffect(() => {
+    if (defaultSeconds <= 0) {
+      dispatch({ type: 'reset-to-zero' })
+    }
+  }, [defaultSeconds])
 
   useEffect(() => {
     if (!isRunning || defaultSeconds <= 0) {
@@ -26,15 +57,7 @@ function RestTimerContent({ defaultSeconds }: { defaultSeconds: number }) {
     }
 
     const interval = window.setInterval(() => {
-      setSecondsLeft((current) => {
-        if (current <= 1) {
-          window.clearInterval(interval)
-          setIsRunning(false)
-          return 0
-        }
-
-        return current - 1
-      })
+      dispatch({ type: 'tick' })
     }, 1000)
 
     return () => window.clearInterval(interval)
@@ -53,8 +76,7 @@ function RestTimerContent({ defaultSeconds }: { defaultSeconds: number }) {
         type="button"
         variant="outline"
         onClick={() => {
-          setSecondsLeft(defaultSeconds)
-          setIsRunning(true)
+          dispatch({ type: 'start', defaultSeconds })
         }}
       >
         Start Rest
@@ -71,8 +93,7 @@ function RestTimerContent({ defaultSeconds }: { defaultSeconds: number }) {
         type="button"
         variant="ghost"
         onClick={() => {
-          setIsRunning(false)
-          setSecondsLeft(defaultSeconds)
+          dispatch({ type: 'stop', defaultSeconds })
         }}
       >
         Stop

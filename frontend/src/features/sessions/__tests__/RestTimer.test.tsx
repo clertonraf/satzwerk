@@ -57,5 +57,6 @@ describe('RestTimer', () => {
 
     rerender(<RestTimer defaultSeconds={20} />)
     expect(screen.getByRole('button', { name: /start rest/i })).toBeInTheDocument()
+    expect(screen.queryByText(/0:20/i)).not.toBeInTheDocument()
   })
 })
