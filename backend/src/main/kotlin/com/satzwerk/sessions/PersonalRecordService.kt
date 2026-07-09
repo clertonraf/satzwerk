@@ -51,7 +51,9 @@ class PersonalRecordService(
  * Returns true if the given weight/reps combination represents a new personal record for the exercise.
  *
  * Comparison is based on the weight-to-reps ratio (weight / reps) to normalise across different rep ranges.
- * [existing] identifies a set log being updated, so its current ratio is excluded from the comparison.
+ * [existing] pins the timestamp cutoff for the comparison window (logs at or before [SetLogRef.loggedAt]
+ * are considered). When [SetLogRef.id] is non-null the identified set log is excluded from the comparison,
+ * which is used when re-evaluating PR status during an update.
  *
  * Defensive guard: @Min(1) on request DTOs already blocks reps<=0 at the API boundary;
  * this branch protects against bypassed validation or future callers that skip the handler.
