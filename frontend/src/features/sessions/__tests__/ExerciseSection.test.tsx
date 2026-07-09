@@ -140,7 +140,7 @@ describe('ExerciseSection', () => {
 })
 
 describe('ExerciseSection rest timer defaultSeconds wiring', () => {
-  it('passes 90 as defaultSeconds to RestTimer when exercise has no advanced technique', async () => {
+  it('uses RestTimer default (90s) when exercise has no advanced technique — ExerciseSection passes undefined', async () => {
     const user = userEvent.setup()
     renderSection({ exercise: makeExercise() })
 
