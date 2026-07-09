@@ -10,13 +10,16 @@ import { planService } from '@/services/planService'
 import { queryKeys } from '@/services/queryKeys'
 import { sessionService } from '@/services/sessionService'
 
-function formatDuration(startedAt: string, completedAt: string | null): string | null {
+function computeDurationMinutes(startedAt: string, completedAt: string | null): number | null {
   if (!completedAt) return null
-  const ms = new Date(completedAt).getTime() - new Date(startedAt).getTime()
-  const minutes = Math.round(ms / 60000)
-  if (minutes < 60) return `${minutes} min`
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
+  return Math.round((new Date(completedAt).getTime() - new Date(startedAt).getTime()) / 60_000)
+}
+
+function formatDuration(durationMinutes: number | null): string | null {
+  if (durationMinutes === null) return null
+  if (durationMinutes < 60) return `${durationMinutes} min`
+  const h = Math.floor(durationMinutes / 60)
+  const m = durationMinutes % 60
   return m > 0 ? `${h}h ${m}m` : `${h}h`
 }
 
@@ -46,14 +49,11 @@ function SessionHistoryItem({ session, groupTitle, planName, exerciseMap }: Sess
     }, {})
   }, [detailQuery.data])
 
-  const durationMs = session.completedAt
-    ? new Date(session.completedAt).getTime() - new Date(session.startedAt).getTime()
-    : null
-  const durationMinutes = durationMs !== null ? Math.round(durationMs / 60_000) : null
+  const durationMinutes = computeDurationMinutes(session.startedAt, session.completedAt)
   const avgMinPerExercise =
     durationMinutes !== null ? computeAvgMinPerExercise(durationMinutes, session.exerciseCount) : null
 
-  const duration = formatDuration(session.startedAt, session.completedAt)
+  const duration = formatDuration(durationMinutes)
 
   return (
     <li className="rounded-lg border border-border">
