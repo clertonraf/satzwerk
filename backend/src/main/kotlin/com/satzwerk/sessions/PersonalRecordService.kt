@@ -85,15 +85,6 @@ private fun PersonalRecordRow?.toEstimatedOneRepMaxRange(): OneRepMaxRange {
     }
     val epleyVal = epley(prWeight, prReps)
     val brzyckiVal = brzycki(prWeight, prReps)
-    val minKg =
-        when {
-            epleyVal != null && brzyckiVal != null -> minOf(epleyVal, brzyckiVal)
-            else -> epleyVal ?: brzyckiVal
-        }
-    val maxKg =
-        when {
-            epleyVal != null && brzyckiVal != null -> maxOf(epleyVal, brzyckiVal)
-            else -> epleyVal ?: brzyckiVal
-        }
-    return OneRepMaxRange(minKg, maxKg, epleyVal)
+    val values = listOfNotNull(epleyVal, brzyckiVal)
+    return OneRepMaxRange(values.minOrNull(), values.maxOrNull(), epleyVal)
 }
