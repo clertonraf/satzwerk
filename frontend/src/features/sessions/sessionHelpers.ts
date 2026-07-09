@@ -65,6 +65,14 @@ export function sortGroupOptions(
     if (aLast === null) return -1
     if (bLast === null) return 1
 
-    return new Date(aLast).getTime() - new Date(bLast).getTime()
+    const aTime = new Date(aLast).getTime()
+    const bTime = new Date(bLast).getTime()
+
+    // Guard against invalid date strings producing NaN — treat as equivalent to null (never done).
+    if (Number.isNaN(aTime) && Number.isNaN(bTime)) return a.group.orderIndex - b.group.orderIndex
+    if (Number.isNaN(aTime)) return -1
+    if (Number.isNaN(bTime)) return 1
+
+    return aTime - bTime || a.group.orderIndex - b.group.orderIndex
   })
 }

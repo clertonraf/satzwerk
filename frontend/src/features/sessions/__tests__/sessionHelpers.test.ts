@@ -142,4 +142,15 @@ describe('sortGroupOptions', () => {
     sortGroupOptions(entries, new Map())
     expect(entries[0].group.id).toBe(original[0].group.id)
   })
+
+  it('sorts by orderIndex as tie-breaker when two done groups have the same lastCompletedAt', () => {
+    const sameDate = '2026-06-08T00:00:00Z'
+    const entries = [makeEntry('g2', 1), makeEntry('g1', 0)]
+    const stats = new Map([
+      ['g1', { count: 1, lastCompletedAt: sameDate }],
+      ['g2', { count: 1, lastCompletedAt: sameDate }],
+    ])
+    const result = sortGroupOptions(entries, stats)
+    expect(result.map((e) => e.group.id)).toEqual(['g1', 'g2'])
+  })
 })
