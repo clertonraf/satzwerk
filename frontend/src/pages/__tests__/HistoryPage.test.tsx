@@ -6,7 +6,7 @@ import { QueryClientWrapper } from '@/test/QueryClientWrapper'
 import { sessionService } from '@/services/sessionService'
 import { planService } from '@/services/planService'
 import { exerciseService } from '@/services/exerciseService'
-import type { WorkoutSession } from '@/services/sessionService'
+import type { WorkoutSession, SetLog } from '@/services/sessionService'
 import type { WorkoutPlan, WorkoutPlanDetail } from '@/services/planService'
 
 vi.mock('@/services/sessionService', () => ({
@@ -31,7 +31,19 @@ vi.mock('@/services/exerciseService', () => ({
 const GROUP_ID = 'group-1'
 const PLAN_ID = 'plan-1'
 
+function makeSetLog(index: number): SetLog {
+  return {
+    id: `log-${index}`,
+    exerciseId: 'ex-1',
+    setNumber: index + 1,
+    weight: 60,
+    reps: 10,
+    loggedAt: '2026-06-01T10:00:00Z',
+  }
+}
+
 function makeSession(overrides: Partial<WorkoutSession> = {}): WorkoutSession {
+  const setLogs = overrides.setLogs ?? []
   return {
     id: 'session-1',
     workoutGroupId: GROUP_ID,
@@ -39,8 +51,8 @@ function makeSession(overrides: Partial<WorkoutSession> = {}): WorkoutSession {
     startedAt: '2026-06-01T10:00:00Z',
     completedAt: '2026-06-01T11:00:00Z',
     notes: null,
-    setLogs: [],
-    setCount: 12,
+    setLogs,
+    setCount: setLogs.length,
     ...overrides,
   }
 }
@@ -105,8 +117,9 @@ describe('HistoryPage', () => {
   })
 
   it('renders the completion percentage when totalTargetSets > 0', async () => {
-    // 3 exercises × 5 sets = 15 target sets; session.setCount = 12 → 12/15 = 80%
-    vi.mocked(sessionService.history).mockResolvedValue([makeSession({ setCount: 12 })])
+    // 3 exercises × 5 sets = 15 target sets; 12 setLogs → 12/15 = 80%
+    const setLogs = Array.from({ length: 12 }, (_, i) => makeSetLog(i))
+    vi.mocked(sessionService.history).mockResolvedValue([makeSession({ setLogs })])
     vi.mocked(planService.list).mockResolvedValue([mockPlan])
     vi.mocked(planService.get).mockResolvedValue(makePlanDetail(5))
     vi.mocked(exerciseService.list).mockResolvedValue([])
@@ -124,7 +137,8 @@ describe('HistoryPage', () => {
 
   it('omits the completion percentage when totalTargetSets is 0', async () => {
     // Plan has no exercises → targetSets = 0 → no percentage rendered
-    vi.mocked(sessionService.history).mockResolvedValue([makeSession({ setCount: 5 })])
+    const setLogs = Array.from({ length: 5 }, (_, i) => makeSetLog(i))
+    vi.mocked(sessionService.history).mockResolvedValue([makeSession({ setLogs })])
     vi.mocked(planService.list).mockResolvedValue([mockPlan])
     vi.mocked(planService.get).mockResolvedValue({
       ...mockPlan,
