@@ -60,7 +60,21 @@ const defaultProps = {
   session: makeSession(0),
   pendingSetLogs: [],
   currentGroupEntry: makeGroupEntry([5, 5, 5]),
-  exercisesById: new Map([['exercise-0', { id: 'exercise-0', name: 'Bench Press', muscleGroup: 'Chest', description: null, videoUrl: null, equipment: null, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }]]),
+  exercisesById: new Map([
+    [
+      'exercise-0',
+      {
+        id: 'exercise-0',
+        name: 'Bench Press',
+        muscleGroup: 'Chest',
+        description: null,
+        videoUrl: null,
+        equipment: null,
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+      },
+    ],
+  ]),
   referenceWeightsMap: new Map(),
   isReferenceWeightsLoading: false,
   isCatalogLoading: false,

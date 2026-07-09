@@ -126,7 +126,10 @@ describe('HistoryPage', () => {
     // Plan has no exercises → targetSets = 0 → no percentage rendered
     vi.mocked(sessionService.history).mockResolvedValue([makeSession({ setCount: 5 })])
     vi.mocked(planService.list).mockResolvedValue([mockPlan])
-    vi.mocked(planService.get).mockResolvedValue({ ...mockPlan, groups: [{ id: GROUP_ID, title: 'Push Day', orderIndex: 0, exercises: [] }] })
+    vi.mocked(planService.get).mockResolvedValue({
+      ...mockPlan,
+      groups: [{ id: GROUP_ID, title: 'Push Day', orderIndex: 0, exercises: [] }],
+    })
     vi.mocked(exerciseService.list).mockResolvedValue([])
 
     render(
