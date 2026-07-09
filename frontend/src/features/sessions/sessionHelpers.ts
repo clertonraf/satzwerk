@@ -45,3 +45,15 @@ export function formatGroupStats(count: number, lastCompletedAt: string | null, 
   if (daysAgo === 1) return `Done ${count}×, yesterday`
   return `Done ${count}×, ${daysAgo} days ago`
 }
+
+/**
+ * Returns the set completion percentage (0-100+, rounded to nearest integer),
+ * or null when totalTargetSets is 0 or negative.
+ */
+export function computeSetCompletionPercentage(
+  setCount: number,
+  totalTargetSets: number,
+): number | null {
+  if (totalTargetSets <= 0) return null
+  return Math.round((setCount / totalTargetSets) * 100)
+}

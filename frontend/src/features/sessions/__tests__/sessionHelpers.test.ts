@@ -84,3 +84,27 @@ describe('buildGroupStatsMap', () => {
     })
   })
 })
+
+import { computeSetCompletionPercentage } from '../sessionHelpers'
+
+describe('computeSetCompletionPercentage', () => {
+  it('returns 80 for 12/15 sets', () => {
+    expect(computeSetCompletionPercentage(12, 15)).toBe(80)
+  })
+
+  it('rounds down: 1/3 → 33', () => {
+    expect(computeSetCompletionPercentage(1, 3)).toBe(33)
+  })
+
+  it('allows over 100%: 20/15 → 133', () => {
+    expect(computeSetCompletionPercentage(20, 15)).toBe(133)
+  })
+
+  it('returns null when totalTargetSets is 0', () => {
+    expect(computeSetCompletionPercentage(5, 0)).toBeNull()
+  })
+
+  it('returns null when totalTargetSets is negative', () => {
+    expect(computeSetCompletionPercentage(5, -1)).toBeNull()
+  })
+})
