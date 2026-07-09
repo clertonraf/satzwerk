@@ -5,6 +5,7 @@ import { buildGroupStatsMap, buildWorkoutGroupCatalog } from '@/lib/domainBuilde
 import { exerciseService } from '@/services/exerciseService'
 import { queryKeys } from '@/services/queryKeys'
 import { sessionService, type ExerciseReferenceWeights, type WorkoutSession } from '@/services/sessionService'
+import { sortGroupOptions } from './sessionHelpers'
 
 interface UseSessionQueriesInput {
   session: WorkoutSession | null
@@ -60,12 +61,12 @@ export function useSessionQueries({ session, isSessionLoading }: UseSessionQueri
 
   const groupCatalog = useMemo(() => buildWorkoutGroupCatalog(planDetails), [planDetails])
 
-  const groupOptions = useMemo(
-    () => Object.values(groupCatalog).sort((a, b) => a.group.orderIndex - b.group.orderIndex),
-    [groupCatalog],
-  )
-
   const groupStatsMap = useMemo(() => buildGroupStatsMap(historyQuery.data ?? []), [historyQuery.data])
+
+  const groupOptions = useMemo(
+    () => sortGroupOptions(Object.values(groupCatalog), groupStatsMap),
+    [groupCatalog, groupStatsMap],
+  )
 
   const exercisesById = useMemo(
     () => new Map((exercisesQuery.data ?? []).map((exercise) => [exercise.id, exercise])),

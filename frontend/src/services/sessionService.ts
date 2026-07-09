@@ -42,7 +42,8 @@ export interface ExerciseReferenceWeights {
   exerciseId: string
   previousWeightKg: number | null
   prWeightKg: number | null
-  estimatedOneRepMaxKg: number | null
+  estimatedOneRepMaxMinKg: number | null
+  estimatedOneRepMaxMaxKg: number | null
   suggestedWeightKg: number | null
 }
 

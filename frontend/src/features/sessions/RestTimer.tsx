@@ -1,8 +1,35 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useReducer } from 'react'
 import { Button } from '@/components/ui/button'
 
 interface RestTimerProps {
   defaultSeconds?: number
+}
+
+interface RestTimerState {
+  isRunning: boolean
+  secondsLeft: number
+}
+
+type RestTimerAction =
+  | { type: 'start'; defaultSeconds: number }
+  | { type: 'stop'; defaultSeconds: number }
+  | { type: 'tick' }
+  | { type: 'reset-to-zero' }
+
+function restTimerReducer(state: RestTimerState, action: RestTimerAction): RestTimerState {
+  switch (action.type) {
+    case 'start':
+      return { isRunning: true, secondsLeft: action.defaultSeconds }
+    case 'stop':
+      return { isRunning: false, secondsLeft: action.defaultSeconds }
+    case 'tick':
+      if (state.secondsLeft <= 1) {
+        return { isRunning: false, secondsLeft: 0 }
+      }
+      return { ...state, secondsLeft: state.secondsLeft - 1 }
+    case 'reset-to-zero':
+      return { isRunning: false, secondsLeft: 0 }
+  }
 }
 
 function formatSeconds(totalSeconds: number) {
@@ -13,30 +40,41 @@ function formatSeconds(totalSeconds: number) {
 }
 
 export default function RestTimer({ defaultSeconds = 90 }: RestTimerProps) {
-  const [isRunning, setIsRunning] = useState(false)
-  const [secondsLeft, setSecondsLeft] = useState(defaultSeconds)
+  const [{ isRunning, secondsLeft }, dispatch] = useReducer(restTimerReducer, {
+    isRunning: false,
+    secondsLeft: defaultSeconds,
+  })
 
+  // When defaultSeconds drops to zero (e.g. SST technique applied while timer is mounted),
+  // stop any in-progress countdown immediately. General technique switches are handled by
+  // ExerciseSection giving this component key={advancedTechnique}, which unmounts/remounts
+  // the component and resets all state via the useState initialiser above.
   useEffect(() => {
-    if (!isRunning) {
+    if (defaultSeconds <= 0) {
+      dispatch({ type: 'reset-to-zero' })
+    }
+  }, [defaultSeconds])
+
+  // defaultSeconds is included in the dep array so that the interval is cleaned up
+  // before the effect above resets state when the prop drops to zero.
+  useEffect(() => {
+    if (!isRunning || defaultSeconds <= 0) {
       return
     }
 
     const interval = window.setInterval(() => {
-      setSecondsLeft((current) => {
-        if (current <= 1) {
-          window.clearInterval(interval)
-          setIsRunning(false)
-          return 0
-        }
-
-        return current - 1
-      })
+      dispatch({ type: 'tick' })
     }, 1000)
 
     return () => window.clearInterval(interval)
-  }, [isRunning])
+  }, [isRunning, defaultSeconds])
 
   const label = useMemo(() => formatSeconds(secondsLeft), [secondsLeft])
+
+  // Zero or negative rest (e.g. SST technique) means no rest is needed; render nothing.
+  if (defaultSeconds <= 0) {
+    return null
+  }
 
   if (!isRunning) {
     return (
@@ -44,8 +82,7 @@ export default function RestTimer({ defaultSeconds = 90 }: RestTimerProps) {
         type="button"
         variant="outline"
         onClick={() => {
-          setSecondsLeft(defaultSeconds)
-          setIsRunning(true)
+          dispatch({ type: 'start', defaultSeconds })
         }}
       >
         Start Rest
@@ -62,8 +99,7 @@ export default function RestTimer({ defaultSeconds = 90 }: RestTimerProps) {
         type="button"
         variant="ghost"
         onClick={() => {
-          setIsRunning(false)
-          setSecondsLeft(defaultSeconds)
+          dispatch({ type: 'stop', defaultSeconds })
         }}
       >
         Stop
