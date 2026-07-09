@@ -75,9 +75,12 @@ describe('useWorkoutSessionMachine', () => {
     mockUseOnlineStatus.mockReturnValue(true)
     mockAddSetLog.mockReset()
     vi.mocked(sessionService.start).mockReset()
-    // Default getOpen to null (no active session) so the open-session query
-    // doesn't interfere with tests that use setQueryData directly.
-    vi.mocked(sessionService.getOpen).mockResolvedValue(null as never)
+    // Mock getOpen to reject with a 404 AxiosError, matching production queryFn
+    // behaviour (which maps 404 → null). This is type-safe and exercises the
+    // error-handling path in the open-session queryFn.
+    vi.mocked(sessionService.getOpen).mockRejectedValue(
+      Object.assign(new Error('Not Found'), { isAxiosError: true, response: { status: 404 } }),
+    )
     vi.mocked(sessionService.complete).mockReset()
     vi.mocked(sessionService.discard).mockReset()
     vi.mocked(sessionService.deleteSetLog).mockReset()
@@ -347,24 +350,30 @@ describe('useWorkoutSessionMachine', () => {
 
       // Start 3 dispatches without awaiting so setPendingSetLogs fires for each
       // before transport resolves. The sync state updates are flushed by act().
+      let dispatchPromises: Promise<void>[]
       await act(async () => {
-        void result.current.dispatch({ type: 'LOG_SET', exerciseId: 'ex-1', setNumber: 1, weight: 80, reps: 5, unit: 'kg' })
-        void result.current.dispatch({ type: 'LOG_SET', exerciseId: 'ex-1', setNumber: 2, weight: 85, reps: 5, unit: 'kg' })
-        void result.current.dispatch({ type: 'LOG_SET', exerciseId: 'ex-1', setNumber: 3, weight: 90, reps: 5, unit: 'kg' })
+        dispatchPromises = [
+          result.current.dispatch({ type: 'LOG_SET', exerciseId: 'ex-1', setNumber: 1, weight: 80, reps: 5, unit: 'kg' }),
+          result.current.dispatch({ type: 'LOG_SET', exerciseId: 'ex-1', setNumber: 2, weight: 85, reps: 5, unit: 'kg' }),
+          result.current.dispatch({ type: 'LOG_SET', exerciseId: 'ex-1', setNumber: 3, weight: 90, reps: 5, unit: 'kg' }),
+        ]
         await Promise.resolve() // flush sync setPendingSetLogs updates
       })
 
       expect(result.current.pendingSetLogs).toHaveLength(3)
 
       // Simulate partial server confirmation: server confirms 2 of 3 sets
-      act(() => {
+      await act(async () => {
         queryClient.setQueryData(queryKeys.sessions.open(), buildSession({ setCount: 2 }))
       })
 
       await waitFor(() => expect(result.current.pendingSetLogs).toHaveLength(1))
 
-      // Resolve all deferred transport calls to avoid unhandled promise warnings
-      resolvers.forEach((r) => r())
+      // Resolve deferred transport and await dispatch completion to clean up
+      await act(async () => {
+        resolvers.forEach((r) => r())
+        await Promise.all(dispatchPromises!)
+      })
     })
 
     it('clears all pending logs when all queued sets are confirmed at once', async () => {
@@ -380,21 +389,27 @@ describe('useWorkoutSessionMachine', () => {
         { wrapper: Wrapper },
       )
 
+      let dispatchPromises: Promise<void>[]
       await act(async () => {
-        void result.current.dispatch({ type: 'LOG_SET', exerciseId: 'ex-1', setNumber: 1, weight: 80, reps: 5, unit: 'kg' })
-        void result.current.dispatch({ type: 'LOG_SET', exerciseId: 'ex-1', setNumber: 2, weight: 85, reps: 5, unit: 'kg' })
+        dispatchPromises = [
+          result.current.dispatch({ type: 'LOG_SET', exerciseId: 'ex-1', setNumber: 1, weight: 80, reps: 5, unit: 'kg' }),
+          result.current.dispatch({ type: 'LOG_SET', exerciseId: 'ex-1', setNumber: 2, weight: 85, reps: 5, unit: 'kg' }),
+        ]
         await Promise.resolve()
       })
 
       expect(result.current.pendingSetLogs).toHaveLength(2)
 
-      act(() => {
+      await act(async () => {
         queryClient.setQueryData(queryKeys.sessions.open(), buildSession({ setCount: 2 }))
       })
 
       await waitFor(() => expect(result.current.pendingSetLogs).toHaveLength(0))
 
-      resolvers.forEach((r) => r())
+      await act(async () => {
+        resolvers.forEach((r) => r())
+        await Promise.all(dispatchPromises!)
+      })
     })
 
     it('clears all pending logs when session id changes (new session started)', async () => {
@@ -410,22 +425,28 @@ describe('useWorkoutSessionMachine', () => {
         { wrapper: Wrapper },
       )
 
+      let dispatchPromises: Promise<void>[]
       await act(async () => {
-        void result.current.dispatch({ type: 'LOG_SET', exerciseId: 'ex-1', setNumber: 1, weight: 80, reps: 5, unit: 'kg' })
-        void result.current.dispatch({ type: 'LOG_SET', exerciseId: 'ex-1', setNumber: 2, weight: 85, reps: 5, unit: 'kg' })
+        dispatchPromises = [
+          result.current.dispatch({ type: 'LOG_SET', exerciseId: 'ex-1', setNumber: 1, weight: 80, reps: 5, unit: 'kg' }),
+          result.current.dispatch({ type: 'LOG_SET', exerciseId: 'ex-1', setNumber: 2, weight: 85, reps: 5, unit: 'kg' }),
+        ]
         await Promise.resolve()
       })
 
       expect(result.current.pendingSetLogs).toHaveLength(2)
 
       // Simulate session change (e.g. forfeit → new session)
-      act(() => {
+      await act(async () => {
         queryClient.setQueryData(queryKeys.sessions.open(), buildSession({ id: 'session-2', setCount: 0 }))
       })
 
       await waitFor(() => expect(result.current.pendingSetLogs).toHaveLength(0))
 
-      resolvers.forEach((r) => r())
+      await act(async () => {
+        resolvers.forEach((r) => r())
+        await Promise.all(dispatchPromises!)
+      })
     })
   })
 })
