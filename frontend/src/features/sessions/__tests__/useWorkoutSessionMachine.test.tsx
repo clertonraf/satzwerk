@@ -90,6 +90,9 @@ describe('useWorkoutSessionMachine', () => {
     mockUseOnlineStatus.mockReturnValue(true)
     mockAddSetLog.mockReset()
     vi.mocked(sessionService.start).mockReset()
+    // Reset getOpen before applying the default 404 rejection so prior call
+    // history doesn't bleed across tests.
+    vi.mocked(sessionService.getOpen).mockReset()
     // Mock getOpen with a 404 AxiosError — type-safe default for the conflict path,
     // where the machine explicitly calls sessionService.getOpen() after a 409.
     // The open-session cache is pre-seeded with null above, so the useQuery's
@@ -467,6 +470,37 @@ describe('useWorkoutSessionMachine', () => {
         resolvers.forEach((r) => r())
         await Promise.all(dispatchPromises!)
       })
+    })
+    it('clears pendingSetLogs after dispatch even when transport returns a queued (pending: true) result', async () => {
+      // Simulates the offline case: transport resolves immediately with a queued PendingSetLog.
+      // The machine always appends the result to session.setLogs and increments setCount,
+      // so the local pending log added before the transport call is reconciled by the useEffect.
+      mockAddSetLog.mockResolvedValue(makePendingSetLog({ setNumber: 1 }))
+
+      queryClient.setQueryData(queryKeys.sessions.open(), buildSession())
+
+      const { result } = renderHook(
+        () => useWorkoutSessionMachine({ onComplete: vi.fn(), onForfeit: vi.fn() }),
+        { wrapper: Wrapper },
+      )
+
+      await act(async () => {
+        await result.current.dispatch({
+          type: 'LOG_SET',
+          exerciseId: 'ex-1',
+          setNumber: 1,
+          weight: 80,
+          reps: 5,
+          unit: 'kg',
+        })
+      })
+
+      // pendingSetLogs is empty because setCount was incremented by the dispatch itself
+      expect(result.current.pendingSetLogs).toHaveLength(0)
+      // The queued log is tracked in session.setLogs until the server confirms it
+      const session = queryClient.getQueryData<WorkoutSession>(queryKeys.sessions.open())
+      expect(session?.setLogs).toHaveLength(1)
+      expect(session?.setCount).toBe(1)
     })
   })
 })
