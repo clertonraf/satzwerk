@@ -7,7 +7,18 @@ export const ADVANCED_TECHNIQUE_OPTIONS = [
   { value: 'GIRONDA', label: 'GIRONDA' },
 ] as const
 
-const advancedTechniqueLabels: Record<string, string> = {
+/**
+ * Union of all known AdvancedTechnique enum values (non-empty options only).
+ * Derived from ADVANCED_TECHNIQUE_OPTIONS to keep the two in sync.
+ * When a new technique is added to ADVANCED_TECHNIQUE_OPTIONS, this type automatically
+ * widens — any label/description maps that don't cover the new value produce TS errors.
+ */
+export type AdvancedTechniqueValue = Exclude<
+  (typeof ADVANCED_TECHNIQUE_OPTIONS)[number]['value'],
+  ''
+>
+
+const advancedTechniqueLabels: Record<AdvancedTechniqueValue, string> = {
   SST: 'SST',
   REST_PAUSE: 'REST PAUSE',
   GVT: 'GVT',
@@ -15,7 +26,7 @@ const advancedTechniqueLabels: Record<string, string> = {
   GIRONDA: 'GIRONDA',
 }
 
-const advancedTechniqueDescriptions: Record<string, string> = {
+const advancedTechniqueDescriptions: Record<AdvancedTechniqueValue, string> = {
   SST: 'Perform until muscular failure, then immediately drop the load by 20–30% three consecutive times with zero rest to push the muscle past its normal limits.',
   REST_PAUSE:
     'Perform until muscular failure, resting for a brief 15 to 20 seconds, and then immediately performing a few more reps with the same weight to maximize high-intensity muscle stimulation.',
@@ -31,7 +42,7 @@ export function formatAdvancedTechnique(value: string | null | undefined) {
     return null
   }
 
-  return advancedTechniqueLabels[value] ?? value
+  return (advancedTechniqueLabels as Record<string, string>)[value] ?? value
 }
 
 export function getAdvancedTechniqueDescription(value: string | null | undefined): string | null {
@@ -39,5 +50,5 @@ export function getAdvancedTechniqueDescription(value: string | null | undefined
     return null
   }
 
-  return advancedTechniqueDescriptions[value] ?? null
+  return (advancedTechniqueDescriptions as Record<string, string>)[value] ?? null
 }

@@ -1,5 +1,32 @@
 import { describe, expect, it } from 'vitest'
-import { formatAdvancedTechnique, getAdvancedTechniqueDescription } from '../advancedTechnique'
+import {
+  ADVANCED_TECHNIQUE_OPTIONS,
+  formatAdvancedTechnique,
+  getAdvancedTechniqueDescription,
+} from '../advancedTechnique'
+
+describe('ADVANCED_TECHNIQUE_OPTIONS completeness', () => {
+  const nonEmptyOptions = ADVANCED_TECHNIQUE_OPTIONS.filter((o) => o.value !== '')
+
+  it('every non-empty option has a non-null label via formatAdvancedTechnique', () => {
+    for (const option of nonEmptyOptions) {
+      expect(
+        formatAdvancedTechnique(option.value),
+        `Expected a label for technique "${option.value}"`,
+      ).not.toBeNull()
+    }
+  })
+
+  it('every non-empty option has a non-null description via getAdvancedTechniqueDescription', () => {
+    for (const option of nonEmptyOptions) {
+      expect(
+        getAdvancedTechniqueDescription(option.value),
+        `Expected a description for technique "${option.value}"`,
+      ).not.toBeNull()
+    }
+  })
+})
+
 
 describe('formatAdvancedTechnique', () => {
   it('returns null for null input', () => {
