@@ -97,7 +97,7 @@ class OneRepMaxCalculatorTest {
         }
 
     @Test
-    fun `brzycki returns null for reps at 36 is valid`(): Unit =
+    fun `brzycki returns expected 1RM for reps at boundary 36`(): Unit =
         run {
             // 100 * 36 / (37 - 36) = 100 * 36 / 1 = 3600.00
             assertEquals(BigDecimal("3600.00"), brzycki(BigDecimal("100"), 36))

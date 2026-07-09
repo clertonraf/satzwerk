@@ -90,7 +90,7 @@ describe('ExerciseReferenceRow', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows estimated 1RM as single value when min equals max', () => {
+  it('shows estimated 1RM as range with same value on both ends when min equals max', () => {
     render(
       <ExerciseReferenceRow
         referenceWeights={{
