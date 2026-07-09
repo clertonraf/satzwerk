@@ -71,6 +71,10 @@ describe('useWorkoutSessionMachine', () => {
     queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: Infinity } },
     })
+    // Pre-seed the open-session cache with null so the useQuery's initial fetch
+    // never fires during tests. Tests that need a specific session can override
+    // via queryClient.setQueryData() before rendering the hook.
+    queryClient.setQueryData(queryKeys.sessions.open(), null)
     mockUseOnlineStatus.mockReset()
     mockUseOnlineStatus.mockReturnValue(true)
     mockAddSetLog.mockReset()
