@@ -19,6 +19,9 @@ private const val MAX_TREND_WEEKS = 52
 private const val DEFAULT_PR_LIMIT = 5
 private const val MIN_PR_LIMIT = 1
 private const val MAX_PR_LIMIT = 20
+private const val DEFAULT_TOP_EXERCISES_LIMIT = 5
+private const val MIN_TOP_EXERCISES_LIMIT = 1
+private const val MAX_TOP_EXERCISES_LIMIT = 50
 
 private fun parseDate(
     param: String,
@@ -29,6 +32,21 @@ private fun parseDate(
     } catch (_: DateTimeParseException) {
         throw BadRequestException("Invalid date for '$param': '$value'. Expected format: yyyy-MM-dd")
     }
+
+private fun parseIntParam(
+    ctx: RequestContext,
+    name: String,
+    default: Int,
+    min: Int,
+    max: Int,
+): Int {
+    val value =
+        ctx.queryParam(name)?.let {
+            it.toIntOrNull() ?: throw BadRequestException("'$name' must be a valid integer")
+        } ?: default
+    if (value !in min..max) throw BadRequestException("'$name' must be between $min and $max")
+    return value
+}
 
 @Configuration
 class AnalyticsRouter {
@@ -62,27 +80,29 @@ class AnalyticsRouter {
                 GET("/weekly-trend") { request ->
                     handleErrors {
                         val ctx = RequestContext(request)
-                        val weeks =
-                            ctx.queryParam("weeks")?.let {
-                                it.toIntOrNull() ?: throw BadRequestException("'weeks' must be a valid integer")
-                            } ?: DEFAULT_TREND_WEEKS
-                        if (weeks !in MIN_TREND_WEEKS..MAX_TREND_WEEKS) {
-                            throw BadRequestException("'weeks' must be between $MIN_TREND_WEEKS and $MAX_TREND_WEEKS")
-                        }
+                        val weeks = parseIntParam(ctx, "weeks", DEFAULT_TREND_WEEKS, MIN_TREND_WEEKS, MAX_TREND_WEEKS)
                         ServerResponse.ok().bodyValueAndAwait(analyticsService.weeklyTrend(ctx.userId(), weeks))
                     }
                 }
                 GET("/personal-records") { request ->
                     handleErrors {
                         val ctx = RequestContext(request)
-                        val limit =
-                            ctx.queryParam("limit")?.let {
-                                it.toIntOrNull() ?: throw BadRequestException("'limit' must be a valid integer")
-                            } ?: DEFAULT_PR_LIMIT
-                        if (limit !in MIN_PR_LIMIT..MAX_PR_LIMIT) {
-                            throw BadRequestException("'limit' must be between $MIN_PR_LIMIT and $MAX_PR_LIMIT")
-                        }
+                        val limit = parseIntParam(ctx, "limit", DEFAULT_PR_LIMIT, MIN_PR_LIMIT, MAX_PR_LIMIT)
                         ServerResponse.ok().bodyValueAndAwait(analyticsService.personalRecords(ctx.userId(), limit))
+                    }
+                }
+                GET("/top-exercises") { request ->
+                    handleErrors {
+                        val ctx = RequestContext(request)
+                        val limit =
+                            parseIntParam(
+                                ctx,
+                                "limit",
+                                DEFAULT_TOP_EXERCISES_LIMIT,
+                                MIN_TOP_EXERCISES_LIMIT,
+                                MAX_TOP_EXERCISES_LIMIT,
+                            )
+                        ServerResponse.ok().bodyValueAndAwait(analyticsService.topExercises(ctx.userId(), limit))
                     }
                 }
             }
