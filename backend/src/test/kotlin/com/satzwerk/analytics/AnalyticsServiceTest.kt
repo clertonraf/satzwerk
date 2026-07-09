@@ -7,6 +7,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.UUID
 
 class AnalyticsServiceTest {
@@ -46,7 +47,7 @@ class AnalyticsServiceTest {
     @Test
     fun `dashboardSummary computes longest streak from Kotlin calculator`(): Unit =
         runBlocking {
-            val today = LocalDate.now()
+            val today = LocalDate.now(ZoneOffset.UTC)
             val days =
                 listOf(
                     today.minusDays(1),
@@ -62,7 +63,7 @@ class AnalyticsServiceTest {
     @Test
     fun `dashboardSummary computes current streak as zero when most recent day is not today or yesterday`(): Unit =
         runBlocking {
-            val today = LocalDate.now()
+            val today = LocalDate.now(ZoneOffset.UTC)
             val days = listOf(today.minusDays(2), today.minusDays(3))
 
             val result = service(workoutDays = days).dashboardSummary(userId)

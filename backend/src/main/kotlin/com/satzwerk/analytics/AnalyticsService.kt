@@ -72,7 +72,8 @@ class AnalyticsService(
 }
 
 /**
- * Computes current and longest workout streaks from a list of workout days (descending order, bounded to 366 days).
+ * Computes current and longest workout streaks from a list of workout days (descending order).
+ * [days] should be the full workout-day history from [AnalyticsRepository.findWorkoutDays].
  * Returns Pair(currentStreak, longestStreak).
  */
 internal fun computeStreaks(days: List<LocalDate>): Pair<Int, Int> {

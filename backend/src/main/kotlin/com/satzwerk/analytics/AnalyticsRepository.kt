@@ -82,7 +82,6 @@ class AnalyticsRepository(
                 JOIN workout_sessions ws ON sl.workout_session_id = ws.id
                 WHERE ws.user_id = :userId
                 ORDER BY day DESC
-                LIMIT 366
                 """.trimIndent(),
             ).bind("userId", userId)
             .map { row, _ -> row.get("day", LocalDate::class.java)!! }
