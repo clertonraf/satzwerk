@@ -28,28 +28,17 @@ class AnalyticsService(
 
     suspend fun streak(userId: UUID): StreakResponse {
         val days = analyticsRepository.findWorkoutDays(userId)
-
-        if (days.isEmpty()) {
-            return StreakResponse(currentStreak = 0, longestStreak = 0)
-        }
-
-        val longest = longestStreak(days)
-        val today = LocalDate.now(ZoneOffset.UTC)
-        val current =
-            if (days.first() == today || days.first() == today.minusDays(1)) {
-                leadingStreak(days)
-            } else {
-                0
-            }
-
+        val (current, longest) = computeStreaks(days)
         return StreakResponse(currentStreak = current, longestStreak = longest)
     }
 
     suspend fun dashboardSummary(userId: UUID): DashboardSummary {
         val summaryRow = analyticsRepository.findDashboardSummary(userId)
+        val days = analyticsRepository.findWorkoutDays(userId)
+        val (currentStreak, longestStreak) = computeStreaks(days)
         return DashboardSummary(
-            currentStreak = summaryRow.currentStreak,
-            longestStreak = summaryRow.longestStreak,
+            currentStreak = currentStreak,
+            longestStreak = longestStreak,
             sessionsThisMonth = summaryRow.sessionsThisMonth,
             setsThisWeek = summaryRow.setsThisWeek,
             totalSessions = summaryRow.totalSessions,
@@ -80,4 +69,22 @@ class AnalyticsService(
                 achievedAt = row.achievedAt,
             )
         }
+}
+
+/**
+ * Computes current and longest workout streaks from a list of workout days (descending order).
+ * [days] should be the full workout-day history from [AnalyticsRepository.findWorkoutDays].
+ * Returns Pair(currentStreak, longestStreak).
+ */
+internal fun computeStreaks(days: List<LocalDate>): Pair<Int, Int> {
+    if (days.isEmpty()) return 0 to 0
+    val longest = longestStreak(days)
+    val today = LocalDate.now(ZoneOffset.UTC)
+    val current =
+        if (days.first() == today || days.first() == today.minusDays(1)) {
+            leadingStreak(days)
+        } else {
+            0
+        }
+    return current to longest
 }
