@@ -3,12 +3,8 @@ package com.satzwerk.sessions
 import com.satzwerk.common.NotFoundException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.math.BigDecimal
-import java.math.RoundingMode
 import java.time.Instant
 import java.util.UUID
-
-private const val PR_RATIO_SCALE = 10
 
 @Service
 class SetLogService(
@@ -21,7 +17,7 @@ class SetLogService(
     ): SetLogResponse {
         val now = Instant.now()
         val isPr =
-            calculateIsPr(
+            sessionQueryRepository.calculateIsPr(
                 session.userId,
                 request.exerciseId,
                 request.weight,
@@ -50,7 +46,7 @@ class SetLogService(
             setLogRepository.findByIdAndWorkoutSessionId(setLogId, requireNotNull(session.id))
                 ?: throw NotFoundException("Set log not found")
         val isPr =
-            calculateIsPr(
+            sessionQueryRepository.calculateIsPr(
                 session.userId,
                 setLog.exerciseId,
                 request.weight,
@@ -78,21 +74,4 @@ class SetLogService(
 
     @Transactional
     suspend fun clearSetLogs(sessionId: UUID) = setLogRepository.deleteAllByWorkoutSessionId(sessionId)
-
-    // Defensive guard: @Min(1) on request DTOs already blocks reps<=0 at the API boundary;
-    // this branch protects against bypassed validation or future callers that skip the handler.
-    private suspend fun calculateIsPr(
-        userId: UUID,
-        exerciseId: UUID,
-        weight: BigDecimal,
-        reps: Int,
-        existing: SetLogRef? = null,
-    ): Boolean {
-        if (reps <= 0) return false
-        val beforeDate = existing?.loggedAt ?: Instant.now()
-        val prevMaxRatio =
-            sessionQueryRepository.findMaxRatioForExercise(userId, exerciseId, beforeDate, existing?.id)
-        val currentRatio = weight.divide(reps.toBigDecimal(), PR_RATIO_SCALE, RoundingMode.HALF_UP)
-        return prevMaxRatio == null || currentRatio > prevMaxRatio
-    }
 }

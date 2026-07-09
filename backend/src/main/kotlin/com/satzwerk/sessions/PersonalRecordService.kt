@@ -45,28 +45,31 @@ class PersonalRecordService(
         val workoutExerciseMap = uniqueExercises.associateBy { it.exerciseId }
         return sessionQueryRepository.findReferenceWeights(userId, exerciseIds, sessionId, workoutExerciseMap)
     }
+}
 
-    /**
-     * Returns true if the given weight/reps combination represents a new personal record for the exercise.
-     *
-     * Comparison is based on the weight-to-reps ratio (weight / reps) to normalise across different rep ranges.
-     * [existing] identifies a set log being updated, so its current ratio is excluded from the comparison.
-     *
-     * Defensive guard: @Min(1) on request DTOs already blocks reps<=0 at the API boundary;
-     * this branch protects against bypassed validation or future callers that skip the handler.
-     */
-    internal suspend fun calculateIsPr(
-        userId: UUID,
-        exerciseId: UUID,
-        weight: BigDecimal,
-        reps: Int,
-        existing: SetLogRef? = null,
-    ): Boolean {
-        if (reps <= 0) return false
-        val beforeDate = existing?.loggedAt ?: Instant.now()
-        val prevMaxRatio =
-            sessionQueryRepository.findMaxRatioForExercise(userId, exerciseId, beforeDate, existing?.id)
-        val currentRatio = weight.divide(reps.toBigDecimal(), PR_RATIO_SCALE, RoundingMode.HALF_UP)
-        return prevMaxRatio == null || currentRatio > prevMaxRatio
-    }
+/**
+ * Returns true if the given weight/reps combination represents a new personal record for the exercise.
+ *
+ * Comparison is based on the weight-to-reps ratio (weight / reps) to normalise across different rep ranges.
+ * [existing] pins the timestamp cutoff for the comparison window (logs at or before [SetLogRef.loggedAt]
+ * are considered). When [SetLogRef.id] is non-null, the underlying query uses a strict
+ * (loggedAt, id) cutoff: logs with the same timestamp and a higher id are also excluded. This covers
+ * the update case where a set's previous ratio must not influence its own re-evaluation.
+ *
+ * Defensive guard: @Min(1) on request DTOs already blocks reps<=0 at the API boundary;
+ * this branch protects against bypassed validation or future callers that skip the handler.
+ */
+internal suspend fun SessionQueryRepository.calculateIsPr(
+    userId: UUID,
+    exerciseId: UUID,
+    weight: BigDecimal,
+    reps: Int,
+    existing: SetLogRef? = null,
+): Boolean {
+    if (reps <= 0) return false
+    val beforeDate = existing?.loggedAt ?: Instant.now()
+    val prevMaxRatio =
+        findMaxRatioForExercise(userId, exerciseId, beforeDate, existing?.id)
+    val currentRatio = weight.divide(reps.toBigDecimal(), PR_RATIO_SCALE, RoundingMode.HALF_UP)
+    return prevMaxRatio == null || currentRatio > prevMaxRatio
 }
