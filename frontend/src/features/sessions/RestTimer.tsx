@@ -13,12 +13,14 @@ function formatSeconds(totalSeconds: number) {
 }
 
 export default function RestTimer({ defaultSeconds = 90 }: RestTimerProps) {
+  return <RestTimerContent key={defaultSeconds} defaultSeconds={defaultSeconds} />
+}
+
+function RestTimerContent({ defaultSeconds }: { defaultSeconds: number }) {
   const [isRunning, setIsRunning] = useState(false)
   const [secondsLeft, setSecondsLeft] = useState(defaultSeconds)
 
   useEffect(() => {
-    // Also stop when defaultSeconds changes to <= 0 at runtime; adding it to deps
-    // triggers cleanup of the previous interval before starting a new one.
     if (!isRunning || defaultSeconds <= 0) {
       return
     }
@@ -41,7 +43,6 @@ export default function RestTimer({ defaultSeconds = 90 }: RestTimerProps) {
   const label = useMemo(() => formatSeconds(secondsLeft), [secondsLeft])
 
   // Zero or negative rest (e.g. SST technique) means no rest is needed; render nothing.
-  // The interval is already stopped above because defaultSeconds <= 0 guards the effect.
   if (defaultSeconds <= 0) {
     return null
   }

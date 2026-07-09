@@ -55,6 +55,10 @@ describe('formatAdvancedTechnique', () => {
   it('falls back to the raw value for unknown techniques', () => {
     expect(formatAdvancedTechnique('UNKNOWN')).toBe('UNKNOWN')
   })
+
+  it('falls back to the raw value for prototype property names', () => {
+    expect(formatAdvancedTechnique('toString')).toBe('toString')
+  })
 })
 
 describe('getAdvancedTechniqueDescription', () => {
@@ -72,6 +76,10 @@ describe('getAdvancedTechniqueDescription', () => {
 
   it('returns null for unknown technique values', () => {
     expect(getAdvancedTechniqueDescription('UNKNOWN')).toBeNull()
+  })
+
+  it('returns null for prototype property names', () => {
+    expect(getAdvancedTechniqueDescription('toString')).toBeNull()
   })
 
   it('returns description for SST', () => {

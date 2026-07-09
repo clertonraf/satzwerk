@@ -44,4 +44,18 @@ describe('RestTimer', () => {
 
     expect(screen.getByText(/1:30/i)).toBeInTheDocument()
   })
+
+  it('stops timer when defaultSeconds becomes 0 and does not auto-resume later', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<RestTimer defaultSeconds={20} />)
+
+    await user.click(screen.getByRole('button', { name: /start rest/i }))
+    expect(screen.getByText(/0:20/i)).toBeInTheDocument()
+
+    rerender(<RestTimer defaultSeconds={0} />)
+    expect(screen.queryByRole('button', { name: /start rest/i })).not.toBeInTheDocument()
+
+    rerender(<RestTimer defaultSeconds={20} />)
+    expect(screen.getByRole('button', { name: /start rest/i })).toBeInTheDocument()
+  })
 })
