@@ -68,7 +68,8 @@ export function sortGroupOptions(
     const aTime = new Date(aLast).getTime()
     const bTime = new Date(bLast).getTime()
 
-    // Guard against invalid date strings producing NaN — treat as equivalent to null (never done).
+    // Guard against invalid date strings producing NaN — sort before any valid-dated group
+    // (after true never-done groups), in orderIndex order when both are invalid.
     if (Number.isNaN(aTime) && Number.isNaN(bTime)) return a.group.orderIndex - b.group.orderIndex
     if (Number.isNaN(aTime)) return -1
     if (Number.isNaN(bTime)) return 1
