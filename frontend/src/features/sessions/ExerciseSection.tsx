@@ -105,6 +105,9 @@ export default function ExerciseSection({
             onLogSet(exercise.exerciseId, setNumber, weight, reps, exerciseUnit)
           }}
         />
+        {/* key uses the technique name, not the derived seconds, so that switching between
+            techniques with the same rest duration (e.g. FST_7 and GIRONDA both 30 s) still
+            remounts the timer and resets isRunning / secondsLeft. */}
         <RestTimer key={exercise.advancedTechnique ?? ''} defaultSeconds={techniqueRestSeconds ?? undefined} />
 
         {exerciseLogs.length > 0 ? (

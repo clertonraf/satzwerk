@@ -45,12 +45,18 @@ export default function RestTimer({ defaultSeconds = 90 }: RestTimerProps) {
     secondsLeft: defaultSeconds,
   })
 
+  // When defaultSeconds drops to zero (e.g. SST technique applied while timer is mounted),
+  // stop any in-progress countdown immediately. General technique switches are handled by
+  // ExerciseSection giving this component key={advancedTechnique}, which unmounts/remounts
+  // the component and resets all state via the useState initialiser above.
   useEffect(() => {
     if (defaultSeconds <= 0) {
       dispatch({ type: 'reset-to-zero' })
     }
   }, [defaultSeconds])
 
+  // defaultSeconds is included in the dep array so that the interval is cleaned up
+  // before the effect above resets state when the prop drops to zero.
   useEffect(() => {
     if (!isRunning || defaultSeconds <= 0) {
       return
