@@ -10,7 +10,6 @@ import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import java.time.Instant
 
-private const val SCHEDULER_CLEANUP_DAYS = 30L
 private const val SCHEDULER_SECONDS_PER_DAY = 86400L
 
 @Component
@@ -24,7 +23,7 @@ class RefreshTokenCleanupScheduler(
     @Scheduled(cron = "0 0 3 * * *")
     fun runCleanup() {
         scope.launch {
-            val cutoff = Instant.now().minusSeconds(SCHEDULER_CLEANUP_DAYS * SCHEDULER_SECONDS_PER_DAY)
+            val cutoff = Instant.now().minusSeconds(REFRESH_TOKEN_RETENTION_DAYS * SCHEDULER_SECONDS_PER_DAY)
             try {
                 refreshTokenRepository.deleteByExpiresAtBefore(cutoff)
                 refreshTokenRepository.deleteByRevokedAtIsNotNullAndRevokedAtBefore(cutoff)
