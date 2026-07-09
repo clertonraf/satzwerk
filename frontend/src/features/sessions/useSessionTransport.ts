@@ -2,12 +2,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { queryKeys } from '@/services/queryKeys'
 import { offlineQueue } from '@/services/offlineQueue'
-import type { AddSetLogRequest, PendingSetLog, SetLog, SetLogResult, UpdateSetLogRequest } from '@/services/sessionService'
+import type { AddSetLogRequest, PendingSetLog, SetLogResult, SetLogUpdate, UpdateSetLogRequest } from '@/services/sessionService'
 import { sessionService } from '@/services/sessionService'
 
 export interface SetLogTransport {
   addSetLog(sessionId: string, data: AddSetLogRequest): Promise<SetLogResult>
-  updateSetLog(sessionId: string, setLogId: string, data: UpdateSetLogRequest): Promise<SetLog>
+  updateSetLog(sessionId: string, setLogId: string, data: UpdateSetLogRequest): Promise<SetLogUpdate>
 }
 
 function createQueuedSetLog(sessionId: string, payload: AddSetLogRequest): PendingSetLog {
@@ -21,14 +21,10 @@ function createQueuedSetLog(sessionId: string, payload: AddSetLogRequest): Pendi
   }
 }
 
-function createQueuedUpdateSetLog(setLogId: string, data: UpdateSetLogRequest): SetLog {
+function createQueuedUpdateSetLog(data: UpdateSetLogRequest): SetLogUpdate {
   return {
-    id: setLogId,
-    exerciseId: '',
-    setNumber: 0,
     weight: data.weight,
     reps: data.reps,
-    loggedAt: new Date().toISOString(),
   }
 }
 
@@ -67,7 +63,7 @@ export function useSessionTransport() {
         return updateSetLogMutation.mutateAsync({ sessionId, setLogId, data })
       }
       await offlineQueue.enqueue({ type: 'update-set', sessionId, setLogId, data })
-      return createQueuedUpdateSetLog(setLogId, data)
+      return createQueuedUpdateSetLog(data)
     },
   }
 
