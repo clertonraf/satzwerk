@@ -79,6 +79,7 @@ assertEquals("Bench Press", saved[0].name)
 ./gradlew ktlintCheck detekt compileTestKotlin --no-daemon
 ```
 - `ktlintCheck` and `detekt` catch different things — always run both together. detekt enforces `MaxLineLength` (120 chars); ktlint does not.
+- After writing Kotlin test mock blocks (`mock { onBlocking { } doReturn ... }`), run `ktlintFormat` **before** `ktlintCheck` — `standard:multiline-expression-wrapping` violations are auto-correctable and consistently appear in these patterns.
 - After any import block modification (including after running `ktlintFormat`), run `compileTestKotlin` to confirm no imports were accidentally dropped. `ktlintFormat` silently reorders imports and can cause edit collisions.
 - Use the rubber-duck agent (`task(rubber-duck)`) before the first push of any non-trivial change to front-load edge-case discovery and reduce Copilot review round-trips. **If the rubber-duck agent does not complete within 3 minutes, cancel it and perform an inline self-review instead — do not retry the agent.**
 - For diffs that span Kotlin backend + React frontend + SQL (cross-stack changes), explicitly set `model: "claude-sonnet-4.6"` in the rubber-duck task call — it has better cross-language context awareness for this stack than GPT models.
@@ -192,6 +193,13 @@ gh run list --branch <branch> --limit 1 --json databaseId -q '.[0].databaseId' |
 gh workflow run CI --ref <branch> --repo clertonraf/satzwerk
 ```
 Empty commits (`git commit --allow-empty -m "ci: trigger CI"`) pollute git history and should be avoided.
+
+**Exception — GHA runner unavailability**: When the CI failure message is "The job was not acquired by Runner of type hosted even after multiple attempts", `gh run rerun` returns "This workflow run cannot be retried" and `gh workflow run CI` triggers a new run but **does not update PR status checks** (workflow_dispatch events are excluded from PR check status). The only path that updates PR checks is a code push. In this specific case, an empty commit is acceptable:
+```bash
+git commit --allow-empty -m "ci: re-trigger CI after runner failure
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+git push
+```
 
 ## Worktree cleanup
 
