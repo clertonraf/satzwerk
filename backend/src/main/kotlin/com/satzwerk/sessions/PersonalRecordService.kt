@@ -36,13 +36,15 @@ class PersonalRecordService(
         return exerciseIds.map { exerciseId ->
             val previousWeight = previousWeights[exerciseId]
             val pr = personalRecords[exerciseId]
-            val oneRepMax = pr.toEstimatedOneRepMaxKg()
+            val range = pr.toEstimatedOneRepMaxRange()
             ExerciseReferenceWeights(
                 exerciseId = exerciseId,
                 previousWeightKg = previousWeight,
                 prWeightKg = pr?.prWeight,
-                estimatedOneRepMaxKg = oneRepMax,
-                suggestedWeightKg = oneRepMax?.let { computeSuggestedWeight(it, workoutExerciseMap[exerciseId]) },
+                estimatedOneRepMaxMinKg = range.minKg,
+                estimatedOneRepMaxMaxKg = range.maxKg,
+                // Suggestion uses Epley as the 1RM base for internal consistency with the Epley inverse.
+                suggestedWeightKg = range.epleyKg?.let { computeSuggestedWeight(it, workoutExerciseMap[exerciseId]) },
             )
         }
     }
@@ -75,9 +77,14 @@ internal suspend fun SessionQueryRepository.calculateIsPr(
     return prevMaxRatio == null || currentRatio > prevMaxRatio
 }
 
-private fun PersonalRecordRow?.toEstimatedOneRepMaxKg(): BigDecimal? {
+private data class OneRepMaxRange(val minKg: BigDecimal?, val maxKg: BigDecimal?, val epleyKg: BigDecimal?)
+
+private fun PersonalRecordRow?.toEstimatedOneRepMaxRange(): OneRepMaxRange {
     if (this?.prWeight == null || prReps == null) {
-        return null
+        return OneRepMaxRange(null, null, null)
     }
-    return epley(prWeight, prReps)
+    val epleyVal = epley(prWeight, prReps)
+    val brzyckiVal = brzycki(prWeight, prReps)
+    val values = listOfNotNull(epleyVal, brzyckiVal)
+    return OneRepMaxRange(values.minOrNull(), values.maxOrNull(), epleyVal)
 }

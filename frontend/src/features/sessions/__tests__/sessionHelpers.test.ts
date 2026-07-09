@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { buildGroupStatsMap } from '@/lib/domainBuilders'
-import { formatGroupStats, computeSetCompletionPercentage } from '../sessionHelpers'
+import { computeSetCompletionPercentage, formatGroupStats, sortGroupOptions } from '../sessionHelpers'
+import type { WorkoutGroupCatalogEntry } from '@/lib/domainBuilders'
+import type { WorkoutPlanDetail } from '@/services/planService'
 import type { WorkoutSession } from '@/services/sessionService'
 
 const makeSession = (overrides: Partial<WorkoutSession> = {}): WorkoutSession => ({
@@ -85,6 +87,74 @@ describe('buildGroupStatsMap', () => {
   })
 })
 
+
+const basePlan: WorkoutPlanDetail = {
+  id: 'plan-1',
+  name: 'PPL',
+  source: 'MANUAL',
+  isActive: true,
+  createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-01T00:00:00Z',
+  groups: [],
+}
+
+function makeEntry(id: string, orderIndex: number): WorkoutGroupCatalogEntry {
+  return { group: { id, title: id, orderIndex, exercises: [] }, plan: basePlan }
+}
+
+describe('sortGroupOptions', () => {
+  it('preserves plan orderIndex order when all groups are never done', () => {
+    const entries = [makeEntry('b', 1), makeEntry('a', 0), makeEntry('c', 2)]
+    const result = sortGroupOptions(entries, new Map())
+    expect(result.map((e) => e.group.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('sorts all-done groups by lastCompletedAt ascending (oldest first)', () => {
+    const entries = [makeEntry('a', 0), makeEntry('b', 1), makeEntry('c', 2)]
+    const stats = new Map([
+      ['a', { count: 1, lastCompletedAt: '2026-06-10T00:00:00Z' }],
+      ['b', { count: 1, lastCompletedAt: '2026-06-08T00:00:00Z' }],
+      ['c', { count: 1, lastCompletedAt: '2026-06-09T00:00:00Z' }],
+    ])
+    const result = sortGroupOptions(entries, stats)
+    expect(result.map((e) => e.group.id)).toEqual(['b', 'c', 'a'])
+  })
+
+  it('puts never-done groups first (by orderIndex), then done groups (oldest first)', () => {
+    const entries = [makeEntry('done-old', 0), makeEntry('never', 1), makeEntry('done-new', 2)]
+    const stats = new Map([
+      ['done-old', { count: 2, lastCompletedAt: '2026-06-01T00:00:00Z' }],
+      ['done-new', { count: 1, lastCompletedAt: '2026-06-10T00:00:00Z' }],
+    ])
+    const result = sortGroupOptions(entries, stats)
+    expect(result.map((e) => e.group.id)).toEqual(['never', 'done-old', 'done-new'])
+  })
+
+  it('multiple never-done groups maintain relative orderIndex order', () => {
+    const entries = [makeEntry('g3', 2), makeEntry('g1', 0), makeEntry('g2', 1)]
+    const result = sortGroupOptions(entries, new Map())
+    expect(result.map((e) => e.group.id)).toEqual(['g1', 'g2', 'g3'])
+  })
+
+  it('does not mutate the input array', () => {
+    const entries = [makeEntry('b', 1), makeEntry('a', 0)]
+    const original = [...entries]
+    sortGroupOptions(entries, new Map())
+    expect(entries[0].group.id).toBe(original[0].group.id)
+  })
+
+  it('sorts by orderIndex as tie-breaker when two done groups have the same lastCompletedAt', () => {
+    const sameDate = '2026-06-08T00:00:00Z'
+    const entries = [makeEntry('g2', 1), makeEntry('g1', 0)]
+    const stats = new Map([
+      ['g1', { count: 1, lastCompletedAt: sameDate }],
+      ['g2', { count: 1, lastCompletedAt: sameDate }],
+    ])
+    const result = sortGroupOptions(entries, stats)
+    expect(result.map((e) => e.group.id)).toEqual(['g1', 'g2'])
+  })
+})
+
 describe('computeSetCompletionPercentage', () => {
   it('returns 80 for 12/15 sets', () => {
     expect(computeSetCompletionPercentage(12, 15)).toBe(80)
@@ -104,5 +174,6 @@ describe('computeSetCompletionPercentage', () => {
 
   it('returns null when totalTargetSets is negative', () => {
     expect(computeSetCompletionPercentage(5, -1)).toBeNull()
+
   })
 })
