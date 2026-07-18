@@ -4,43 +4,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { measurementsApi, type MeasurementEntry } from '@/services/measurementsApi'
 import { queryKeys } from '@/services/queryKeys'
-
-const FIELD_LABELS: Record<string, string> = {
-  shoulders: 'Shoulders',
-  chest: 'Chest',
-  weightKg: 'Weight',
-  rightBicep: 'Right Bicep',
-  leftBicep: 'Left Bicep',
-  rightForearm: 'Right Forearm',
-  leftForearm: 'Left Forearm',
-  abdomen: 'Abdomen',
-  glutes: 'Glutes',
-  rightThigh: 'Right Thigh',
-  leftThigh: 'Left Thigh',
-  rightCalf: 'Right Calf',
-  leftCalf: 'Left Calf',
-}
-
-const FIELD_UNITS: Record<string, string> = {
-  shoulders: 'cm',
-  chest: 'cm',
-  weightKg: 'kg',
-  rightBicep: 'cm',
-  leftBicep: 'cm',
-  rightForearm: 'cm',
-  leftForearm: 'cm',
-  abdomen: 'cm',
-  glutes: 'cm',
-  rightThigh: 'cm',
-  leftThigh: 'cm',
-  rightCalf: 'cm',
-  leftCalf: 'cm',
-}
-
-const MEASUREMENT_KEYS = Object.keys(FIELD_LABELS) as (keyof MeasurementEntry)[]
+import { MEASUREMENT_FIELDS } from './measurementFields'
 
 function countNonNull(entry: MeasurementEntry): number {
-  return MEASUREMENT_KEYS.filter((key) => entry[key] != null).length
+  return MEASUREMENT_FIELDS.filter(({ key }) => entry[key] != null).length
 }
 
 interface HistoryTabProps {
@@ -89,7 +56,7 @@ export default function HistoryTab({ measurements }: HistoryTabProps) {
         {measurements.map((entry) => {
           const isExpanded = expandedDates.has(entry.measurementDate)
           const nonNullCount = countNonNull(entry)
-          const nonNullFields = MEASUREMENT_KEYS.filter((key) => entry[key] != null)
+          const nonNullFields = MEASUREMENT_FIELDS.filter(({ key }) => entry[key] != null)
 
           return (
             <div key={entry.measurementDate} className="rounded-md border border-border">
@@ -122,11 +89,11 @@ export default function HistoryTab({ measurements }: HistoryTabProps) {
               {isExpanded && (
                 <div className="border-t border-border px-3 py-2">
                   <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3 text-sm">
-                    {nonNullFields.map((key) => (
+                   {nonNullFields.map(({ key, label, unit }) => (
                       <div key={String(key)}>
-                        <dt className="text-xs text-muted-foreground">{FIELD_LABELS[String(key)]}</dt>
+                       <dt className="text-xs text-muted-foreground">{label}</dt>
                         <dd className="font-medium">
-                          {String(entry[key])} {FIELD_UNITS[String(key)]}
+                         {String(entry[key])} {unit}
                         </dd>
                       </div>
                     ))}

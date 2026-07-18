@@ -1,29 +1,14 @@
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { MeasurementEntry } from '@/services/measurementsApi'
-
-const CHART_FIELDS: { key: keyof MeasurementEntry; label: string; unit: string }[] = [
-  { key: 'shoulders', label: 'Shoulders', unit: 'cm' },
-  { key: 'chest', label: 'Chest', unit: 'cm' },
-  { key: 'weightKg', label: 'Weight', unit: 'kg' },
-  { key: 'rightBicep', label: 'Right Bicep', unit: 'cm' },
-  { key: 'leftBicep', label: 'Left Bicep', unit: 'cm' },
-  { key: 'rightForearm', label: 'Right Forearm', unit: 'cm' },
-  { key: 'leftForearm', label: 'Left Forearm', unit: 'cm' },
-  { key: 'abdomen', label: 'Abdomen', unit: 'cm' },
-  { key: 'glutes', label: 'Glutes', unit: 'cm' },
-  { key: 'rightThigh', label: 'Right Thigh', unit: 'cm' },
-  { key: 'leftThigh', label: 'Left Thigh', unit: 'cm' },
-  { key: 'rightCalf', label: 'Right Calf', unit: 'cm' },
-  { key: 'leftCalf', label: 'Left Calf', unit: 'cm' },
-]
+import { MEASUREMENT_FIELDS } from './measurementFields'
 
 interface ChartsTabProps {
   measurements: MeasurementEntry[]
 }
 
 export default function ChartsTab({ measurements }: ChartsTabProps) {
-  const fieldsWithData = CHART_FIELDS.filter(({ key }) => measurements.some((m) => m[key] != null))
+  const fieldsWithData = MEASUREMENT_FIELDS.filter(({ key }) => measurements.some((m) => m[key] != null))
 
   if (fieldsWithData.length === 0) {
     return (

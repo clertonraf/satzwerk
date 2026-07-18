@@ -9,29 +9,14 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { measurementsApi, type MeasurementEntry, type UpsertMeasurementPayload } from '@/services/measurementsApi'
 import { queryKeys } from '@/services/queryKeys'
-
-const FIELDS: { key: keyof Omit<UpsertMeasurementPayload, 'measurementDate'>; label: string; unit: string }[] = [
-  { key: 'shoulders', label: 'Shoulders', unit: 'cm' },
-  { key: 'chest', label: 'Chest', unit: 'cm' },
-  { key: 'weightKg', label: 'Weight', unit: 'kg' },
-  { key: 'rightBicep', label: 'Right Bicep', unit: 'cm' },
-  { key: 'leftBicep', label: 'Left Bicep', unit: 'cm' },
-  { key: 'rightForearm', label: 'Right Forearm', unit: 'cm' },
-  { key: 'leftForearm', label: 'Left Forearm', unit: 'cm' },
-  { key: 'abdomen', label: 'Abdomen', unit: 'cm' },
-  { key: 'glutes', label: 'Glutes', unit: 'cm' },
-  { key: 'rightThigh', label: 'Right Thigh', unit: 'cm' },
-  { key: 'leftThigh', label: 'Left Thigh', unit: 'cm' },
-  { key: 'rightCalf', label: 'Right Calf', unit: 'cm' },
-  { key: 'leftCalf', label: 'Left Calf', unit: 'cm' },
-]
+import { MEASUREMENT_FIELDS } from './measurementFields'
 
 type FieldValues = Record<string, string>
 
 function toFieldValues(entry: MeasurementEntry | undefined): FieldValues {
   if (!entry) return {}
   return Object.fromEntries(
-    FIELDS.map(({ key }) => {
+    MEASUREMENT_FIELDS.map(({ key }) => {
       const value = entry[key as keyof MeasurementEntry]
       return [key, value != null ? String(value) : '']
     }),
@@ -85,7 +70,7 @@ export default function LogTab({ measurements }: LogTabProps) {
     setSaveError(null)
 
     const payload: UpsertMeasurementPayload = { measurementDate: dateStr }
-    for (const { key } of FIELDS) {
+    for (const { key } of MEASUREMENT_FIELDS) {
       const raw = fields[key]
       if (raw && raw.trim() !== '') {
         const num = parseFloat(raw)
@@ -129,7 +114,7 @@ export default function LogTab({ measurements }: LogTabProps) {
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {FIELDS.map(({ key, label, unit }) => (
+            {MEASUREMENT_FIELDS.map(({ key, label, unit }) => (
               <div key={key} className="flex flex-col gap-1">
                 <label htmlFor={key} className="text-xs font-medium">
                   {label} ({unit})
