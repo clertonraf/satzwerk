@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import AppShell from '@/components/AppShell'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import LoginPage from '@/features/auth/LoginPage'
+import MeasurementsPage from '@/features/measurements/MeasurementsPage'
 import RegisterPage from '@/features/auth/RegisterPage'
 import SessionPage from '@/features/sessions/SessionPage'
 import ExercisesPage from '@/features/workouts/ExercisesPage'
@@ -51,6 +52,7 @@ export default function App() {
                   <Route path="/plans/:planId" element={<PlanBuilderPage />} />
                   <Route path="/exercises" element={<ExercisesPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
+                  <Route path="/measurements" element={<MeasurementsPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </AppShell>

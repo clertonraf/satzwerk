@@ -22,4 +22,7 @@ export const queryKeys = {
     personalRecords: (limit?: number) => ['personal-records', limit] as const,
     topExercises: (limit?: number) => ['top-exercises', limit] as const,
   },
+  measurements: {
+    all: () => ['measurements'] as const,
+  },
 } as const

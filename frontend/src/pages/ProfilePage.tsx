@@ -1,5 +1,6 @@
 import { type ChangeEvent, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -13,6 +14,7 @@ import {
 import { exportService, type ImportSummaryResponse } from '@/services/exportService'
 
 export default function ProfilePage() {
+  const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [exportError, setExportError] = useState<string | null>(null)
   const [exportLoading, setExportLoading] = useState(false)
@@ -110,6 +112,16 @@ export default function ProfilePage() {
                 </ul>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border bg-card/90 shadow-sm">
+          <CardHeader>
+            <CardTitle>Body Measurements</CardTitle>
+            <CardDescription>Log and track your body measurements over time.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => navigate('/measurements')}>View Measurements</Button>
           </CardContent>
         </Card>
       </div>

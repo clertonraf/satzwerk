@@ -1,0 +1,21 @@
+CREATE TABLE body_measurements (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    measurement_date DATE NOT NULL,
+    shoulders NUMERIC(6, 2),
+    chest NUMERIC(6, 2),
+    weight_kg NUMERIC(6, 2),
+    right_bicep NUMERIC(6, 2),
+    left_bicep NUMERIC(6, 2),
+    right_forearm NUMERIC(6, 2),
+    left_forearm NUMERIC(6, 2),
+    abdomen NUMERIC(6, 2),
+    glutes NUMERIC(6, 2),
+    right_thigh NUMERIC(6, 2),
+    left_thigh NUMERIC(6, 2),
+    right_calf NUMERIC(6, 2),
+    left_calf NUMERIC(6, 2),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, measurement_date)
+);
