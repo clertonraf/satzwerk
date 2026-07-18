@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { type FormEvent, useState } from 'react'
 import { format } from 'date-fns'
 import { CalendarIcon } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -79,7 +79,7 @@ export default function LogTab({ measurements }: LogTabProps) {
     },
   })
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setSaveSuccess(false)
     setSaveError(null)

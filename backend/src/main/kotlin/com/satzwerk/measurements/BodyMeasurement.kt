@@ -3,7 +3,6 @@ package com.satzwerk.measurements
 import org.springframework.data.annotation.Id
 import org.springframework.data.relational.core.mapping.Column
 import org.springframework.data.relational.core.mapping.Table
-import org.springframework.data.repository.kotlin.CoroutineCrudRepository
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
@@ -30,17 +29,3 @@ data class BodyMeasurement(
     @Column("created_at") val createdAt: Instant = Instant.now(),
     @Column("updated_at") val updatedAt: Instant = Instant.now(),
 )
-
-interface MeasurementRepository : CoroutineCrudRepository<BodyMeasurement, UUID> {
-    suspend fun findByUserIdOrderByMeasurementDateDesc(userId: UUID): List<BodyMeasurement>
-
-    suspend fun findByUserIdAndMeasurementDate(
-        userId: UUID,
-        measurementDate: LocalDate,
-    ): BodyMeasurement?
-
-    suspend fun deleteByUserIdAndMeasurementDate(
-        userId: UUID,
-        measurementDate: LocalDate,
-    )
-}
