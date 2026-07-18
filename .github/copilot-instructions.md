@@ -90,6 +90,10 @@ assertEquals("Bench Press", saved[0].name)
   - backend validators (`@Min`, `@DecimalMin`, etc.) are aligned with frontend input constraints
   - no workaround types or TODO stubs remain in test files
   - no `@Suppress(...)` annotations added to silence detekt or ktlint findings — fix the underlying issue instead
+  - no duplicated constants or types across files in the same feature folder — extract to a shared module
+  - every `beforeEach` block that reassigns a mock implementation calls `vi.mocked(fn).mockReset()` first
+  - all new domain objects use canonical `CONTEXT.md` terms (not synonyms)
+  - **For PRs with >10 changed files**: run the rubber-duck review **before the first `git push`**, not just before `gh pr create`. The first push is when review rounds start — front-loading catches issues before they become PR comments.
 
 **Avoiding `TooManyFunctions` (detekt threshold ≥ 11)**: When adding a method would push a class to 11 functions (the threshold triggers AT 11, not above), extract private helpers as **package-level functions** passing dependencies (repositories, services) as parameters. This keeps the class under the limit without `@Suppress`. Example: `requireOwnedSession` and `requireGroupInActivePlan` in `WorkoutSessionService.kt` are package-level.
 
@@ -175,6 +179,8 @@ gh pr create --fill
 ## Before creating a PR
 
 Run a rubber-duck review against your implementation before opening the PR. For changes touching SVG, CSS layout, or any frontend component, this is **mandatory** — browser rendering edge cases are the most common source of review comments in this repo. **If the rubber-duck agent stalls or does not complete within 3 minutes, cancel it and proceed with the inline self-review checklist from the pre-push section above.**
+
+**New domain entities introduced by a PR must be documented in `CONTEXT.md` in the same PR** — not as a follow-up. Add the entity name, a one-line definition, key field constraints, and any invariants (e.g. upsert semantics, unit conventions). This keeps the canonical vocabulary current and prevents future sessions from using incorrect synonyms.
 
 When the PR touches `useEffect` hooks, run through this checklist before pushing:
 - **Cleanup scope**: Does the cleanup function fire only when intended? A cleanup returned from `useEffect(() => { ...; return () => { cleanup(); }; }, [dep])` runs before every re-execution (on every `dep` change), not only on unmount. For unmount-only cleanup, use a separate effect with an empty deps array: `useEffect(() => { return () => { cleanup(); }; }, [])`.
