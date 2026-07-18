@@ -7,7 +7,6 @@ import { Calendar } from '@/components/ui/calendar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { cn } from '@/lib/utils'
 import { measurementsApi, type MeasurementEntry, type UpsertMeasurementPayload } from '@/services/measurementsApi'
 import { queryKeys } from '@/services/queryKeys'
 
@@ -44,9 +43,13 @@ interface LogTabProps {
 }
 
 export default function LogTab({ measurements }: LogTabProps) {
-  const [date, setDate] = useState<Date>(new Date())
+  const today = new Date()
+  const todayStr = format(today, 'yyyy-MM-dd')
+  const [date, setDate] = useState<Date>(today)
   const [calendarOpen, setCalendarOpen] = useState(false)
-  const [fields, setFields] = useState<FieldValues>({})
+  const [fields, setFields] = useState<FieldValues>(() =>
+    toFieldValues(measurements.find((m) => m.measurementDate === todayStr)),
+  )
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const queryClient = useQueryClient()
@@ -87,7 +90,7 @@ export default function LogTab({ measurements }: LogTabProps) {
       if (raw && raw.trim() !== '') {
         const num = parseFloat(raw)
         if (!isNaN(num)) {
-          ;(payload as unknown as Record<string, unknown>)[key] = num
+          payload[key] = num
         }
       }
     }
@@ -106,7 +109,7 @@ export default function LogTab({ measurements }: LogTabProps) {
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
-                className={cn('w-[200px] justify-start text-left font-normal', !date && 'text-muted-foreground')}
+                className="w-[200px] justify-start text-left font-normal"
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {format(date, 'PPP')}

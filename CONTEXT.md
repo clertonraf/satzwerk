@@ -43,6 +43,10 @@ An enum on WorkoutPlan describing how the plan was created: `MANUAL` (built in-a
 The act of uploading an xlsx spreadsheet to create a WorkoutPlan. The file is parsed externally by satzwerk-parser; the resulting exercises, groups, and plan are created atomically. The plan name is derived from the filename. The imported plan starts inactive.
 _Avoid_: Plan upload, spreadsheet sync
 
+**BodyMeasurement**:
+A snapshot of body circumferences and weight for a user on a given date. At most one entry per user per day; saving on an existing date upserts using partial merge (null fields in the request preserve existing values). Circumferences in cm (2 decimal places); weight in kg. All measurement fields are nullable.
+_Avoid_: body stats, body log, measurements entry
+
 ## Relationships
 
 - A **WorkoutPlan** contains one or more **WorkoutGroups**

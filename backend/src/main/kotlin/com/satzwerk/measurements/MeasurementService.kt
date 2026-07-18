@@ -37,8 +37,8 @@ class MeasurementService(
     }
 }
 
-// Package-level helpers keep MeasurementService under the TooManyFunctions threshold
-// and distribute cyclomatic complexity away from upsert.
+// Package-level private helpers keep upsert's cyclomatic complexity under the detekt threshold
+// by distributing the 13-field partial-merge and entity-creation logic into separate functions.
 
 private fun BodyMeasurement.mergeWith(request: UpsertMeasurementRequest): BodyMeasurement =
     copy(

@@ -43,6 +43,7 @@ function renderPage() {
 describe('MeasurementsPage', () => {
   beforeEach(() => {
     mockGetAll.mockReset()
+    mockNavigate.mockReset()
   })
 
   it('navigates to /profile when back button is clicked', async () => {
