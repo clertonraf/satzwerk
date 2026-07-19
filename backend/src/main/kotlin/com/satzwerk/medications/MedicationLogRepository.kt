@@ -16,4 +16,10 @@ interface MedicationLogRepository : CoroutineCrudRepository<MedicationLog, UUID>
         from: Instant,
         to: Instant,
     ): List<MedicationLog>
+
+    suspend fun findByMedicationIdInAndTakenAtBetweenOrderByTakenAtDesc(
+        medicationIds: List<UUID>,
+        from: Instant,
+        to: Instant,
+    ): List<MedicationLog>
 }

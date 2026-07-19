@@ -36,11 +36,11 @@ class MedicationService(
         return toMedicationResponse(saved, objectMapper, streak = 0)
     }
 
-    suspend fun getMedications(userId: UUID): List<MedicationResponse> =
-        medicationRepository.findByUserIdOrderByNameAsc(userId).map { med ->
-            val streak = medicationAnalyticsService.getAdherenceStreak(requireNotNull(med.id))
-            toMedicationResponse(med, objectMapper, streak)
-        }
+    suspend fun getMedications(userId: UUID): List<MedicationResponse> {
+        val meds = medicationRepository.findByUserIdOrderByNameAsc(userId)
+        val streaks = medicationAnalyticsService.getAdherenceStreaksBatch(meds)
+        return meds.map { med -> toMedicationResponse(med, objectMapper, streaks[med.id] ?: 0) }
+    }
 
     suspend fun getMedication(
         userId: UUID,

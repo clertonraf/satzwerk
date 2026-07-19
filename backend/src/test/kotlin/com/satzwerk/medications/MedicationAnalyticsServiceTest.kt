@@ -44,14 +44,10 @@ class MedicationAnalyticsServiceTest {
         )
 
     @Test
-    fun `getAdherenceStreak returns 0 when no logs exist`(): Unit =
+    fun `getAdherenceStreak returns 0 when medication not found`(): Unit =
         runBlocking {
-            val logRepo: MedicationLogRepository =
-                mock {
-                    onBlocking { findByMedicationIdAndTakenAtBetweenOrderByTakenAtDesc(any(), any(), any()) } doReturn
-                        emptyList()
-                }
-            val medRepo: MedicationRepository = mock()
+            val medRepo: MedicationRepository = mock { onBlocking { findById(any()) } doReturn null }
+            val logRepo: MedicationLogRepository = mock()
             val service = MedicationAnalyticsService(medRepo, logRepo, objectMapper)
 
             assertEquals(0, service.getAdherenceStreak(medicationId))
@@ -72,7 +68,9 @@ class MedicationAnalyticsServiceTest {
                         findByMedicationIdAndTakenAtBetweenOrderByTakenAtDesc(any(), any(), any())
                     } doReturn logs
                 }
-            val service = MedicationAnalyticsService(mock(), logRepo, objectMapper)
+            val medRepo: MedicationRepository =
+                mock { onBlocking { findById(any()) } doReturn dailyMedication() }
+            val service = MedicationAnalyticsService(medRepo, logRepo, objectMapper)
 
             assertEquals(3, service.getAdherenceStreak(medicationId))
         }
@@ -93,7 +91,9 @@ class MedicationAnalyticsServiceTest {
                         findByMedicationIdAndTakenAtBetweenOrderByTakenAtDesc(any(), any(), any())
                     } doReturn logs
                 }
-            val service = MedicationAnalyticsService(mock(), logRepo, objectMapper)
+            val medRepo: MedicationRepository =
+                mock { onBlocking { findById(any()) } doReturn dailyMedication() }
+            val service = MedicationAnalyticsService(medRepo, logRepo, objectMapper)
 
             // streak is 1 (only today), broken by the gap
             assertEquals(1, service.getAdherenceStreak(medicationId))

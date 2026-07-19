@@ -80,7 +80,7 @@ class ExportService(
         userId: UUID,
         dto: UserDataExportDto,
     ) {
-        if (dto.version > MAX_SUPPORTED_EXPORT_VERSION) {
+        if (dto.version !in 1..MAX_SUPPORTED_EXPORT_VERSION) {
             throw BadRequestException(
                 "Unsupported export version: ${dto.version}. Supported versions: 1, $MAX_SUPPORTED_EXPORT_VERSION.",
             )

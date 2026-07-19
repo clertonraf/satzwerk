@@ -96,6 +96,7 @@ class MedicationHandler(
                     .queryParam("weeks")
                     .map { it.toIntOrNull() ?: DEFAULT_HEATMAP_WEEKS }
                     .orElse(DEFAULT_HEATMAP_WEEKS)
+            if (weeks <= 0) throw BadRequestException("weeks must be a positive integer")
             ServerResponse.ok().bodyValueAndAwait(
                 medicationAnalyticsService.getAggregateHeatmap(ctx.userId(), weeks),
             )

@@ -12,6 +12,23 @@ private const val PER_MED_HEATMAP_WEEKS = 52L
 private const val WEEKLY_BAR_CHART_WEEKS = 12L
 private const val MONTHLY_BAR_CHART_MONTHS = 6L
 
+/** Returns the streak (consecutive scheduled days with all doses taken) ending today. */
+fun computeAdherenceStreak(
+    spec: FrequencySpec,
+    logsByDay: Map<LocalDate, List<MedicationLog>>,
+    today: LocalDate,
+): Int =
+    (0..STREAK_WINDOW_DAYS.toInt())
+        .asSequence()
+        .map { daysBack -> today.minusDays(daysBack.toLong()) }
+        .filter { day -> isDueToday(spec, day) }
+        .takeWhile { day ->
+            val required = scheduledCountForToday(spec)
+            val taken = logsByDay[day]?.count { it.taken } ?: 0
+            taken >= required
+        }
+        .count()
+
 @Service
 class MedicationAnalyticsService(
     private val medicationRepository: MedicationRepository,
@@ -19,37 +36,34 @@ class MedicationAnalyticsService(
     private val objectMapper: ObjectMapper,
 ) {
     suspend fun getAdherenceStreak(medicationId: UUID): Int {
+        val medication = medicationRepository.findById(medicationId) ?: return 0
+        val spec = deserializeFrequency(medication.frequency, objectMapper)
         val today = LocalDate.now(ZoneOffset.UTC)
-        val thirtyDaysAgo = today.minusDays(STREAK_WINDOW_DAYS)
-        val from = thirtyDaysAgo.atStartOfDay(ZoneOffset.UTC).toInstant()
+        val from = today.minusDays(STREAK_WINDOW_DAYS).atStartOfDay(ZoneOffset.UTC).toInstant()
         val to = today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()
-
         val logs =
-            medicationLogRepository.findByMedicationIdAndTakenAtBetweenOrderByTakenAtDesc(
-                medicationId,
-                from,
-                to,
-            )
+            medicationLogRepository.findByMedicationIdAndTakenAtBetweenOrderByTakenAtDesc(medicationId, from, to)
+        val logsByDay = logs.groupBy { it.takenAt.atZone(ZoneOffset.UTC).toLocalDate() }
+        return computeAdherenceStreak(spec, logsByDay, today)
+    }
 
-        val takenDays =
-            logs.filter { it.taken }
-                .map { it.takenAt.atZone(ZoneOffset.UTC).toLocalDate() }
-                .distinct()
-                .sortedDescending()
-
-        if (takenDays.isEmpty()) return 0
-
-        var streak = 0
-        var expected = today
-        for (day in takenDays) {
-            if (day == expected) {
-                streak++
-                expected = expected.minusDays(1)
-            } else {
-                break
-            }
+    suspend fun getAdherenceStreaksBatch(medications: List<Medication>): Map<UUID, Int> {
+        if (medications.isEmpty()) return emptyMap()
+        val today = LocalDate.now(ZoneOffset.UTC)
+        val from = today.minusDays(STREAK_WINDOW_DAYS).atStartOfDay(ZoneOffset.UTC).toInstant()
+        val to = today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()
+        val ids = medications.mapNotNull { it.id }
+        val allLogs =
+            medicationLogRepository.findByMedicationIdInAndTakenAtBetweenOrderByTakenAtDesc(ids, from, to)
+        val logsByMed = allLogs.groupBy { it.medicationId }
+        return medications.associate { med ->
+            val id = requireNotNull(med.id)
+            val spec = deserializeFrequency(med.frequency, objectMapper)
+            val logsByDay =
+                (logsByMed[id] ?: emptyList())
+                    .groupBy { it.takenAt.atZone(ZoneOffset.UTC).toLocalDate() }
+            id to computeAdherenceStreak(spec, logsByDay, today)
         }
-        return streak
     }
 
     suspend fun getAggregateHeatmap(
@@ -62,18 +76,17 @@ class MedicationAnalyticsService(
         val to = today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()
 
         val medications = medicationRepository.findByUserIdOrderByNameAsc(userId).filter { it.isActive }
+        val medicationSpecs = medications.map { med -> med to deserializeFrequency(med.frequency, objectMapper) }
         val logs = medicationLogRepository.findByUserIdAndTakenAtBetweenOrderByTakenAtDesc(userId, from, to)
-
-        val logsByDay =
-            logs.groupBy { it.takenAt.atZone(ZoneOffset.UTC).toLocalDate() }
+        val logsByDay = logs.groupBy { it.takenAt.atZone(ZoneOffset.UTC).toLocalDate() }
 
         val days = mutableListOf<AdherenceHeatmapDayDto>()
         var current = startDate
         while (!current.isAfter(today)) {
             val dayLogs = logsByDay[current] ?: emptyList()
             val scheduled =
-                medications.count { med ->
-                    isDueToday(deserializeFrequency(med.frequency, objectMapper), current)
+                medicationSpecs.sumOf { (_, spec) ->
+                    if (isDueToday(spec, current)) scheduledCountForToday(spec) else 0
                 }
             val taken = dayLogs.count { it.taken }
             val ratio = if (scheduled > 0) taken.toDouble() / scheduled.toDouble() else 0.0

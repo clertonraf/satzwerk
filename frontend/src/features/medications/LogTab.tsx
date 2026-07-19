@@ -15,7 +15,12 @@ export default function LogTab() {
   const [showManualForm, setShowManualForm] = useState(false)
   const [manualMedId, setManualMedId] = useState<string>('')
   const [manualTaken, setManualTaken] = useState<boolean>(true)
-  const [manualDatetime, setManualDatetime] = useState(() => new Date().toISOString().slice(0, 16))
+  const [manualDatetime, setManualDatetime] = useState(() => {
+    // datetime-local inputs expect a local YYYY-MM-DDTHH:mm value, not UTC
+    const now = new Date()
+    const offset = now.getTimezoneOffset() * 60000
+    return new Date(now.getTime() - offset).toISOString().slice(0, 16)
+  })
   const [manualDose, setManualDose] = useState('')
   const [manualNotes, setManualNotes] = useState('')
   const [manualError, setManualError] = useState<string | null>(null)
@@ -162,7 +167,7 @@ export default function LogTab() {
                     id="manual-dose"
                     type="number"
                     step="0.0001"
-                    min="0"
+                    min="0.0001"
                     value={manualDose}
                     onChange={(e) => setManualDose(e.target.value)}
                     placeholder="—"

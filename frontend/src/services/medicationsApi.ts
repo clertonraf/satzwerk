@@ -19,8 +19,10 @@ export const medicationsApi = {
   create: (payload: CreateMedicationPayload): Promise<Medication> =>
     http.post<Medication>('/medications', payload),
 
-  update: (payload: UpdateMedicationPayload): Promise<Medication> =>
-    http.put<Medication>(`/medications/${payload.id}`, payload),
+  update: (payload: UpdateMedicationPayload): Promise<Medication> => {
+    const { id, ...body } = payload
+    return http.put<Medication>(`/medications/${id}`, body)
+  },
 
   deactivate: (id: string): Promise<void> => http.delete(`/medications/${id}`),
 
@@ -29,8 +31,10 @@ export const medicationsApi = {
   logDose: (medicationId: string, payload: LogDosePayload): Promise<MedicationLog> =>
     http.post<MedicationLog>(`/medications/${medicationId}/logs`, payload),
 
-  getLogs: (medicationId: string, from: string, to: string): Promise<MedicationLog[]> =>
-    http.get<MedicationLog[]>(`/medications/${medicationId}/logs?from=${from}&to=${to}`),
+  getLogs: (medicationId: string, from: string, to: string): Promise<MedicationLog[]> => {
+    const params = new URLSearchParams({ from, to })
+    return http.get<MedicationLog[]>(`/medications/${medicationId}/logs?${params.toString()}`)
+  },
 
   getAggregateHeatmap: (weeks = 52): Promise<AdherenceHeatmap> =>
     http.get<AdherenceHeatmap>(`/medications/analytics/heatmap?weeks=${weeks}`),
