@@ -109,6 +109,9 @@ export default function ProfilePage() {
                   <li>{importSummary.importedWorkoutPlans} workout plans imported</li>
                   <li>{importSummary.importedWorkoutSessions} workout sessions imported</li>
                   <li>{importSummary.importedSetLogs} set logs imported</li>
+                  <li>{importSummary.importedMedications} medications imported</li>
+                  <li>{importSummary.reusedMedications} medications reused</li>
+                  <li>{importSummary.importedMedicationLogs} medication logs imported</li>
                 </ul>
               </div>
             )}
@@ -122,6 +125,16 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent>
             <Button onClick={() => navigate('/measurements')}>View Measurements</Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border bg-card/90 shadow-sm">
+          <CardHeader>
+            <CardTitle>Medications</CardTitle>
+            <CardDescription>Define medications, log doses, and visualise adherence.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => navigate('/medications')}>View Medications</Button>
           </CardContent>
         </Card>
       </div>

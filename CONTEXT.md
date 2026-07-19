@@ -47,6 +47,18 @@ _Avoid_: Plan upload, spreadsheet sync
 A snapshot of body circumferences and weight for a user on a given date. At most one entry per user per day; saving on an existing date upserts using partial merge (null fields in the request preserve existing values). Circumferences in cm (2 decimal places); weight in kg. All measurement fields are nullable.
 _Avoid_: body stats, body log, measurements entry
 
+**Medication**:
+A user-defined medication or supplement: name, dosage (amount + unit enum `MG | G | MCG | IU | ML | UNITS`), frequency schedule (FrequencySpec), optional purpose. Owned per-user; name unique per user (case-insensitive). `isActive = false` is soft-delete — all MedicationLogs are preserved. Never hard-deleted.
+_Avoid_: Drug, supplement entry, med
+
+**MedicationLog**:
+A single logged dose event for a Medication. Records `taken` (Boolean: taken vs skipped), optional actual `doseAmount` override, and the `takenAt` timestamp (backdatable by user). The atomic unit of medication adherence data.
+_Avoid_: DoseLog, intake record
+
+**FrequencySpec**:
+A polymorphic JSON structure on Medication describing the dosing schedule. Three variants: `DAILY` (N times per day, optional advisory clock times), `WEEKLY` (N times per week on specific ISO weekdays 1=Mon–7=Sun), `MONTHLY` (N times per month on specific days-of-month 1–31, clamped at month boundary). Times and weekdays are advisory hints only — not enforced constraints on MedicationLog.
+_Avoid_: Schedule, dosing pattern, recurrence rule
+
 ## Relationships
 
 - A **WorkoutPlan** contains one or more **WorkoutGroups**

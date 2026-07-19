@@ -6,6 +6,9 @@ export interface ImportSummaryResponse {
   importedWorkoutSessions: number
   importedSetLogs: number
   reusedExercises: number
+  importedMedications: number
+  importedMedicationLogs: number
+  reusedMedications: number
 }
 
 export const exportService = {

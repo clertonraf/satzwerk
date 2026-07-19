@@ -65,13 +65,35 @@ data class ExportWorkoutSessionDto(
     val setLogs: List<ExportSetLogDto>,
 )
 
+data class ExportMedicationDto(
+    val id: UUID,
+    val name: String,
+    val dosageAmount: BigDecimal,
+    val dosageUnit: String,
+    val frequency: Map<String, Any>,
+    val purpose: String?,
+    val isActive: Boolean,
+    val createdAt: Instant,
+)
+
+data class ExportMedicationLogDto(
+    val id: UUID,
+    val medicationId: UUID,
+    val takenAt: Instant,
+    val taken: Boolean,
+    val doseAmount: BigDecimal?,
+    val notes: String?,
+)
+
 data class UserDataExportDto(
-    val version: Int = 1,
+    val version: Int = 2,
     val exportedAt: Instant = Instant.now(),
     val profile: ExportProfileDto,
     val exercises: List<ExportExerciseDto>,
     val workoutPlans: List<ExportWorkoutPlanDto>,
     val workoutSessions: List<ExportWorkoutSessionDto>,
+    val medications: List<ExportMedicationDto> = emptyList(),
+    val medicationLogs: List<ExportMedicationLogDto> = emptyList(),
 )
 
 data class ImportSummaryDto(
@@ -80,4 +102,7 @@ data class ImportSummaryDto(
     val importedWorkoutSessions: Int,
     val importedSetLogs: Int,
     val reusedExercises: Int,
+    val importedMedications: Int,
+    val importedMedicationLogs: Int,
+    val reusedMedications: Int,
 )

@@ -40,7 +40,7 @@ class ExportIntegrationTest : PostgresTestContainer() {
                 .expectStatus().isOk
                 .expectHeader().valueMatches("Content-Disposition", "attachment.*satzwerk-export.json.*")
                 .expectBody()
-                .jsonPath("$.version").isEqualTo(1)
+                .jsonPath("$.version").isEqualTo(2)
                 .jsonPath("$.exportedAt").isNotEmpty
                 .jsonPath("$.profile.email").isNotEmpty
                 .jsonPath("$.exercises.length()").isEqualTo(1)
