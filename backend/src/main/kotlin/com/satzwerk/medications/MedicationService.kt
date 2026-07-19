@@ -183,7 +183,11 @@ fun isDueToday(
         }
         is FrequencySpec.Monthly -> {
             val day = today.dayOfMonth
-            spec.daysOfMonth.isEmpty() || day in spec.daysOfMonth
+            val daysInMonth = today.lengthOfMonth()
+            // Treat days beyond the month length as due on the last day of the month
+            spec.daysOfMonth.isEmpty() ||
+                day in spec.daysOfMonth ||
+                (day == daysInMonth && spec.daysOfMonth.any { it > daysInMonth })
         }
     }
 

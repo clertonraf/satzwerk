@@ -50,24 +50,22 @@ internal suspend fun exportMedicationLogsFor(
     medicationLogRepository: MedicationLogRepository,
 ): List<ExportMedicationLogDto> {
     val allMeds = medicationRepository.findByUserIdOrderByNameAsc(userId)
-    val result = mutableListOf<ExportMedicationLogDto>()
-    for (med in allMeds) {
-        medicationLogRepository.findByMedicationIdAndTakenAtBetweenOrderByTakenAtDesc(
-            requireNotNull(med.id),
-            Instant.EPOCH,
-            Instant.now().plusSeconds(ONE_DAY_SECONDS),
-        ).mapTo(result) { log ->
-            ExportMedicationLogDto(
-                id = requireNotNull(log.id),
-                medicationId = log.medicationId,
-                takenAt = log.takenAt,
-                taken = log.taken,
-                doseAmount = log.doseAmount,
-                notes = log.notes,
-            )
-        }
+    val ids = allMeds.mapNotNull { it.id }
+    if (ids.isEmpty()) return emptyList()
+    return medicationLogRepository.findByMedicationIdInAndTakenAtBetweenOrderByTakenAtDesc(
+        ids,
+        Instant.EPOCH,
+        Instant.now().plusSeconds(ONE_DAY_SECONDS),
+    ).map { log ->
+        ExportMedicationLogDto(
+            id = requireNotNull(log.id),
+            medicationId = log.medicationId,
+            takenAt = log.takenAt,
+            taken = log.taken,
+            doseAmount = log.doseAmount,
+            notes = log.notes,
+        )
     }
-    return result
 }
 
 internal suspend fun importMedicationsAndLogs(

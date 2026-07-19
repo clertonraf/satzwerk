@@ -40,6 +40,7 @@ export default function LogTab() {
       medicationsApi.logDose(medicationId, payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.medications.today() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.medications.all() })
     },
   })
 
@@ -48,6 +49,7 @@ export default function LogTab() {
       medicationsApi.logDose(medicationId, payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.medications.today() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.medications.all() })
       setShowManualForm(false)
       setManualMedId('')
       setManualDose('')

@@ -1,5 +1,6 @@
 package com.satzwerk.medications
 
+import jakarta.validation.Valid
 import jakarta.validation.constraints.DecimalMin
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
@@ -16,6 +17,7 @@ data class CreateMedicationRequest(
     @field:NotNull
     val dosageUnit: DosageUnit,
     @field:NotNull
+    @field:Valid
     val frequency: FrequencySpec,
     val purpose: String? = null,
 )
@@ -29,6 +31,7 @@ data class UpdateMedicationRequest(
     @field:NotNull
     val dosageUnit: DosageUnit,
     @field:NotNull
+    @field:Valid
     val frequency: FrequencySpec,
     val purpose: String? = null,
 )

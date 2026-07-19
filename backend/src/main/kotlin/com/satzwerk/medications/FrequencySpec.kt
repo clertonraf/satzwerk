@@ -2,6 +2,7 @@ package com.satzwerk.medications
 
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
+import jakarta.validation.constraints.Min
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "type")
 @JsonSubTypes(
@@ -14,18 +15,21 @@ sealed class FrequencySpec {
 
     data class Daily(
         override val type: String = "DAILY",
+        @field:Min(1)
         val timesPerDay: Int,
         val times: List<String> = emptyList(),
     ) : FrequencySpec()
 
     data class Weekly(
         override val type: String = "WEEKLY",
+        @field:Min(1)
         val timesPerWeek: Int,
         val weekdays: List<Int> = emptyList(),
     ) : FrequencySpec()
 
     data class Monthly(
         override val type: String = "MONTHLY",
+        @field:Min(1)
         val timesPerMonth: Int,
         val daysOfMonth: List<Int> = emptyList(),
     ) : FrequencySpec()

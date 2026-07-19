@@ -69,20 +69,12 @@ export function Select({ value, onValueChange, children, placeholder: placeholde
 }
 
 // These are type-only shims so the import syntax `Select, SelectContent, SelectTrigger, SelectItem, SelectValue`
-// continues to compile. The real rendering logic is handled by `Select` above.
+// continues to compile. They render null — all DOM output is in `Select` above.
 
-export function SelectTrigger({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn('hidden', className)}>{children}</div>
-}
+export const SelectTrigger: React.FC<{ children?: React.ReactNode; className?: string }> = () => null
 
-export function SelectContent({ children }: { children: React.ReactNode }) {
-  return <div className="hidden">{children}</div>
-}
+export const SelectContent: React.FC<{ children?: React.ReactNode }> = () => null
 
-export function SelectItem({ value, children }: { value: string; children: React.ReactNode }) {
-  return <option value={value}>{children}</option>
-}
+export const SelectItem: React.FC<{ value: string; children?: React.ReactNode }> = () => null
 
-export function SelectValue({ placeholder }: { placeholder?: string }) {
-  return <span>{placeholder}</span>
-}
+export const SelectValue: React.FC<{ placeholder?: string }> = () => null

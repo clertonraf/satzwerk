@@ -69,7 +69,7 @@ export default function ChartsTab() {
         <CardContent>
           {heatmapLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
           {!heatmapLoading && aggEntries.length > 0 && (
-            <ContributionHeatmap entries={aggEntries} from={aggFromTo.from} to={aggFromTo.to} />
+            <ContributionHeatmap entries={aggEntries} from={aggFromTo.from} to={aggFromTo.to} unit="doses" />
           )}
           {!heatmapLoading && aggEntries.length === 0 && (
             <p className="text-sm text-muted-foreground">No data yet.</p>
@@ -100,7 +100,7 @@ export default function ChartsTab() {
             <CardContent>
               {analyticsLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
               {!analyticsLoading && perMedEntries.length > 0 && (
-                <ContributionHeatmap entries={perMedEntries} from={perMedFromTo.from} to={perMedFromTo.to} />
+                <ContributionHeatmap entries={perMedEntries} from={perMedFromTo.from} to={perMedFromTo.to} unit="doses" />
               )}
               {!analyticsLoading && perMedEntries.length === 0 && (
                 <p className="text-sm text-muted-foreground">No data yet.</p>

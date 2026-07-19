@@ -43,7 +43,17 @@ const addUtcDays = (date: Date, days: number) => {
   return copy
 }
 
-export default function ContributionHeatmap({ entries, from, to }: { entries: HeatmapEntry[]; from: string; to: string }) {
+export default function ContributionHeatmap({
+  entries,
+  from,
+  to,
+  unit = 'sets',
+}: {
+  entries: HeatmapEntry[]
+  from: string
+  to: string
+  unit?: string
+}) {
   if (entries.length === 0) {
     return <p className="text-sm text-muted-foreground">No activity yet.</p>
   }
@@ -124,7 +134,7 @@ export default function ContributionHeatmap({ entries, from, to }: { entries: He
           rx={2}
           fill={INTENSITY_COLORS[entry?.intensity ?? 0] ?? INTENSITY_COLORS[0]}
         >
-          <title>{outOfRange ? dateStr : `${dateStr}: ${entry?.count ?? 0} sets`}</title>
+          <title>{outOfRange ? dateStr : `${dateStr}: ${entry?.count ?? 0} ${unit}`}</title>
         </rect>
       ))}
     </svg>

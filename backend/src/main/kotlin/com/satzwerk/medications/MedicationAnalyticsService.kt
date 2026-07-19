@@ -184,7 +184,9 @@ class MedicationAnalyticsService(
     private fun buildWeeklyBarChart(logs: List<MedicationLog>): List<BarChartPeriodDto> =
         logs.groupBy {
             val d = it.takenAt.atZone(ZoneOffset.UTC).toLocalDate()
-            "${d.year}-W${d.get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear())}"
+            val isoYear = d.get(java.time.temporal.WeekFields.ISO.weekBasedYear())
+            val isoWeek = d.get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear())
+            "$isoYear-W${isoWeek.toString().padStart(2, '0')}"
         }.map { (period, periodLogs) ->
             BarChartPeriodDto(
                 period = period,
