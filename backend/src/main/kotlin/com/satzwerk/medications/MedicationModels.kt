@@ -1,7 +1,6 @@
 package com.satzwerk.medications
 
 import jakarta.validation.constraints.DecimalMin
-import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import java.math.BigDecimal
@@ -95,9 +94,6 @@ data class PerMedicationAnalyticsDto(
 )
 
 enum class BarChartGranularity { WEEKLY, MONTHLY }
-
-@Min(1)
-annotation class MinOne
 
 fun MedicationLog.toResponse(): MedicationLogResponse =
     MedicationLogResponse(

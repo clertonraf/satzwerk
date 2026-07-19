@@ -108,8 +108,8 @@ class MedicationAnalyticsService(
         userId: UUID,
         granularity: BarChartGranularity,
     ): PerMedicationAnalyticsDto {
-        val streak = getAdherenceStreak(medicationId)
         val heatmap = buildPerMedicationHeatmap(medicationId, userId)
+        val streak = getAdherenceStreak(medicationId)
         val barChart = buildBarChart(medicationId, granularity)
         return PerMedicationAnalyticsDto(heatmap = heatmap, barChart = barChart, currentStreak = streak)
     }
