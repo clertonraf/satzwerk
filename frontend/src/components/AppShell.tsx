@@ -19,6 +19,8 @@ const navigationItems = [
 const PAGE_TITLES: Record<string, string> = {
   ...Object.fromEntries(navigationItems.map(({ to, label }) => [to, label])),
   '/session': 'Session',
+  '/measurements': 'Body Measurements',
+  '/medications': 'Medications',
 }
 
 function usePageTitle(): string {

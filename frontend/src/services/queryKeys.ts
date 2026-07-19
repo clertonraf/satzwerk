@@ -25,4 +25,11 @@ export const queryKeys = {
   measurements: {
     all: () => ['measurements'] as const,
   },
+  medications: {
+    all: () => ['all'] as const,
+    today: () => ['today'] as const,
+    logs: (id: string, from: string, to: string) => ['logs', id, from, to] as const,
+    heatmap: (weeks: number) => ['heatmap', weeks] as const,
+    analytics: (id: string, granularity: string) => ['analytics', id, granularity] as const,
+  },
 } as const

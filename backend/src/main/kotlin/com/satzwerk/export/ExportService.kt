@@ -1,8 +1,11 @@
 package com.satzwerk.export
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.NotFoundException
+import com.satzwerk.medications.MedicationLogRepository
+import com.satzwerk.medications.MedicationRepository
 import com.satzwerk.sessions.SetLog
 import com.satzwerk.sessions.WorkoutSession
 import com.satzwerk.users.UserRepository
@@ -15,6 +18,8 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
+private const val MAX_SUPPORTED_EXPORT_VERSION = 2
+
 private data class ExerciseImportResult(
     val exerciseIdMap: Map<UUID, UUID>,
     val importedCount: Int,
@@ -26,6 +31,9 @@ class ExportService(
     private val userRepository: UserRepository,
     private val exerciseRepository: ExerciseRepository,
     private val workoutDataPort: WorkoutDataPort,
+    private val medicationRepository: MedicationRepository,
+    private val medicationLogRepository: MedicationLogRepository,
+    private val objectMapper: ObjectMapper,
 ) {
     suspend fun exportForUser(userId: UUID): UserDataExportDto {
         val user = userRepository.findById(userId) ?: throw NotFoundException("User not found")
@@ -34,6 +42,8 @@ class ExportService(
             exercises = exerciseRepository.findAllByUserId(userId).map(::toExerciseDto),
             workoutPlans = exportPlans(userId),
             workoutSessions = exportSessions(userId),
+            medications = exportMedicationsFor(userId, medicationRepository, objectMapper),
+            medicationLogs = exportMedicationLogsFor(userId, medicationRepository, medicationLogRepository),
         )
     }
 
@@ -47,12 +57,22 @@ class ExportService(
         val (groupIdMap, importedPlans) = importPlans(userId, dto.workoutPlans, exerciseResult.exerciseIdMap)
         val (importedSessions, importedSetLogs) =
             importSessions(userId, dto.workoutSessions, exerciseResult.exerciseIdMap, groupIdMap)
+        val medResult =
+            importMedicationsAndLogs(
+                userId,
+                dto.medications,
+                dto.medicationLogs,
+                MedicationImportDeps(medicationRepository, medicationLogRepository, objectMapper),
+            )
         return ImportSummaryDto(
             importedExercises = exerciseResult.importedCount,
             importedWorkoutPlans = importedPlans,
             importedWorkoutSessions = importedSessions,
             importedSetLogs = importedSetLogs,
             reusedExercises = exerciseResult.reusedCount,
+            importedMedications = medResult.importedCount,
+            importedMedicationLogs = medResult.importedLogCount,
+            reusedMedications = medResult.reusedCount,
         )
     }
 
@@ -60,8 +80,10 @@ class ExportService(
         userId: UUID,
         dto: UserDataExportDto,
     ) {
-        if (dto.version != 1) {
-            throw BadRequestException("Unsupported export version: ${dto.version}. Only version 1 is supported.")
+        if (dto.version > MAX_SUPPORTED_EXPORT_VERSION) {
+            throw BadRequestException(
+                "Unsupported export version: ${dto.version}. Supported versions: 1, $MAX_SUPPORTED_EXPORT_VERSION.",
+            )
         }
         if (workoutDataPort.findOpenSession(userId) != null) {
             throw ConflictException("You have an open workout session. Complete or discard it before importing.")
