@@ -37,6 +37,9 @@ export default function SettingsPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
+    setImportError(null)
+    setImportSummary(null)
+
     const reader = new FileReader()
     reader.onload = (event) => {
       const content = event.target?.result as string
@@ -107,6 +110,9 @@ export default function SettingsPage() {
                   <li>{importSummary.importedWorkoutPlans} workout plans imported</li>
                   <li>{importSummary.importedWorkoutSessions} workout sessions imported</li>
                   <li>{importSummary.importedSetLogs} set logs imported</li>
+                  <li>{importSummary.importedMedications} medications imported</li>
+                  <li>{importSummary.reusedMedications} medications reused (already existed)</li>
+                  <li>{importSummary.importedMedicationLogs} medication logs imported</li>
                 </ul>
               </div>
             )}

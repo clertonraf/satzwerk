@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -22,6 +22,9 @@ const IMPORT_SUMMARY = {
   importedWorkoutSessions: 10,
   importedSetLogs: 80,
   reusedExercises: 1,
+  importedMedications: 3,
+  reusedMedications: 1,
+  importedMedicationLogs: 15,
 }
 
 function renderPage() {
@@ -33,8 +36,9 @@ function renderPage() {
 }
 
 describe('SettingsPage', () => {
-  afterEach(() => {
-    vi.clearAllMocks()
+  beforeEach(() => {
+    mockDownload.mockReset()
+    mockImport.mockReset()
   })
 
   it('renders export button and file input', () => {
@@ -101,6 +105,25 @@ describe('SettingsPage', () => {
     await waitFor(() => expect(mockImport).toHaveBeenCalledTimes(1))
     expect(await screen.findByText(/5 exercises/i)).toBeInTheDocument()
     expect(await screen.findByText(/2 workout plans/i)).toBeInTheDocument()
+    expect(await screen.findByText(/3 medications imported/i)).toBeInTheDocument()
+    expect(await screen.findByText(/15 medication logs/i)).toBeInTheDocument()
+  })
+
+  it('clears previous error and summary when a new file is selected', async () => {
+    const user = userEvent.setup()
+    mockImport.mockRejectedValueOnce(new Error('Server error'))
+    const file = new File(['{"version":1}'], 'test.json', { type: 'application/json' })
+
+    renderPage()
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(input, file)
+    await user.click(await screen.findByRole('button', { name: /confirm/i }))
+    expect(await screen.findByText(/failed to import/i)).toBeInTheDocument()
+
+    // Selecting a new file should clear the error
+    const file2 = new File(['{"version":1}'], 'test2.json', { type: 'application/json' })
+    await user.upload(input, file2)
+    expect(screen.queryByText(/failed to import/i)).not.toBeInTheDocument()
   })
 
   it('shows 409-specific message when import fails with conflict', async () => {
