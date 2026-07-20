@@ -1,6 +1,4 @@
-import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { measurementsApi } from '@/services/measurementsApi'
 import { queryKeys } from '@/services/queryKeys'
@@ -9,8 +7,6 @@ import HistoryTab from './HistoryTab'
 import LogTab from './LogTab'
 
 export default function MeasurementsPage() {
-  const navigate = useNavigate()
-
   const { data: measurements = [], isLoading } = useQuery({
     queryKey: queryKeys.measurements.all(),
     queryFn: () => measurementsApi.getAll(),
@@ -18,13 +14,6 @@ export default function MeasurementsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/profile')} aria-label="Back to profile">
-          ← Back
-        </Button>
-        <h1 className="text-xl font-semibold">Body Measurements</h1>
-      </div>
-
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : (

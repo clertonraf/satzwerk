@@ -2,16 +2,14 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import AppShell from '@/components/AppShell'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import LoginPage from '@/features/auth/LoginPage'
-import MeasurementsPage from '@/features/measurements/MeasurementsPage'
-import MedicationsPage from '@/features/medications/MedicationsPage'
+import HealthPage from '@/features/health/HealthPage'
 import RegisterPage from '@/features/auth/RegisterPage'
 import SessionPage from '@/features/sessions/SessionPage'
-import ExercisesPage from '@/features/workouts/ExercisesPage'
 import PlanBuilderPage from '@/features/workouts/PlanBuilderPage'
-import PlansPage from '@/features/workouts/PlansPage'
+import WorkoutsPage from '@/features/workouts/WorkoutsPage'
 import DashboardPage from '@/pages/DashboardPage'
 import HistoryPage from '@/pages/HistoryPage'
-import ProfilePage from '@/pages/ProfilePage'
+import SettingsPage from '@/pages/SettingsPage'
 import { useOfflineSync } from '@/hooks/useOfflineSync'
 import { useRestoreSession } from '@/hooks/useRestoreSession'
 
@@ -49,12 +47,18 @@ export default function App() {
                   <Route path="/" element={<DashboardPage />} />
                   <Route path="/history" element={<HistoryPage />} />
                   <Route path="/session" element={<SessionPage />} />
-                  <Route path="/plans" element={<PlansPage />} />
+                  <Route path="/workouts" element={<WorkoutsPage />} />
+                  <Route path="/workouts/exercises" element={<WorkoutsPage />} />
                   <Route path="/plans/:planId" element={<PlanBuilderPage />} />
-                  <Route path="/exercises" element={<ExercisesPage />} />
-                  <Route path="/profile" element={<ProfilePage />} />
-                  <Route path="/measurements" element={<MeasurementsPage />} />
-                  <Route path="/medications" element={<MedicationsPage />} />
+                  <Route path="/health" element={<HealthPage />} />
+                  <Route path="/health/measurements" element={<HealthPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  {/* Legacy redirects — preserve existing deep links */}
+                  <Route path="/plans" element={<Navigate to="/workouts" replace />} />
+                  <Route path="/exercises" element={<Navigate to="/workouts/exercises" replace />} />
+                  <Route path="/medications" element={<Navigate to="/health" replace />} />
+                  <Route path="/measurements" element={<Navigate to="/health/measurements" replace />} />
+                  <Route path="/profile" element={<Navigate to="/settings" replace />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </AppShell>
