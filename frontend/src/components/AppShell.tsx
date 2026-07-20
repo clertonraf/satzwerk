@@ -33,7 +33,7 @@ function usePageTitle(): string {
   const { pathname } = useLocation()
   const isCanonicalPlanBuilder = useMatch('/workouts/plans/:planId')
   const isLegacyPlanBuilder = useMatch('/plans/:planId')
-  if (isCanonicalPlanBuilder ?? isLegacyPlanBuilder) return 'Plan Builder'
+  if (isCanonicalPlanBuilder || isLegacyPlanBuilder) return 'Plan Builder'
   return PAGE_TITLES[pathname] ?? 'Satzwerk'
 }
 
