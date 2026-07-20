@@ -93,9 +93,9 @@ describe('AppShell', () => {
     expect(header).toHaveTextContent('Settings')
   })
 
-  it('shows Plan Builder as page title in mobile header when on /plans/:planId', () => {
+  it('shows Plan Builder as page title in mobile header when on /workouts/plans/:planId', () => {
     render(
-      <MemoryRouter initialEntries={['/plans/abc-123']}>
+      <MemoryRouter initialEntries={['/workouts/plans/abc-123']}>
         <AppShell>
           <div>content</div>
         </AppShell>
@@ -182,9 +182,9 @@ describe('AppShell', () => {
     expect(document.title).toBe('Settings | Satzwerk')
   })
 
-  it('sets document.title to "Plan Builder | Satzwerk" on /plans/:planId', () => {
+  it('sets document.title to "Plan Builder | Satzwerk" on /workouts/plans/:planId', () => {
     render(
-      <MemoryRouter initialEntries={['/plans/abc-123']}>
+      <MemoryRouter initialEntries={['/workouts/plans/abc-123']}>
         <AppShell>
           <div>content</div>
         </AppShell>
@@ -283,6 +283,23 @@ describe('AppShell', () => {
     const sidebar = container.querySelector('aside')
     expect(sidebar?.className).toMatch(/hidden/)
     expect(sidebar?.className).toMatch(/md:flex/)
+  })
+
+  it.each([
+    { path: '/plans', label: 'Workouts' },
+    { path: '/exercises', label: 'Workouts' },
+    { path: '/medications', label: 'Health' },
+    { path: '/measurements', label: 'Health' },
+    { path: '/profile', label: 'Settings' },
+  ])('sets document.title to "$label | Satzwerk" on legacy redirect path $path', ({ path, label }) => {
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <AppShell>
+          <div>content</div>
+        </AppShell>
+      </MemoryRouter>
+    )
+    expect(document.title).toBe(`${label} | Satzwerk`)
   })
 })
 
