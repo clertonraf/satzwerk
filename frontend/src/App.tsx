@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import AppShell from '@/components/AppShell'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import LoginPage from '@/features/auth/LoginPage'
@@ -12,6 +12,11 @@ import HistoryPage from '@/pages/HistoryPage'
 import SettingsPage from '@/pages/SettingsPage'
 import { useOfflineSync } from '@/hooks/useOfflineSync'
 import { useRestoreSession } from '@/hooks/useRestoreSession'
+
+function PlanBuilderRedirect() {
+  const { planId } = useParams<{ planId: string }>()
+  return <Navigate to={`/workouts/plans/${planId}`} replace />
+}
 
 export default function App() {
   const { flushError, dismissFlushError } = useOfflineSync()
@@ -49,7 +54,8 @@ export default function App() {
                   <Route path="/session" element={<SessionPage />} />
                   <Route path="/workouts" element={<WorkoutsPage />} />
                   <Route path="/workouts/exercises" element={<WorkoutsPage />} />
-                  <Route path="/plans/:planId" element={<PlanBuilderPage />} />
+                  <Route path="/workouts/plans/:planId" element={<PlanBuilderPage />} />
+                  <Route path="/plans/:planId" element={<PlanBuilderRedirect />} />
                   <Route path="/health" element={<HealthPage />} />
                   <Route path="/health/measurements" element={<HealthPage />} />
                   <Route path="/settings" element={<SettingsPage />} />

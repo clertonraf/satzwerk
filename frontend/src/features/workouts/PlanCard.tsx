@@ -38,7 +38,7 @@ export default function PlanCard({ plan, onActivate, onDelete }: PlanCardProps) 
           Delete
         </Button>
         <Button asChild>
-          <Link to={`/plans/${plan.id}`}>Open</Link>
+          <Link to={`/workouts/plans/${plan.id}`}>Open</Link>
         </Button>
       </CardContent>
     </Card>

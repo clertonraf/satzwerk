@@ -21,11 +21,17 @@ const PAGE_TITLES: Record<string, string> = {
   '/workouts/exercises': 'Workouts',
   '/health/measurements': 'Health',
   '/session': 'Session',
+  // Legacy redirect paths — titles shown during the brief render before <Navigate> fires
+  '/plans': 'Workouts',
+  '/exercises': 'Workouts',
+  '/medications': 'Health',
+  '/measurements': 'Health',
+  '/profile': 'Settings',
 }
 
 function usePageTitle(): string {
   const { pathname } = useLocation()
-  const isPlanBuilder = useMatch('/plans/:planId')
+  const isPlanBuilder = useMatch('/workouts/plans/:planId')
   if (isPlanBuilder) return 'Plan Builder'
   return PAGE_TITLES[pathname] ?? 'Satzwerk'
 }
