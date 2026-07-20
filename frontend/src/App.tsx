@@ -15,6 +15,7 @@ import { useRestoreSession } from '@/hooks/useRestoreSession'
 
 function PlanBuilderRedirect() {
   const { planId } = useParams<{ planId: string }>()
+  if (!planId) return <Navigate to="/workouts" replace />
   return <Navigate to={`/workouts/plans/${planId}`} replace />
 }
 

@@ -286,12 +286,12 @@ describe('AppShell', () => {
   })
 
   it.each([
-    ['/plans', 'Workouts'],
-    ['/exercises', 'Workouts'],
-    ['/medications', 'Health'],
-    ['/measurements', 'Health'],
-    ['/profile', 'Settings'],
-  ])('sets document.title to "%s | Satzwerk" on legacy redirect path %s', (path, label) => {
+    { path: '/plans', label: 'Workouts' },
+    { path: '/exercises', label: 'Workouts' },
+    { path: '/medications', label: 'Health' },
+    { path: '/measurements', label: 'Health' },
+    { path: '/profile', label: 'Settings' },
+  ])('sets document.title to "$label | Satzwerk" on legacy redirect path $path', ({ path, label }) => {
     render(
       <MemoryRouter initialEntries={[path]}>
         <AppShell>
