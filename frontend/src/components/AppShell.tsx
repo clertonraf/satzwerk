@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Clock3, Dumbbell, Home, Layers3, MoonStar, SunMedium, User } from 'lucide-react'
+import { Clock3, Dumbbell, Heart, Home, MoonStar, Settings, SunMedium } from 'lucide-react'
 import { NavLink, useLocation, useMatch } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -11,16 +11,16 @@ interface AppShellProps {
 const navigationItems = [
   { to: '/', label: 'Dashboard', icon: Home },
   { to: '/history', label: 'History', icon: Clock3 },
-  { to: '/plans', label: 'Plans', icon: Layers3 },
-  { to: '/exercises', label: 'Exercises', icon: Dumbbell },
-  { to: '/profile', label: 'Profile', icon: User },
+  { to: '/workouts', label: 'Workouts', icon: Dumbbell },
+  { to: '/health', label: 'Health', icon: Heart },
+  { to: '/settings', label: 'Settings', icon: Settings },
 ] as const
 
 const PAGE_TITLES: Record<string, string> = {
   ...Object.fromEntries(navigationItems.map(({ to, label }) => [to, label])),
+  '/workouts/exercises': 'Workouts',
+  '/health/measurements': 'Health',
   '/session': 'Session',
-  '/measurements': 'Body Measurements',
-  '/medications': 'Medications',
 }
 
 function usePageTitle(): string {

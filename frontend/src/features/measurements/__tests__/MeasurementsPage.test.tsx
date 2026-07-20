@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter, useNavigate } from 'react-router-dom'
+import { MemoryRouter } from 'react-router-dom'
 import { measurementsApi } from '@/services/measurementsApi'
 import MeasurementsPage from '../MeasurementsPage'
 
@@ -14,13 +14,7 @@ vi.mock('@/services/measurementsApi', () => ({
   },
 }))
 
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
-  return { ...actual, useNavigate: vi.fn() }
-})
-
 const mockGetAll = vi.mocked(measurementsApi.getAll)
-const mockNavigate = vi.mocked(useNavigate)
 
 function createTestQueryClient() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -28,8 +22,6 @@ function createTestQueryClient() {
 
 function renderPage() {
   const queryClient = createTestQueryClient()
-  const navigate = vi.fn()
-  mockNavigate.mockReturnValue(navigate)
   render(
     <MemoryRouter>
       <QueryClientProvider client={queryClient}>
@@ -37,23 +29,11 @@ function renderPage() {
       </QueryClientProvider>
     </MemoryRouter>,
   )
-  return { navigate }
 }
 
 describe('MeasurementsPage', () => {
   beforeEach(() => {
     mockGetAll.mockReset()
-    mockNavigate.mockReset()
-  })
-
-  it('navigates to /profile when back button is clicked', async () => {
-    const user = userEvent.setup()
-    mockGetAll.mockResolvedValueOnce([])
-
-    const { navigate } = renderPage()
-    await user.click(screen.getByRole('button', { name: /back to profile/i }))
-
-    expect(navigate).toHaveBeenCalledWith('/profile')
   })
 
   it('renders Log, History and Charts tabs', async () => {
@@ -76,5 +56,14 @@ describe('MeasurementsPage', () => {
     await user.click(historyTab)
 
     expect(await screen.findByText(/no measurements logged yet/i)).toBeInTheDocument()
+  })
+
+  it('does not render a back navigation button', async () => {
+    mockGetAll.mockResolvedValueOnce([])
+
+    renderPage()
+
+    await screen.findByRole('tab', { name: /log/i })
+    expect(screen.queryByRole('button', { name: /back/i })).not.toBeInTheDocument()
   })
 })
