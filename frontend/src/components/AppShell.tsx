@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Clock3, Dumbbell, Heart, Home, MoonStar, Settings, SunMedium } from 'lucide-react'
+import { Dumbbell, Heart, Home, MoonStar, Settings, SunMedium } from 'lucide-react'
 import { NavLink, useLocation, useMatch } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -10,7 +10,6 @@ interface AppShellProps {
 
 const navigationItems = [
   { to: '/', label: 'Dashboard', icon: Home },
-  { to: '/history', label: 'History', icon: Clock3 },
   { to: '/workouts', label: 'Workouts', icon: Dumbbell },
   { to: '/health', label: 'Health', icon: Heart },
   { to: '/settings', label: 'Settings', icon: Settings },
@@ -19,9 +18,11 @@ const navigationItems = [
 const PAGE_TITLES: Record<string, string> = {
   ...Object.fromEntries(navigationItems.map(({ to, label }) => [to, label])),
   '/workouts/exercises': 'Workouts',
+  '/workouts/history': 'Workouts',
   '/health/measurements': 'Health',
   '/session': 'Session',
   // Legacy redirect paths — titles shown during the brief render before <Navigate> fires
+  '/history': 'Workouts',
   '/plans': 'Workouts',
   '/exercises': 'Workouts',
   '/medications': 'Health',
@@ -107,7 +108,7 @@ export default function AppShell({ children }: AppShellProps) {
         aria-label="Main navigation"
         className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 px-2 py-2 backdrop-blur md:hidden dark:bg-background/95"
       >
-        <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
+        <div className="mx-auto grid max-w-md grid-cols-4 gap-1">
           {navigationItems.map(({ to, label, icon: Icon }) => (
             <NavItem key={to} to={to} label={label} icon={<Icon className="size-5" />} compact />
           ))}

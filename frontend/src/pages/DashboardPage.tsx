@@ -145,10 +145,9 @@ export default function DashboardPage() {
           <Link to="/session">{openSession != null ? 'Resume session' : 'Start session'}</Link>
         </Button>
         <Button asChild variant="outline">
-          <Link to="/history">View history</Link>
+          <Link to="/workouts/history">View history</Link>
         </Button>
       </div>
     </div>
   )
 }
-

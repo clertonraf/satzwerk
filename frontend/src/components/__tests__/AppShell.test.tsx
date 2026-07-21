@@ -21,16 +21,16 @@ describe('AppShell', () => {
     expect(header).toHaveTextContent('Dashboard')
   })
 
-  it('shows History as page title in mobile header when on /history', () => {
+  it('shows Workouts as page title in mobile header when on /workouts/history', () => {
     render(
-      <MemoryRouter initialEntries={['/history']}>
+      <MemoryRouter initialEntries={['/workouts/history']}>
         <AppShell>
           <div>content</div>
         </AppShell>
       </MemoryRouter>
     )
     const header = screen.getByRole('banner')
-    expect(header).toHaveTextContent('History')
+    expect(header).toHaveTextContent('Workouts')
   })
 
   it('shows Workouts as page title in mobile header when on /workouts', () => {
@@ -116,15 +116,15 @@ describe('AppShell', () => {
     expect(document.title).toBe('Dashboard | Satzwerk')
   })
 
-  it('sets document.title to "History | Satzwerk" on /history', () => {
+  it('sets document.title to "Workouts | Satzwerk" on /workouts/history', () => {
     render(
-      <MemoryRouter initialEntries={['/history']}>
+      <MemoryRouter initialEntries={['/workouts/history']}>
         <AppShell>
           <div>content</div>
         </AppShell>
       </MemoryRouter>
     )
-    expect(document.title).toBe('History | Satzwerk')
+    expect(document.title).toBe('Workouts | Satzwerk')
   })
 
   it('sets document.title to "Workouts | Satzwerk" on /workouts', () => {
@@ -195,13 +195,13 @@ describe('AppShell', () => {
 
   it('resets document.title to "Satzwerk" when AppShell unmounts', () => {
     const { unmount } = render(
-      <MemoryRouter initialEntries={['/history']}>
+      <MemoryRouter initialEntries={['/workouts/history']}>
         <AppShell>
           <div>content</div>
         </AppShell>
       </MemoryRouter>
     )
-    expect(document.title).toBe('History | Satzwerk')
+    expect(document.title).toBe('Workouts | Satzwerk')
     unmount()
     expect(document.title).toBe('Satzwerk')
   })
@@ -232,6 +232,7 @@ describe('AppShell', () => {
     expect(mobileNav).not.toHaveTextContent('Plans')
     expect(mobileNav).not.toHaveTextContent('Exercises')
     expect(mobileNav).not.toHaveTextContent('Profile')
+    expect(mobileNav).not.toHaveTextContent('History')
   })
 
   it('renders children', () => {
@@ -286,6 +287,7 @@ describe('AppShell', () => {
   })
 
   it.each([
+    { path: '/history', label: 'Workouts' },
     { path: '/plans', label: 'Workouts' },
     { path: '/exercises', label: 'Workouts' },
     { path: '/medications', label: 'Health' },
@@ -302,4 +304,3 @@ describe('AppShell', () => {
     expect(document.title).toBe(`${label} | Satzwerk`)
   })
 })
-
