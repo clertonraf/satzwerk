@@ -194,39 +194,20 @@ class AnalyticsRepository(
     suspend fun findTopExercisesBySetCount(
         userId: UUID,
         limit: Int = DEFAULT_TOP_EXERCISES_LIMIT,
-    ): List<TopExerciseRow> =
-        databaseClient
-            .sql(
-                """
-                SELECT sl.exercise_id, e.name AS exercise_name, COUNT(sl.id) AS set_count
-                FROM set_logs sl
-                JOIN workout_sessions ws ON sl.workout_session_id = ws.id
-                JOIN exercises e ON sl.exercise_id = e.id AND e.user_id = :userId
-                WHERE ws.user_id = :userId
-                GROUP BY sl.exercise_id, e.name
-                ORDER BY set_count DESC, e.name ASC
-                LIMIT :limit
-                """.trimIndent(),
-            ).bind("userId", userId)
-            .bind("limit", limit)
-            .map { row, _ ->
-                TopExerciseRow(
-                    exerciseId = row.get("exercise_id", UUID::class.java)!!,
-                    exerciseName = row.get("exercise_name", String::class.java)!!,
-                    setCount =
-                        Math.toIntExact(
-                            requireNotNull(row.get("set_count", java.lang.Long::class.java)).toLong(),
-                        ),
-                )
-            }.all()
-            .asFlow()
-            .toList()
+    ): List<TopExerciseRow> = findExercisesBySetCount(userId, limit, ascending = false)
 
     suspend fun findLeastExercisesBySetCount(
         userId: UUID,
         limit: Int = DEFAULT_TOP_EXERCISES_LIMIT,
-    ): List<TopExerciseRow> =
-        databaseClient
+    ): List<TopExerciseRow> = findExercisesBySetCount(userId, limit, ascending = true)
+
+    private suspend fun findExercisesBySetCount(
+        userId: UUID,
+        limit: Int,
+        ascending: Boolean,
+    ): List<TopExerciseRow> {
+        val direction = if (ascending) "ASC" else "DESC"
+        return databaseClient
             .sql(
                 """
                 SELECT sl.exercise_id, e.name AS exercise_name, COUNT(sl.id) AS set_count
@@ -235,7 +216,7 @@ class AnalyticsRepository(
                 JOIN exercises e ON sl.exercise_id = e.id AND e.user_id = :userId
                 WHERE ws.user_id = :userId
                 GROUP BY sl.exercise_id, e.name
-                ORDER BY set_count ASC, e.name ASC
+                ORDER BY set_count $direction, e.name ASC
                 LIMIT :limit
                 """.trimIndent(),
             ).bind("userId", userId)
@@ -252,6 +233,7 @@ class AnalyticsRepository(
             }.all()
             .asFlow()
             .toList()
+    }
 }
 
 data class DashboardSummaryRow(
