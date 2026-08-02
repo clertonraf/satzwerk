@@ -32,5 +32,6 @@ export const queryKeys = {
     logs: (id: string, from: string, to: string) => ['medication-logs', id, from, to] as const,
     heatmap: (weeks: number) => ['medication-heatmap', weeks] as const,
     analytics: (id: string, granularity: string) => ['medication-analytics', id, granularity] as const,
+    journal: (from: string, to: string) => ['medication-journal', from, to] as const,
   },
 } as const

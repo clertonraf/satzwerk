@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { medicationsApi } from '@/services/medicationsApi'
 import { queryKeys } from '@/services/queryKeys'
+import MedicationJournal from './MedicationJournal'
 import type { LogDosePayload, MedicationLog, ScheduledDose } from './types'
 
 export default function LogTab() {
@@ -203,6 +204,8 @@ export default function LogTab() {
           </Card>
         )}
       </section>
+
+      <MedicationJournal />
     </div>
   )
 }

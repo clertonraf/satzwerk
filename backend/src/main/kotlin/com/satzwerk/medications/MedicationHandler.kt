@@ -11,10 +11,13 @@ import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import org.springframework.web.reactive.function.server.buildAndAwait
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.time.format.DateTimeParseException
 
 private const val DEFAULT_LOG_WINDOW_SECONDS = 30L * 24 * 3600
 private const val DEFAULT_HEATMAP_WEEKS = 52
+private const val DEFAULT_JOURNAL_DAYS = 30L
 
 class MedicationHandler(
     private val medicationService: MedicationService,
@@ -133,4 +136,31 @@ private fun parseGranularity(value: String): BarChartGranularity =
         BarChartGranularity.valueOf(value.uppercase())
     } catch (_: IllegalArgumentException) {
         throw BadRequestException("Invalid granularity: '$value'. Expected WEEKLY or MONTHLY.")
+    }
+
+/** Package-level handler to keep [MedicationHandler] under the detekt TooManyFunctions limit. */
+internal suspend fun journalHandler(
+    request: ServerRequest,
+    medicationService: MedicationService,
+): ServerResponse =
+    handleErrors {
+        val ctx = RequestContext(request)
+        val today = LocalDate.now(ZoneOffset.UTC)
+        val from =
+            request.queryParam("from").map { value ->
+                try {
+                    LocalDate.parse(value).atStartOfDay(ZoneOffset.UTC).toInstant()
+                } catch (_: DateTimeParseException) {
+                    throw BadRequestException("Invalid from date: '$value'. Expected yyyy-MM-dd.")
+                }
+            }.orElse(today.minusDays(DEFAULT_JOURNAL_DAYS).atStartOfDay(ZoneOffset.UTC).toInstant())
+        val to =
+            request.queryParam("to").map { value ->
+                try {
+                    LocalDate.parse(value).plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().minusNanos(1)
+                } catch (_: DateTimeParseException) {
+                    throw BadRequestException("Invalid to date: '$value'. Expected yyyy-MM-dd.")
+                }
+            }.orElse(today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().minusNanos(1))
+        ServerResponse.ok().bodyValueAndAwait(medicationService.getJournalEntries(ctx.userId(), from, to))
     }

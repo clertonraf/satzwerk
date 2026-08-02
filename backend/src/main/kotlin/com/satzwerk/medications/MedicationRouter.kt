@@ -18,6 +18,7 @@ class MedicationRouter {
             GET("", handler::getAll)
             POST("", handler::create)
             GET("/today", handler::getToday)
+            GET("/logs") { request -> journalHandler(request, medicationService) }
             GET("/analytics/heatmap", handler::getAggregateHeatmap)
             GET("/{id}", handler::getOne)
             PUT("/{id}", handler::update)
