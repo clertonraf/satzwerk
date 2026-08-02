@@ -113,6 +113,31 @@ class MedicationService(
             .map { it.toResponse() }
     }
 
+    suspend fun getJournalEntries(
+        userId: UUID,
+        from: Instant,
+        to: Instant,
+    ): List<MedicationJournalEntryDto> {
+        val logs = medicationLogRepository.findByUserIdAndTakenAtBetweenOrderByTakenAtDesc(userId, from, to)
+        if (logs.isEmpty()) return emptyList()
+        val medicationsById =
+            medicationRepository.findByUserIdOrderByNameAsc(userId).associateBy { requireNotNull(it.id) }
+        return logs.mapNotNull { log ->
+            val med = medicationsById[log.medicationId] ?: return@mapNotNull null
+            MedicationJournalEntryDto(
+                id = requireNotNull(log.id),
+                medicationId = log.medicationId,
+                medicationName = med.name,
+                takenAt = log.takenAt,
+                taken = log.taken,
+                doseAmount = log.doseAmount,
+                dosageAmount = med.dosageAmount,
+                dosageUnit = med.dosageUnit,
+                notes = log.notes,
+            )
+        }
+    }
+
     suspend fun getTodayScheduledDoses(userId: UUID): List<ScheduledDoseSummaryDto> {
         val today = LocalDate.now(ZoneOffset.UTC)
         val startOfDay = today.atStartOfDay(ZoneOffset.UTC).toInstant()

@@ -26,6 +26,18 @@ export interface MedicationLog {
   notes: string | null
 }
 
+export interface MedicationJournalEntry {
+  id: string
+  medicationId: string
+  medicationName: string
+  takenAt: string
+  taken: boolean
+  doseAmount: number | null
+  dosageAmount: number
+  dosageUnit: DosageUnit
+  notes: string | null
+}
+
 export interface ScheduledDose {
   medication: Medication
   scheduledCount: number

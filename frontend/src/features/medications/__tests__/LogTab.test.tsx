@@ -15,6 +15,7 @@ vi.mock('@/services/medicationsApi', () => ({
     deactivate: vi.fn(),
     getToday: vi.fn(),
     logDose: vi.fn(),
+    getJournal: vi.fn(),
     getAggregateHeatmap: vi.fn(),
     getPerMedicationAnalytics: vi.fn(),
   },
@@ -23,6 +24,7 @@ vi.mock('@/services/medicationsApi', () => ({
 const mockGetToday = vi.mocked(medicationsApi.getToday)
 const mockGetAll = vi.mocked(medicationsApi.getAll)
 const mockLogDose = vi.mocked(medicationsApi.logDose)
+const mockGetJournal = vi.mocked(medicationsApi.getJournal)
 
 const ACTIVE_MED: Medication = {
   id: 'med-1',
@@ -62,6 +64,8 @@ describe('LogTab', () => {
     mockGetToday.mockReset()
     mockGetAll.mockReset()
     mockLogDose.mockReset()
+    mockGetJournal.mockReset()
+    mockGetJournal.mockResolvedValue([])
   })
 
   it('shows empty state when no doses scheduled', async () => {

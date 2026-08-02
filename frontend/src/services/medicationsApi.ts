@@ -5,6 +5,7 @@ import type {
   CreateMedicationPayload,
   LogDosePayload,
   Medication,
+  MedicationJournalEntry,
   MedicationLog,
   PerMedicationAnalytics,
   ScheduledDose,
@@ -34,6 +35,11 @@ export const medicationsApi = {
   getLogs: (medicationId: string, from: string, to: string): Promise<MedicationLog[]> => {
     const params = new URLSearchParams({ from, to })
     return http.get<MedicationLog[]>(`/medications/${medicationId}/logs?${params.toString()}`)
+  },
+
+  getJournal: (from: string, to: string): Promise<MedicationJournalEntry[]> => {
+    const params = new URLSearchParams({ from, to })
+    return http.get<MedicationJournalEntry[]>(`/medications/logs?${params.toString()}`)
   },
 
   getAggregateHeatmap: (weeks = 52): Promise<AdherenceHeatmap> =>

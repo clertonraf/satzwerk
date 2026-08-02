@@ -67,6 +67,18 @@ data class MedicationLogResponse(
     val notes: String?,
 )
 
+data class MedicationJournalEntryDto(
+    val id: UUID,
+    val medicationId: UUID,
+    val medicationName: String,
+    val takenAt: Instant,
+    val taken: Boolean,
+    val doseAmount: BigDecimal?,
+    val dosageAmount: BigDecimal,
+    val dosageUnit: String,
+    val notes: String?,
+)
+
 data class ScheduledDoseSummaryDto(
     val medication: MedicationResponse,
     val scheduledCount: Int,
