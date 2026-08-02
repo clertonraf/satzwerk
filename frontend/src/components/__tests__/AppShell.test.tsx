@@ -301,5 +301,19 @@ describe('AppShell', () => {
     )
     expect(document.title).toBe(`${label} | Satzwerk`)
   })
+
+  it('mobile theme toggle button has aria-label "Toggle theme" and no visible text', () => {
+    render(
+      <MemoryRouter>
+        <AppShell>
+          <div>content</div>
+        </AppShell>
+      </MemoryRouter>
+    )
+    const header = screen.getByRole('banner')
+    const themeButton = header.querySelector('button[aria-label="Toggle theme"]')
+    expect(themeButton).toBeInTheDocument()
+    expect(themeButton?.textContent).toBe('')
+  })
 })
 

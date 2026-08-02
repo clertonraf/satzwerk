@@ -59,4 +59,11 @@ describe('RestTimer', () => {
     expect(screen.getByRole('button', { name: /start rest/i })).toBeInTheDocument()
     expect(screen.queryByText(/0:20/i)).not.toBeInTheDocument()
   })
+
+  it('shows a stop button with aria-label when timer is running', async () => {
+    const user = userEvent.setup()
+    render(<RestTimer defaultSeconds={60} />)
+    await user.click(screen.getByRole('button', { name: /start rest/i }))
+    expect(screen.getByRole('button', { name: /stop rest timer/i })).toBeInTheDocument()
+  })
 })

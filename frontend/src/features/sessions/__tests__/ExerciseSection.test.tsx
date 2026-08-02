@@ -86,12 +86,12 @@ describe('ExerciseSection', () => {
 
   it('shows edit button for each logged set', () => {
     renderSection({ exerciseLogs: [makeSetLog()] })
-    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit set' })).toBeInTheDocument()
   })
 
   it('disables Edit for pending (offline-queued) set logs', () => {
     renderSection({ exerciseLogs: [makePendingSetLog()] })
-    expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Edit set' })).toBeDisabled()
   })
 
   it('calls onSetExerciseUnit when unit toggle is clicked', async () => {
@@ -103,17 +103,17 @@ describe('ExerciseSection', () => {
 
   it('shows a Delete button for each logged set', () => {
     renderSection({ exerciseLogs: [makeSetLog()] })
-    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete set' })).toBeInTheDocument()
   })
 
   it('disables Delete for pending (offline-queued) set logs', () => {
     renderSection({ exerciseLogs: [makePendingSetLog()] })
-    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Delete set' })).toBeDisabled()
   })
 
   it('disables Delete when isDeleteSetPending is true', () => {
     renderSection({ exerciseLogs: [makeSetLog()], isDeleteSetPending: true })
-    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Delete set' })).toBeDisabled()
   })
 
   it('shows "(syncing…)" indicator for pending set logs', () => {
@@ -124,7 +124,7 @@ describe('ExerciseSection', () => {
   it('calls onDeleteSetLog when Delete is clicked and confirmed in dialog', async () => {
     const onDeleteSetLog = vi.fn()
     renderSection({ exerciseLogs: [makeSetLog()], onDeleteSetLog })
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Delete set' }))
     // AlertDialog should be open — confirm button is inside it
     await userEvent.click(screen.getByRole('button', { name: 'Delete', hidden: false }))
     expect(onDeleteSetLog).toHaveBeenCalledWith('log-1')
@@ -133,7 +133,7 @@ describe('ExerciseSection', () => {
   it('does not call onDeleteSetLog when Cancel is clicked in the dialog', async () => {
     const onDeleteSetLog = vi.fn()
     renderSection({ exerciseLogs: [makeSetLog()], onDeleteSetLog })
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Delete set' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onDeleteSetLog).not.toHaveBeenCalled()
   })
@@ -171,5 +171,79 @@ describe('ExerciseSection rest timer defaultSeconds wiring', () => {
     renderSection({ exercise: { ...makeExercise(), advancedTechnique: 'SST' } })
 
     expect(screen.queryByRole('button', { name: /start rest/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('ExerciseSection #182 — to-failure display', () => {
+  it('shows "Target X sets until failure" when toFailure is true', () => {
+    renderSection({ exercise: { ...makeExercise(), toFailure: true, reps: 0 } })
+    expect(screen.getByText('Target 4 sets until failure')).toBeInTheDocument()
+    expect(screen.queryByText(/× 0 reps/)).not.toBeInTheDocument()
+  })
+
+  it('shows normal "Target X sets × Y reps" when toFailure is false', () => {
+    renderSection()
+    expect(screen.getByText('Target 4 sets × 8 reps')).toBeInTheDocument()
+  })
+})
+
+describe('ExerciseSection #181 — SST drop-set guidance', () => {
+  it('shows drop-set guidance text when technique is SST', () => {
+    renderSection({ exercise: { ...makeExercise(), advancedTechnique: 'SST' } })
+    expect(screen.getByText(/drop sets/i)).toBeInTheDocument()
+    expect(screen.getByText(/no rest/i)).toBeInTheDocument()
+  })
+
+  it('does not show drop-set guidance for non-SST techniques', () => {
+    renderSection({ exercise: { ...makeExercise(), advancedTechnique: 'GVT' } })
+    expect(screen.queryByText(/drop sets/i)).not.toBeInTheDocument()
+  })
+
+  it('does not show drop-set guidance when there is no technique', () => {
+    renderSection()
+    expect(screen.queryByText(/drop sets/i)).not.toBeInTheDocument()
+  })
+})
+
+describe('ExerciseSection #183 — pre-fill SetInput with previous set', () => {
+  it('pre-fills weight and reps from last logged set', () => {
+    renderSection({ exerciseLogs: [makeSetLog({ weight: 80, reps: 10 })] })
+    const weightInput = screen.getByLabelText(/weight/i) as HTMLInputElement
+    expect(weightInput.value).toBe('80')
+    const repsInputs = screen.getAllByLabelText(/reps/i)
+    // first reps input belongs to the new-set form
+    expect(repsInputs[0].getAttribute('value') ?? (repsInputs[0] as HTMLInputElement).value).toBe('10')
+  })
+
+  it('does not pre-fill when no sets have been logged', () => {
+    renderSection({ exerciseLogs: [] })
+    const weightInput = screen.getByLabelText(/weight/i) as HTMLInputElement
+    expect(weightInput.value).toBe('')
+  })
+})
+
+describe('ExerciseSection #187 — highlight exceeded reps', () => {
+  it('adds green border when logged reps exceed target', () => {
+    const log = makeSetLog({ reps: 12 }) // exercise.reps = 8
+    renderSection({ exerciseLogs: [log] })
+    const listItem = screen.getByText(/Set 1:/).closest('li')
+    expect(listItem?.className).toMatch(/green/)
+  })
+
+  it('does not add green border when logged reps equal target', () => {
+    const log = makeSetLog({ reps: 8 })
+    renderSection({ exerciseLogs: [log] })
+    const listItem = screen.getByText(/Set 1:/).closest('li')
+    expect(listItem?.className).not.toMatch(/green/)
+  })
+
+  it('does not add green border for to-failure exercises', () => {
+    const log = makeSetLog({ reps: 15 })
+    renderSection({
+      exercise: { ...makeExercise(), toFailure: true, reps: 0 },
+      exerciseLogs: [log],
+    })
+    const listItem = screen.getByText(/Set 1:/).closest('li')
+    expect(listItem?.className).not.toMatch(/green/)
   })
 })

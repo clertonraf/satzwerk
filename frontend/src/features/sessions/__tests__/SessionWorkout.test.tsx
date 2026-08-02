@@ -95,7 +95,7 @@ const defaultProps = {
 }
 
 describe('SessionWorkout completion progress', () => {
-  it('shows set count / total and percentage above action buttons', () => {
+  it('shows a progress bar and set count label when sets are logged', () => {
     render(
       <SessionWorkout
         {...defaultProps}
@@ -104,11 +104,13 @@ describe('SessionWorkout completion progress', () => {
       />
     )
 
-    // 12/15 = 80%
-    expect(screen.getByText(/12 \/ 15 sets · 80%/)).toBeInTheDocument()
+    // progress bar
+    expect(screen.getByRole('progressbar')).toBeInTheDocument()
+    // caption
+    expect(screen.getByText(/12 \/ 15 sets/)).toBeInTheDocument()
   })
 
-  it('hides progress line when totalTargetSets is 0', () => {
+  it('hides progress bar when totalTargetSets is 0', () => {
     render(
       <SessionWorkout
         {...defaultProps}
@@ -117,10 +119,10 @@ describe('SessionWorkout completion progress', () => {
       />
     )
 
-    expect(screen.queryByText(/sets ·/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 
-  it('hides progress line when currentGroupEntry is undefined', () => {
+  it('hides progress bar when currentGroupEntry is undefined', () => {
     render(
       <SessionWorkout
         {...defaultProps}
@@ -129,6 +131,6 @@ describe('SessionWorkout completion progress', () => {
       />
     )
 
-    expect(screen.queryByText(/sets ·/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 })

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Pencil, Trash2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,6 +18,7 @@ import RestTimer from '@/features/sessions/RestTimer'
 import SetInput from '@/features/sessions/SetInput'
 import { toPounds } from '@/features/sessions/sessionHelpers'
 import { getAdvancedTechniqueRestSeconds } from '@/features/workouts/advancedTechnique'
+import { cn } from '@/lib/utils'
 import { formatDisplayWeight } from '@/lib/unitFormatters'
 import type { ExerciseReferenceWeights, SetLogResult } from '@/services/sessionService'
 import type { WorkoutExerciseSummary } from '@/services/planService'
@@ -59,6 +61,7 @@ export default function ExerciseSection({
   const pendingDeleteLog = pendingDeleteSetLogId ? exerciseLogs.find((l) => l.id === pendingDeleteSetLogId) : null
   const nextSetNumber = exerciseLogs.length + 1
   const techniqueRestSeconds = getAdvancedTechniqueRestSeconds(exercise.advancedTechnique)
+  const lastLog = exerciseLogs.length > 0 ? exerciseLogs[exerciseLogs.length - 1] : undefined
 
   return (
     <Card className="border-border bg-background/70 shadow-none">
@@ -67,7 +70,9 @@ export default function ExerciseSection({
           <div className="space-y-1.5">
             <CardTitle className="text-xl">{exerciseName}</CardTitle>
             <CardDescription>
-              Target {exercise.sets} sets × {exercise.reps} reps
+              {exercise.toFailure
+                ? `Target ${exercise.sets} sets until failure`
+                : `Target ${exercise.sets} sets × ${exercise.reps} reps`}
             </CardDescription>
             {exercise.advancedTechnique ? <AdvancedTechniqueBadge technique={exercise.advancedTechnique} /> : null}
           </div>
@@ -101,6 +106,9 @@ export default function ExerciseSection({
           isLoading={isAddSetPending}
           setNumber={nextSetNumber}
           unit={exerciseUnit}
+          variant="inline"
+          defaultWeight={lastLog ? (exerciseUnit === 'kg' ? lastLog.weight : toPounds(lastLog.weight)) : undefined}
+          defaultReps={lastLog?.reps}
           onLog={({ reps, setNumber, weight }) => {
             onLogSet(exercise.exerciseId, setNumber, weight, reps, exerciseUnit)
           }}
@@ -109,6 +117,12 @@ export default function ExerciseSection({
             techniques with the same rest duration (e.g. FST_7 and GIRONDA both 30 s) still
             remounts the timer and resets isRunning / secondsLeft. */}
         <RestTimer key={exercise.advancedTechnique ?? ''} defaultSeconds={techniqueRestSeconds ?? undefined} />
+        {/* SST has zero rest between drops — show guidance instead of a timer */}
+        {techniqueRestSeconds === 0 && exercise.advancedTechnique ? (
+          <p className="text-sm text-muted-foreground">
+            Drop sets: no rest — reduce load by 20–30% immediately after each set.
+          </p>
+        ) : null}
 
         {exerciseLogs.length > 0 ? (
           <div className="space-y-2">
@@ -117,7 +131,13 @@ export default function ExerciseSection({
               {exerciseLogs.map((log) => (
                 <li
                   key={log.id}
-                  className={`rounded-lg border border-border px-3 py-2${log.pending ? ' opacity-60' : ''}`}
+                  className={cn(
+                    'rounded-lg border px-3 py-2',
+                    log.reps > exercise.reps && !exercise.toFailure
+                      ? 'border-green-500 bg-green-50 dark:bg-green-950/30'
+                      : 'border-border',
+                    log.pending && 'opacity-60',
+                  )}
                 >
                   {!log.pending && editingSetLogId === log.id ? (
                     <SetInput
@@ -147,22 +167,24 @@ export default function ExerciseSection({
                       <span className="flex items-center gap-1">
                         <Button
                           type="button"
-                          size="sm"
+                          size="icon"
                           variant="ghost"
+                          aria-label="Edit set"
                           disabled={!isOnline || log.pending}
                           onClick={() => setEditingSetLogId(log.id)}
                         >
-                          Edit
+                          <Pencil className="size-4" />
                         </Button>
                         <Button
                           type="button"
-                          size="sm"
+                          size="icon"
                           variant="ghost"
+                          aria-label="Delete set"
                           className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
                           disabled={!isOnline || log.pending || isDeleteSetPending}
                           onClick={() => setPendingDeleteSetLogId(log.id)}
                         >
-                          Delete
+                          <Trash2 className="size-4" />
                         </Button>
                       </span>
                     </div>
