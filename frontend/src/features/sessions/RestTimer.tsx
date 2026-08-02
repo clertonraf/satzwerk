@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useReducer } from 'react'
+import { StopCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface RestTimerProps {
@@ -97,12 +98,14 @@ export default function RestTimer({ defaultSeconds = 90 }: RestTimerProps) {
       </p>
       <Button
         type="button"
+        size="icon"
         variant="ghost"
+        aria-label="Stop rest timer"
         onClick={() => {
           dispatch({ type: 'stop', defaultSeconds })
         }}
       >
-        Stop
+        <StopCircle className="size-4" />
       </Button>
     </div>
   )

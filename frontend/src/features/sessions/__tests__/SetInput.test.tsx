@@ -182,4 +182,25 @@ describe('SetInput', () => {
 
     expect(await screen.findByText(/non-negative/i)).toBeInTheDocument()
   })
+
+  it('renders without border wrapper when variant is "inline"', () => {
+    const { container } = render(<SetInput onLog={vi.fn()} setNumber={1} unit="kg" variant="inline" />)
+    const form = container.querySelector('form')
+    expect(form?.className).not.toMatch(/border/)
+    expect(form?.className).not.toMatch(/rounded-lg/)
+  })
+
+  it('renders with border wrapper by default (card variant)', () => {
+    const { container } = render(<SetInput onLog={vi.fn()} setNumber={1} unit="kg" />)
+    const form = container.querySelector('form')
+    expect(form?.className).toMatch(/border/)
+  })
+
+  it('inputs have text-base class to prevent iOS zoom', () => {
+    const { container } = render(<SetInput onLog={vi.fn()} setNumber={1} unit="kg" />)
+    const inputs = container.querySelectorAll('input')
+    inputs.forEach((input) => {
+      expect(input.className).toMatch(/text-base/)
+    })
+  })
 })

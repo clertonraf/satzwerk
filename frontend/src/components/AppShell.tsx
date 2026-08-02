@@ -91,12 +91,13 @@ export default function AppShell({ children }: AppShellProps) {
             </div>
             <Button
               type="button"
-              variant="outline"
-              size="sm"
+              variant="ghost"
+              size="icon"
               className="md:hidden"
+              aria-label="Toggle theme"
               onClick={() => setIsDarkMode((value) => !value)}
             >
-              {isDarkMode ? 'Light' : 'Dark'} mode
+              {isDarkMode ? <SunMedium className="size-4" /> : <MoonStar className="size-4" />}
             </Button>
           </header>
 

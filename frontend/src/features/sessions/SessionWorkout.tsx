@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
 import ExerciseSection from '@/features/sessions/ExerciseSection'
 import { computeSetCompletionPercentage } from '@/features/sessions/sessionHelpers'
 import type { WorkoutGroupCatalogEntry } from '@/lib/domainBuilders'
@@ -107,9 +108,12 @@ export default function SessionWorkout({
       )}
 
       {completionPct !== null ? (
-        <p className="text-sm text-muted-foreground">
-          {allLogs.length} / {totalTargetSets} sets · {completionPct}%
-        </p>
+        <div className="space-y-1">
+          <Progress value={completionPct} className="h-2" />
+          <p className="text-xs text-muted-foreground">
+            {allLogs.length} / {totalTargetSets} sets
+          </p>
+        </div>
       ) : null}
 
       <div className="flex justify-between">

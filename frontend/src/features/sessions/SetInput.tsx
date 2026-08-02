@@ -36,6 +36,7 @@ interface SetInputProps {
   defaultReps?: number
   submitLabel?: string
   resetOnSubmit?: boolean
+  variant?: 'card' | 'inline'
 }
 
 export default function SetInput({
@@ -48,6 +49,7 @@ export default function SetInput({
   defaultReps,
   submitLabel = 'Log Set',
   resetOnSubmit = true,
+  variant = 'card',
 }: SetInputProps) {
   const {
     register,
@@ -68,7 +70,7 @@ export default function SetInput({
 
   return (
     <form
-      className="grid gap-3 rounded-lg border border-border p-4"
+      className={variant === 'card' ? 'grid gap-3 rounded-lg border border-border p-4' : 'grid gap-3'}
       onSubmit={handleSubmit((values) => {
         onLog({ ...values, setNumber })
         if (resetOnSubmit) reset()
@@ -81,7 +83,7 @@ export default function SetInput({
           <label className="text-sm font-medium" htmlFor={`weight-${setNumber}`}>
             Weight ({unit})
           </label>
-          <Input id={`weight-${setNumber}`} type="text" inputMode="decimal" disabled={isLoading} {...register('weight')} />
+          <Input id={`weight-${setNumber}`} type="text" inputMode="decimal" className="text-base" disabled={isLoading} {...register('weight')} />
           {errors.weight ? (
             <p className="text-sm text-destructive">{errors.weight.message}</p>
           ) : hint ? (
@@ -93,7 +95,7 @@ export default function SetInput({
           <label className="text-sm font-medium" htmlFor={`reps-${setNumber}`}>
             Reps
           </label>
-          <Input id={`reps-${setNumber}`} type="number" inputMode="numeric" min={1} disabled={isLoading} {...register('reps')} />
+          <Input id={`reps-${setNumber}`} type="number" inputMode="numeric" min={1} className="text-base" disabled={isLoading} {...register('reps')} />
           {errors.reps ? <p className="text-sm text-destructive">{errors.reps.message}</p> : null}
         </div>
       </div>
