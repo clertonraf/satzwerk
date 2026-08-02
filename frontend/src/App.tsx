@@ -8,7 +8,6 @@ import SessionPage from '@/features/sessions/SessionPage'
 import PlanBuilderPage from '@/features/workouts/PlanBuilderPage'
 import WorkoutsPage from '@/features/workouts/WorkoutsPage'
 import DashboardPage from '@/pages/DashboardPage'
-import HistoryPage from '@/pages/HistoryPage'
 import SettingsPage from '@/pages/SettingsPage'
 import { useOfflineSync } from '@/hooks/useOfflineSync'
 import { useRestoreSession } from '@/hooks/useRestoreSession'
@@ -51,16 +50,17 @@ export default function App() {
               <AppShell>
                 <Routes>
                   <Route path="/" element={<DashboardPage />} />
-                  <Route path="/history" element={<HistoryPage />} />
                   <Route path="/session" element={<SessionPage />} />
                   <Route path="/workouts" element={<WorkoutsPage />} />
                   <Route path="/workouts/exercises" element={<WorkoutsPage />} />
+                  <Route path="/workouts/history" element={<WorkoutsPage />} />
                   <Route path="/workouts/plans/:planId" element={<PlanBuilderPage />} />
                   <Route path="/plans/:planId" element={<PlanBuilderRedirect />} />
                   <Route path="/health" element={<HealthPage />} />
                   <Route path="/health/measurements" element={<HealthPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   {/* Legacy redirects — preserve existing deep links */}
+                  <Route path="/history" element={<Navigate to="/workouts/history" replace />} />
                   <Route path="/plans" element={<Navigate to="/workouts" replace />} />
                   <Route path="/exercises" element={<Navigate to="/workouts/exercises" replace />} />
                   <Route path="/medications" element={<Navigate to="/health" replace />} />

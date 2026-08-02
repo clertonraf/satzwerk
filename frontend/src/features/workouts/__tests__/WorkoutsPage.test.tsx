@@ -12,12 +12,17 @@ vi.mock('../ExercisesPage', () => ({
   default: () => <div>Exercises content</div>,
 }))
 
+vi.mock('@/pages/HistoryPage', () => ({
+  default: () => <div>History content</div>,
+}))
+
 function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/workouts" element={<WorkoutsPage />} />
         <Route path="/workouts/exercises" element={<WorkoutsPage />} />
+        <Route path="/workouts/history" element={<WorkoutsPage />} />
       </Routes>
     </MemoryRouter>
   )
@@ -44,10 +49,37 @@ describe('WorkoutsPage', () => {
     expect(screen.getByText('Exercises content')).toBeInTheDocument()
   })
 
-  it('both tabs are always visible', () => {
+  it('all three tabs are always visible', () => {
     renderAt('/workouts')
     expect(screen.getByRole('tab', { name: /plans/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /exercises/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /history/i })).toBeInTheDocument()
+  })
+
+  it('shows History tab as active when on /workouts/history', () => {
+    renderAt('/workouts/history')
+    expect(screen.getByRole('tab', { name: /history/i })).toHaveAttribute('data-state', 'active')
+  })
+
+  it('renders History content when on /workouts/history', () => {
+    renderAt('/workouts/history')
+    expect(screen.getByText('History content')).toBeInTheDocument()
+  })
+
+  it('clicking History tab navigates to /workouts/history', async () => {
+    const user = userEvent.setup()
+    renderAt('/workouts')
+    await user.click(screen.getByRole('tab', { name: /history/i }))
+    expect(screen.getByText('History content')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /history/i })).toHaveAttribute('data-state', 'active')
+  })
+
+  it('clicking Plans tab from History shows Plans content', async () => {
+    const user = userEvent.setup()
+    renderAt('/workouts/history')
+    await user.click(screen.getByRole('tab', { name: /plans/i }))
+    expect(screen.getByText('Plans content')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /plans/i })).toHaveAttribute('data-state', 'active')
   })
 
   it('clicking Exercises tab navigates to /workouts/exercises', async () => {
