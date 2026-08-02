@@ -82,6 +82,18 @@ class AnalyticsService(
                 setCount = row.setCount,
             )
         }
+
+    suspend fun leastExercises(
+        userId: UUID,
+        limit: Int = DEFAULT_TOP_EXERCISES_LIMIT,
+    ): List<TopExercise> =
+        analyticsRepository.findLeastExercisesBySetCount(userId, limit).map { row ->
+            TopExercise(
+                exerciseId = row.exerciseId,
+                exerciseName = row.exerciseName,
+                setCount = row.setCount,
+            )
+        }
 }
 
 /**

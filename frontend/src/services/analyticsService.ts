@@ -66,4 +66,9 @@ export const analyticsService = {
     http.get<TopExercise[]>('/analytics/top-exercises', {
       params: { ...(limit !== undefined && { limit }) },
     }),
+
+  leastExercises: (limit?: number) =>
+    http.get<TopExercise[]>('/analytics/least-exercises', {
+      params: { ...(limit !== undefined && { limit }) },
+    }),
 }

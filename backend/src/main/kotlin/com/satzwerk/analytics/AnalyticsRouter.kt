@@ -91,6 +91,13 @@ class AnalyticsRouter {
                         ServerResponse.ok().bodyValueAndAwait(analyticsService.personalRecords(ctx.userId(), limit))
                     }
                 }
+            }
+        }
+
+    @Bean
+    fun analyticsExercisesRoutes(analyticsService: AnalyticsService) =
+        coRouter {
+            "/api/analytics".nest {
                 GET("/top-exercises") { request ->
                     handleErrors {
                         val ctx = RequestContext(request)
@@ -103,6 +110,20 @@ class AnalyticsRouter {
                                 MAX_TOP_EXERCISES_LIMIT,
                             )
                         ServerResponse.ok().bodyValueAndAwait(analyticsService.topExercises(ctx.userId(), limit))
+                    }
+                }
+                GET("/least-exercises") { request ->
+                    handleErrors {
+                        val ctx = RequestContext(request)
+                        val limit =
+                            parseIntParam(
+                                ctx,
+                                "limit",
+                                DEFAULT_TOP_EXERCISES_LIMIT,
+                                MIN_TOP_EXERCISES_LIMIT,
+                                MAX_TOP_EXERCISES_LIMIT,
+                            )
+                        ServerResponse.ok().bodyValueAndAwait(analyticsService.leastExercises(ctx.userId(), limit))
                     }
                 }
             }
