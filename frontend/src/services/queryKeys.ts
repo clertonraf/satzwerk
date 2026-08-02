@@ -21,6 +21,7 @@ export const queryKeys = {
     weeklyTrend: (weeks?: number) => ['weekly-trend', weeks] as const,
     personalRecords: (limit?: number) => ['personal-records', limit] as const,
     topExercises: (limit?: number) => ['top-exercises', limit] as const,
+    leastExercises: (limit?: number) => ['least-exercises', limit] as const,
   },
   measurements: {
     all: () => ['measurements'] as const,

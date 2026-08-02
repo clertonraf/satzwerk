@@ -128,4 +128,29 @@ class AnalyticsServiceTest {
             assertEquals("Squat", result[1].exerciseName)
             assertEquals(35, result[1].setCount)
         }
+
+    @Test
+    fun `leastExercises maps repository rows to TopExercise domain objects`(): Unit =
+        runBlocking {
+            val exerciseId1 = UUID.randomUUID()
+            val exerciseId2 = UUID.randomUUID()
+            val rows =
+                listOf(
+                    TopExerciseRow(exerciseId = exerciseId1, exerciseName = "Calf Raises", setCount = 2),
+                    TopExerciseRow(exerciseId = exerciseId2, exerciseName = "Hip Thrust", setCount = 5),
+                )
+            val repo =
+                mock<AnalyticsRepository> {
+                    onBlocking { findDashboardSummary(any()) } doReturn emptySummaryRow
+                    onBlocking { findWorkoutDays(any()) } doReturn emptyList()
+                    onBlocking { findLeastExercisesBySetCount(any(), any()) } doReturn rows
+                }
+            val result = AnalyticsService(repo).leastExercises(userId, limit = 2)
+
+            assertEquals(2, result.size)
+            assertEquals("Calf Raises", result[0].exerciseName)
+            assertEquals(2, result[0].setCount)
+            assertEquals("Hip Thrust", result[1].exerciseName)
+            assertEquals(5, result[1].setCount)
+        }
 }

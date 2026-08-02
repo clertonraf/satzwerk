@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import ContributionHeatmap from '@/features/analytics/ContributionHeatmap'
 import DashboardSettingsButton from '@/features/analytics/DashboardSettingsButton'
 import DashboardSummaryGrid from '@/features/analytics/DashboardSummaryGrid'
+import LeastTrainedExercisesCard from '@/features/analytics/LeastTrainedExercisesCard'
 import RecentPRsCard from '@/features/analytics/RecentPRsCard'
 import TopExercisesCard from '@/features/analytics/TopExercisesCard'
 import WeeklyTrendChart from '@/features/analytics/WeeklyTrendChart'
@@ -20,6 +21,7 @@ import { useDashboardPreferences, type DashboardWidgetId } from '@/store/dashboa
 const TREND_WEEKS = 8
 const PR_LIMIT = 5
 const TOP_EXERCISES_LIMIT = 5
+const LEAST_EXERCISES_LIMIT = 5
 
 function parseJwtSub(token: string): string {
   try {
@@ -79,6 +81,10 @@ export default function DashboardPage() {
     queryKey: queryKeys.analytics.topExercises(TOP_EXERCISES_LIMIT),
     queryFn: () => analyticsService.topExercises(TOP_EXERCISES_LIMIT),
   })
+  const { data: leastExercises, isLoading: leastExercisesLoading, isError: leastExercisesError } = useQuery({
+    queryKey: queryKeys.analytics.leastExercises(LEAST_EXERCISES_LIMIT),
+    queryFn: () => analyticsService.leastExercises(LEAST_EXERCISES_LIMIT),
+  })
   const { data: history = [] } = useQuery({
     queryKey: queryKeys.sessions.history(),
     queryFn: sessionService.history,
@@ -124,6 +130,9 @@ export default function DashboardPage() {
           <RecentPRsCard records={personalRecords ?? []} />
         )}
         {!topExercisesLoading && !topExercisesError && <TopExercisesCard exercises={topExercises ?? []} />}
+        {!leastExercisesLoading && !leastExercisesError && (
+          <LeastTrainedExercisesCard exercises={leastExercises ?? []} />
+        )}
       </div>
 
       {isVisible('weekly-trend') && (

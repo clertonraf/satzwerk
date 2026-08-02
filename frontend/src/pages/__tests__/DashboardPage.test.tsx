@@ -19,6 +19,7 @@ vi.mock('@/services/analyticsService', () => ({
     weeklyTrend: vi.fn(),
     personalRecords: vi.fn(),
     topExercises: vi.fn(),
+    leastExercises: vi.fn(),
   },
 }))
 
@@ -58,6 +59,7 @@ describe('DashboardPage', () => {
     vi.mocked(analyticsService.weeklyTrend).mockReset()
     vi.mocked(analyticsService.personalRecords).mockReset()
     vi.mocked(analyticsService.topExercises).mockReset()
+    vi.mocked(analyticsService.leastExercises).mockReset()
     vi.mocked(sessionService.history).mockReset()
     vi.mocked(sessionService.getOpen).mockReset()
     vi.mocked(analyticsService.heatmap).mockResolvedValue([])
@@ -66,6 +68,7 @@ describe('DashboardPage', () => {
     vi.mocked(analyticsService.weeklyTrend).mockResolvedValue([])
     vi.mocked(analyticsService.personalRecords).mockResolvedValue([])
     vi.mocked(analyticsService.topExercises).mockResolvedValue([])
+    vi.mocked(analyticsService.leastExercises).mockResolvedValue([])
     vi.mocked(sessionService.history).mockResolvedValue([])
     vi.mocked(sessionService.getOpen).mockRejectedValue(notFoundError)
   })
