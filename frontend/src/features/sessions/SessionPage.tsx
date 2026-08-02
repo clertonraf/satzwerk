@@ -32,7 +32,7 @@ export default function SessionPage() {
     isCompletePending,
     isForfeitPending,
   } = useWorkoutSessionMachine({
-    onComplete: () => navigate('/history'),
+    onComplete: () => navigate('/workouts/history'),
     onForfeit: () => navigate('/session'),
   })
 
