@@ -122,8 +122,12 @@ class MedicationService(
         if (logs.isEmpty()) return emptyList()
         val medicationsById =
             medicationRepository.findByUserIdOrderByNameAsc(userId).associateBy { requireNotNull(it.id) }
-        return logs.mapNotNull { log ->
-            val med = medicationsById[log.medicationId] ?: return@mapNotNull null
+        return logs.map { log ->
+            val med =
+                medicationsById[log.medicationId]
+                    ?: error(
+                        "Medication ${log.medicationId} not found for log ${log.id} — FK invariant violation",
+                    )
             MedicationJournalEntryDto(
                 id = requireNotNull(log.id),
                 medicationId = log.medicationId,
@@ -132,7 +136,7 @@ class MedicationService(
                 taken = log.taken,
                 doseAmount = log.doseAmount,
                 dosageAmount = med.dosageAmount,
-                dosageUnit = med.dosageUnit,
+                dosageUnit = DosageUnit.valueOf(med.dosageUnit),
                 notes = log.notes,
             )
         }

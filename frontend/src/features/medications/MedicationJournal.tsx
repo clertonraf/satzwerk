@@ -9,14 +9,20 @@ import type { MedicationJournalEntry } from './types'
 
 const DEFAULT_DAYS = 30
 
-function toDateString(date: Date): string {
+function toLocalDateString(isoString: string): string {
+  const d = new Date(isoString)
+  // Use the local calendar date, not UTC — prevents midnight boundary mismatches
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function dateToQueryParam(date: Date): string {
   return date.toISOString().slice(0, 10)
 }
 
 function groupByDate(entries: MedicationJournalEntry[]): Map<string, MedicationJournalEntry[]> {
   const groups = new Map<string, MedicationJournalEntry[]>()
   for (const entry of entries) {
-    const date = entry.takenAt.slice(0, 10)
+  const date = toLocalDateString(entry.takenAt)
     const bucket = groups.get(date)
     if (bucket) {
       bucket.push(entry)
@@ -29,15 +35,15 @@ function groupByDate(entries: MedicationJournalEntry[]): Map<string, MedicationJ
 
 function formatDose(entry: MedicationJournalEntry): string {
   const amount = entry.doseAmount ?? entry.dosageAmount
-  return `${amount} ${entry.dosageUnit.toLowerCase()}`
+  return `${amount} ${entry.dosageUnit}`
 }
 
 export default function MedicationJournal() {
   const [days, setDays] = useState(DEFAULT_DAYS)
 
   const today = new Date()
-  const from = toDateString(subDays(today, days))
-  const to = toDateString(today)
+  const from = dateToQueryParam(subDays(today, days))
+  const to = dateToQueryParam(today)
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: queryKeys.medications.journal(from, to),

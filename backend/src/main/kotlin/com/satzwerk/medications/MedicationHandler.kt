@@ -157,10 +157,10 @@ internal suspend fun journalHandler(
         val to =
             request.queryParam("to").map { value ->
                 try {
-                    LocalDate.parse(value).plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()
+                    LocalDate.parse(value).plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().minusNanos(1)
                 } catch (_: DateTimeParseException) {
                     throw BadRequestException("Invalid to date: '$value'. Expected yyyy-MM-dd.")
                 }
-            }.orElse(today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant())
+            }.orElse(today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().minusNanos(1))
         ServerResponse.ok().bodyValueAndAwait(medicationService.getJournalEntries(ctx.userId(), from, to))
     }

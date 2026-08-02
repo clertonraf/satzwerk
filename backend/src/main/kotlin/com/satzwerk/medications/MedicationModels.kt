@@ -75,7 +75,7 @@ data class MedicationJournalEntryDto(
     val taken: Boolean,
     val doseAmount: BigDecimal?,
     val dosageAmount: BigDecimal,
-    val dosageUnit: String,
+    val dosageUnit: DosageUnit,
     val notes: String?,
 )
 

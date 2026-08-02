@@ -148,6 +148,69 @@ class MedicationServiceTest {
             assertTrue(response.taken)
             assertNotNull(response.id)
         }
+
+    @Test
+    fun `getJournalEntries returns empty list when no logs exist`(): Unit =
+        runBlocking {
+            val from = Instant.parse("2026-08-01T00:00:00Z")
+            val to = Instant.parse("2026-08-31T23:59:59.999999999Z")
+            val logRepo: MedicationLogRepository =
+                mock {
+                    onBlocking {
+                        findByUserIdAndTakenAtBetweenOrderByTakenAtDesc(userId, from, to)
+                    } doReturn emptyList()
+                }
+            val service = MedicationService(mock(), logRepo, mock(), objectMapper)
+
+            val result = service.getJournalEntries(userId, from, to)
+
+            assertTrue(result.isEmpty())
+        }
+
+    @Test
+    fun `getJournalEntries maps log and medication fields to DTO`(): Unit =
+        runBlocking {
+            val from = Instant.parse("2026-08-01T00:00:00Z")
+            val to = Instant.parse("2026-08-31T23:59:59.999999999Z")
+            val logId = UUID.randomUUID()
+            val takenAt = Instant.parse("2026-08-15T08:00:00Z")
+            val log =
+                MedicationLog(
+                    id = logId,
+                    medicationId = medicationId,
+                    userId = userId,
+                    takenAt = takenAt,
+                    taken = true,
+                    doseAmount = BigDecimal("500"),
+                    notes = "With breakfast",
+                )
+            val med = dailyMedication()
+            val logRepo: MedicationLogRepository =
+                mock {
+                    onBlocking {
+                        findByUserIdAndTakenAtBetweenOrderByTakenAtDesc(userId, from, to)
+                    } doReturn listOf(log)
+                }
+            val medRepo: MedicationRepository =
+                mock {
+                    onBlocking { findByUserIdOrderByNameAsc(userId) } doReturn listOf(med)
+                }
+            val service = MedicationService(medRepo, logRepo, mock(), objectMapper)
+
+            val result = service.getJournalEntries(userId, from, to)
+
+            assertEquals(1, result.size)
+            with(result[0]) {
+                assertEquals(logId, id)
+                assertEquals(medicationId, this.medicationId)
+                assertEquals("Vitamin D", medicationName)
+                assertEquals(takenAt, this.takenAt)
+                assertTrue(taken)
+                assertEquals(BigDecimal("500"), doseAmount)
+                assertEquals(DosageUnit.IU, dosageUnit)
+                assertEquals("With breakfast", notes)
+            }
+        }
 }
 
 class IsDueTodayTest {

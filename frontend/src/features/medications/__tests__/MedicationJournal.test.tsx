@@ -65,7 +65,7 @@ describe('MedicationJournal', () => {
     mockGetJournal.mockResolvedValue([makeEntry({ dosageAmount: 500, dosageUnit: 'MG' })])
     renderJournal()
     expect(await screen.findByText('Vitamin D')).toBeInTheDocument()
-    expect(screen.getByText(/500 mg/i)).toBeInTheDocument()
+    expect(screen.getByText(/500 MG/)).toBeInTheDocument()
   })
 
   it('shows notes when present', async () => {
