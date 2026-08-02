@@ -133,7 +133,7 @@ export default function ExerciseSection({
                   key={log.id}
                   className={cn(
                     'rounded-lg border px-3 py-2',
-                    log.reps > exercise.reps && !exercise.toFailure
+                    log.reps > exercise.reps && !exercise.toFailure && !log.pending
                       ? 'border-green-500 bg-green-50 dark:bg-green-950/30'
                       : 'border-border',
                     log.pending && 'opacity-60',

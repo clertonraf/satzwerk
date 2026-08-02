@@ -246,4 +246,11 @@ describe('ExerciseSection #187 — highlight exceeded reps', () => {
     const listItem = screen.getByText(/Set 1:/).closest('li')
     expect(listItem?.className).not.toMatch(/green/)
   })
+
+  it('does not add green border for pending (syncing) set logs', () => {
+    const log = makePendingSetLog({ reps: 15 }) // exercise.reps = 8
+    renderSection({ exerciseLogs: [log] })
+    const listItem = screen.getByText(/Set 1:/).closest('li')
+    expect(listItem?.className).not.toMatch(/green/)
+  })
 })
