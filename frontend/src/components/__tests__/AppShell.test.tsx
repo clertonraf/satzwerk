@@ -21,7 +21,7 @@ describe('AppShell', () => {
     expect(header).toHaveTextContent('Dashboard')
   })
 
-  it('shows History as page title in mobile header when on /history', () => {
+  it('shows Workouts as page title in mobile header when on /history', () => {
     render(
       <MemoryRouter initialEntries={['/history']}>
         <AppShell>
@@ -30,7 +30,7 @@ describe('AppShell', () => {
       </MemoryRouter>
     )
     const header = screen.getByRole('banner')
-    expect(header).toHaveTextContent('History')
+    expect(header).toHaveTextContent('Workouts')
   })
 
   it('shows Workouts as page title in mobile header when on /workouts', () => {
@@ -116,7 +116,7 @@ describe('AppShell', () => {
     expect(document.title).toBe('Dashboard | Satzwerk')
   })
 
-  it('sets document.title to "History | Satzwerk" on /history', () => {
+  it('sets document.title to "Workouts | Satzwerk" on /history', () => {
     render(
       <MemoryRouter initialEntries={['/history']}>
         <AppShell>
@@ -124,7 +124,7 @@ describe('AppShell', () => {
         </AppShell>
       </MemoryRouter>
     )
-    expect(document.title).toBe('History | Satzwerk')
+    expect(document.title).toBe('Workouts | Satzwerk')
   })
 
   it('sets document.title to "Workouts | Satzwerk" on /workouts', () => {
@@ -195,13 +195,13 @@ describe('AppShell', () => {
 
   it('resets document.title to "Satzwerk" when AppShell unmounts', () => {
     const { unmount } = render(
-      <MemoryRouter initialEntries={['/history']}>
+      <MemoryRouter initialEntries={['/workouts']}>
         <AppShell>
           <div>content</div>
         </AppShell>
       </MemoryRouter>
     )
-    expect(document.title).toBe('History | Satzwerk')
+    expect(document.title).toBe('Workouts | Satzwerk')
     unmount()
     expect(document.title).toBe('Satzwerk')
   })
@@ -220,7 +220,7 @@ describe('AppShell', () => {
     expect(mobileNav).toHaveTextContent('Settings')
   })
 
-  it('mobile bottom navigation does not show Plans, Exercises, or Profile items', () => {
+  it('mobile bottom navigation does not show Plans, Exercises, History, or Profile items', () => {
     render(
       <MemoryRouter>
         <AppShell>
@@ -231,6 +231,7 @@ describe('AppShell', () => {
     const mobileNav = screen.getByRole('navigation', { name: /main navigation/i })
     expect(mobileNav).not.toHaveTextContent('Plans')
     expect(mobileNav).not.toHaveTextContent('Exercises')
+    expect(mobileNav).not.toHaveTextContent('History')
     expect(mobileNav).not.toHaveTextContent('Profile')
   })
 
@@ -288,6 +289,7 @@ describe('AppShell', () => {
   it.each([
     { path: '/plans', label: 'Workouts' },
     { path: '/exercises', label: 'Workouts' },
+    { path: '/history', label: 'Workouts' },
     { path: '/medications', label: 'Health' },
     { path: '/measurements', label: 'Health' },
     { path: '/profile', label: 'Settings' },
@@ -314,6 +316,29 @@ describe('AppShell', () => {
     const themeButton = header.querySelector('button[aria-label="Toggle theme"]')
     expect(themeButton).toBeInTheDocument()
     expect(themeButton?.textContent).toBe('')
+  })
+
+  it('shows Workouts as page title in mobile header when on /workouts/history', () => {
+    render(
+      <MemoryRouter initialEntries={['/workouts/history']}>
+        <AppShell>
+          <div>content</div>
+        </AppShell>
+      </MemoryRouter>
+    )
+    const header = screen.getByRole('banner')
+    expect(header).toHaveTextContent('Workouts')
+  })
+
+  it('sets document.title to "Workouts | Satzwerk" on /workouts/history', () => {
+    render(
+      <MemoryRouter initialEntries={['/workouts/history']}>
+        <AppShell>
+          <div>content</div>
+        </AppShell>
+      </MemoryRouter>
+    )
+    expect(document.title).toBe('Workouts | Satzwerk')
   })
 })
 

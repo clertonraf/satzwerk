@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Clock3, Dumbbell, Heart, Home, MoonStar, Settings, SunMedium } from 'lucide-react'
+import { Dumbbell, Heart, Home, MoonStar, Settings, SunMedium } from 'lucide-react'
 import { NavLink, useLocation, useMatch } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -10,7 +10,6 @@ interface AppShellProps {
 
 const navigationItems = [
   { to: '/', label: 'Dashboard', icon: Home },
-  { to: '/history', label: 'History', icon: Clock3 },
   { to: '/workouts', label: 'Workouts', icon: Dumbbell },
   { to: '/health', label: 'Health', icon: Heart },
   { to: '/settings', label: 'Settings', icon: Settings },
@@ -19,11 +18,13 @@ const navigationItems = [
 const PAGE_TITLES: Record<string, string> = {
   ...Object.fromEntries(navigationItems.map(({ to, label }) => [to, label])),
   '/workouts/exercises': 'Workouts',
+  '/workouts/history': 'Workouts',
   '/health/measurements': 'Health',
   '/session': 'Session',
   // Legacy redirect paths — titles shown during the brief render before <Navigate> fires
   '/plans': 'Workouts',
   '/exercises': 'Workouts',
+  '/history': 'Workouts',
   '/medications': 'Health',
   '/measurements': 'Health',
   '/profile': 'Settings',
