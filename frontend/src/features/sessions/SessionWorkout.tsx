@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import ExerciseSection from '@/features/sessions/ExerciseSection'
-import { computeSetCompletionPercentage } from '@/features/sessions/sessionHelpers'
+import { computeProgressIndicatorStyle, computeSetCompletionPercentage } from '@/features/sessions/sessionHelpers'
 import type { WorkoutGroupCatalogEntry } from '@/lib/domainBuilders'
 import type { ExerciseReferenceWeights, PendingSetLog, SetLogResult, WorkoutSession } from '@/services/sessionService'
 import type { Exercise } from '@/services/exerciseService'
@@ -109,9 +109,15 @@ export default function SessionWorkout({
 
       {completionPct !== null ? (
         <div className="space-y-1">
-          <Progress value={completionPct} className="h-2" />
+          <Progress
+            value={completionPct}
+            className="h-2"
+            indicatorClassName="bg-transparent"
+            indicatorStyle={computeProgressIndicatorStyle(completionPct)}
+          />
           <p className="text-xs text-muted-foreground">
             {allLogs.length} / {totalTargetSets} sets
+            <span className="ml-2 tabular-nums">{completionPct}%</span>
           </p>
         </div>
       ) : null}

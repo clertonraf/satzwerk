@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { buildGroupStatsMap } from '@/lib/domainBuilders'
-import { computeAvgMinPerExercise, computeSetCompletionPercentage, formatGroupStats, sortGroupOptions } from '../sessionHelpers'
+import {
+  computeAvgMinPerExercise,
+  computeProgressIndicatorStyle,
+  computeSetCompletionPercentage,
+  formatGroupStats,
+  sortGroupOptions,
+} from '../sessionHelpers'
 import type { WorkoutGroupCatalogEntry } from '@/lib/domainBuilders'
 import type { WorkoutPlanDetail } from '@/services/planService'
 import type { WorkoutSession } from '@/services/sessionService'
@@ -175,6 +181,28 @@ describe('computeSetCompletionPercentage', () => {
 
   it('returns null when totalTargetSets is negative', () => {
     expect(computeSetCompletionPercentage(5, -1)).toBeNull()
+  })
+})
+
+describe('computeProgressIndicatorStyle', () => {
+  it('returns red hsl at 0%', () => {
+    expect(computeProgressIndicatorStyle(0)).toEqual({ backgroundColor: 'hsl(0, 70%, 45%)' })
+  })
+
+  it('returns a mid hue (hsl 60 = yellow-green) at 50%', () => {
+    expect(computeProgressIndicatorStyle(50)).toEqual({ backgroundColor: 'hsl(60, 70%, 45%)' })
+  })
+
+  it('returns green hsl at 100%', () => {
+    expect(computeProgressIndicatorStyle(100)).toEqual({ backgroundColor: 'hsl(120, 70%, 45%)' })
+  })
+
+  it('clamps above 100% to green (no hue wrapping)', () => {
+    expect(computeProgressIndicatorStyle(133)).toEqual({ backgroundColor: 'hsl(120, 70%, 45%)' })
+  })
+
+  it('clamps below 0% to red', () => {
+    expect(computeProgressIndicatorStyle(-10)).toEqual({ backgroundColor: 'hsl(0, 70%, 45%)' })
   })
 })
 
