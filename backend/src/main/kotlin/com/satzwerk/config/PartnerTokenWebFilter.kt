@@ -14,8 +14,12 @@ import reactor.core.publisher.Mono
 
 internal const val APP_TOKEN_HEADER = "X-App-Token"
 
-/** The only path a partner token is permitted to authenticate. */
-private const val PARTNER_PROBE_PATH = "/api/partner-grants/me"
+/** Paths where a partner app token is a valid credential (in addition to JWT). */
+private val PARTNER_ALLOWED_PATH_PREFIXES =
+    listOf(
+        "/api/partner-grants/me",
+        "/api/public/",
+    )
 
 /**
  * Authenticates partner-app requests that present an [APP_TOKEN_HEADER] credential,
@@ -40,9 +44,10 @@ class PartnerTokenWebFilter(
         exchange: ServerWebExchange,
         chain: WebFilterChain,
     ): Mono<Void> {
+        val path = exchange.request.uri.path
         val rawToken =
-            exchange.request.uri.path
-                .takeIf { it == PARTNER_PROBE_PATH }
+            path
+                .takeIf { p -> PARTNER_ALLOWED_PATH_PREFIXES.any { prefix -> p == prefix || p.startsWith(prefix) } }
                 ?.let { exchange.request.headers.getFirst(APP_TOKEN_HEADER)?.trim() }
                 .orEmpty()
 
