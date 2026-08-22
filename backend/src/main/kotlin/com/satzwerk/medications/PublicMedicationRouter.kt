@@ -8,12 +8,11 @@ import com.satzwerk.common.body
 import com.satzwerk.common.handleErrors
 import com.satzwerk.common.requireScope
 import com.satzwerk.common.validateOrBadRequest
+import com.satzwerk.publicapi.PartnerWritePolicyService
 import jakarta.validation.Validator
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpStatus
-import org.springframework.web.reactive.function.server.ServerResponse
-import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import org.springframework.web.reactive.function.server.coRouter
 
 @Configuration
@@ -21,6 +20,7 @@ class PublicMedicationRouter {
     @Bean
     fun publicMedicationRoutes(
         medicationService: MedicationService,
+        partnerWritePolicyService: PartnerWritePolicyService,
         validator: Validator,
     ) = coRouter {
         "/api/public/medications".nest {
@@ -42,8 +42,9 @@ class PublicMedicationRouter {
                     val ctx = RequestContext(request)
                     val body = ctx.body<CreateMedicationRequest>()
                     validateOrBadRequest(validator, body) {
-                        val response = medicationService.createMedication(ctx.userId(), body)
-                        ServerResponse.status(HttpStatus.CREATED).bodyValueAndAwait(response)
+                        partnerWritePolicyService.execute(request, HttpStatus.CREATED) { userId ->
+                            medicationService.createMedication(userId, body)
+                        }
                     }
                 }
             }
@@ -67,8 +68,9 @@ class PublicMedicationRouter {
                     val id = ctx.pathId("id")
                     val body = ctx.body<UpdateMedicationRequest>()
                     validateOrBadRequest(validator, body) {
-                        val response = medicationService.updateMedication(ctx.userId(), id, body)
-                        ServerResponse.ok().bodyValueAndAwait(response)
+                        partnerWritePolicyService.execute(request, HttpStatus.OK) { userId ->
+                            medicationService.updateMedication(userId, id, body)
+                        }
                     }
                 }
             }
@@ -88,8 +90,9 @@ class PublicMedicationRouter {
                     val medicationId = ctx.pathId("id")
                     val body = ctx.body<LogDoseRequest>()
                     validateOrBadRequest(validator, body) {
-                        val response = medicationService.logDose(ctx.userId(), medicationId, body)
-                        ServerResponse.status(HttpStatus.CREATED).bodyValueAndAwait(response)
+                        partnerWritePolicyService.execute(request, HttpStatus.CREATED) { userId ->
+                            medicationService.logDose(userId, medicationId, body)
+                        }
                     }
                 }
             }

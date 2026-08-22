@@ -2,6 +2,7 @@ package com.satzwerk.common
 
 import com.satzwerk.auth.InsufficientScopeException
 import com.satzwerk.config.AUTHORITY_JWT_SESSION
+import com.satzwerk.partners.PartnerPrincipal
 import jakarta.validation.Validator
 import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.http.HttpStatus
@@ -120,4 +121,11 @@ suspend fun requireScope(
     if (SimpleGrantedAuthority(scope) !in authorities) {
         throw InsufficientScopeException(scope)
     }
+}
+
+suspend fun requirePartnerPrincipal(request: ServerRequest): PartnerPrincipal {
+    val authentication =
+        request.principal().awaitSingle() as? UsernamePasswordAuthenticationToken
+            ?: throw UnauthorizedException()
+    return authentication.credentials as? PartnerPrincipal ?: throw UnauthorizedException()
 }

@@ -4,6 +4,11 @@ import com.satzwerk.PostgresTestContainer
 import com.satzwerk.auth.AuthResponse
 import com.satzwerk.partners.AppGrantResponse
 import com.satzwerk.partners.PartnerAppRegistrationResponse
+import com.satzwerk.publicapi.IdempotencyRecordRepository
+import com.satzwerk.publicapi.PartnerWriteAuditRepository
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -19,6 +24,12 @@ import java.util.UUID
 class PublicMedicationIntegrationTest : PostgresTestContainer() {
     @Autowired
     lateinit var client: WebTestClient
+
+    @Autowired
+    lateinit var idempotencyRecordRepository: IdempotencyRecordRepository
+
+    @Autowired
+    lateinit var partnerWriteAuditRepository: PartnerWriteAuditRepository
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -101,6 +112,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
             .post()
             .uri("/api/public/medications")
             .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(defaultMedicationBody("Omega-3"))
             .exchange()
@@ -121,6 +133,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
             .post()
             .uri("/api/public/medications")
             .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(defaultMedicationBody("Aspirin"))
             .exchange()
@@ -131,6 +144,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
             .post()
             .uri("/api/public/medications")
             .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(defaultMedicationBody("Aspirin"))
             .exchange()
@@ -150,6 +164,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
                 .post()
                 .uri("/api/public/medications")
                 .header("X-App-Token", grant.accessToken)
+                .header("Idempotency-Key", UUID.randomUUID().toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(defaultMedicationBody("Zinc"))
                 .exchange()
@@ -162,6 +177,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
             .put()
             .uri("/api/public/medications/${created.id}")
             .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(
                 mapOf(
@@ -205,6 +221,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
             .put()
             .uri("/api/public/medications/${created.id}")
             .header("X-App-Token", grantB.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(
                 mapOf(
@@ -230,6 +247,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
                 .post()
                 .uri("/api/public/medications")
                 .header("X-App-Token", grant.accessToken)
+                .header("Idempotency-Key", UUID.randomUUID().toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(defaultMedicationBody("Magnesium"))
                 .exchange()
@@ -242,6 +260,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
             .post()
             .uri("/api/public/medications/${med.id}/logs")
             .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(
                 mapOf(
@@ -284,6 +303,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
             .post()
             .uri("/api/public/medications/${med.id}/logs")
             .header("X-App-Token", grantB.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(mapOf("takenAt" to Instant.now().toString(), "taken" to true))
             .exchange()
@@ -302,6 +322,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
             .post()
             .uri("/api/public/medications")
             .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(defaultMedicationBody("Blocked Vitamin"))
             .exchange()
@@ -335,6 +356,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
             .post()
             .uri("/api/public/medications/${med.id}/logs")
             .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(mapOf("takenAt" to Instant.now().toString(), "taken" to true))
             .exchange()
@@ -360,6 +382,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
             .post()
             .uri("/api/public/medications")
             .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(defaultMedicationBody("Blocked Med"))
             .exchange()
@@ -378,6 +401,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
             .post()
             .uri("/api/public/medications")
             .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(
                 mapOf(
@@ -401,6 +425,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
                 .post()
                 .uri("/api/public/medications")
                 .header("X-App-Token", grant.accessToken)
+                .header("Idempotency-Key", UUID.randomUUID().toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(defaultMedicationBody("Test Med"))
                 .exchange()
@@ -413,9 +438,72 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
             .post()
             .uri("/api/public/medications/${med.id}/logs")
             .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(mapOf("taken" to true))
             .exchange()
             .expectStatus().isBadRequest
+    }
+
+    @Test
+    fun `missing Idempotency-Key is rejected with 400 on medication create`() {
+        val token = registerAndLogin()
+        val app = registerApp(token)
+        val grant = grantAccess(token, app.clientId)
+
+        client
+            .post()
+            .uri("/api/public/medications")
+            .header("X-App-Token", grant.accessToken)
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(defaultMedicationBody("No Key"))
+            .exchange()
+            .expectStatus().isBadRequest
+            .expectBody()
+            .jsonPath("$.message").isEqualTo("Idempotency-Key header required")
+    }
+
+    @Test
+    fun `same Idempotency-Key replays the original medication create response and records audit twice`() {
+        val token = registerAndLogin()
+        val app = registerApp(token)
+        val grant = grantAccess(token, app.clientId)
+        val idempotencyKey = UUID.randomUUID().toString()
+
+        val first =
+            client
+                .post()
+                .uri("/api/public/medications")
+                .header("X-App-Token", grant.accessToken)
+                .header("Idempotency-Key", idempotencyKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(defaultMedicationBody("Replay Med"))
+                .exchange()
+                .expectStatus().isCreated
+                .returnResult<MedicationResponse>()
+                .responseBody
+                .blockFirst()!!
+
+        val replayed =
+            client
+                .post()
+                .uri("/api/public/medications")
+                .header("X-App-Token", grant.accessToken)
+                .header("Idempotency-Key", idempotencyKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(defaultMedicationBody("Different Name"))
+                .exchange()
+                .expectStatus().isCreated
+                .returnResult<MedicationResponse>()
+                .responseBody
+                .blockFirst()!!
+
+        assertEquals(first, replayed)
+        runBlocking {
+            val records = idempotencyRecordRepository.findAllByGrantId(grant.grantId).toList()
+            val audits = partnerWriteAuditRepository.findAllByGrantId(grant.grantId).toList()
+            assertEquals(1, records.size)
+            assertEquals(2, audits.size)
+        }
     }
 }

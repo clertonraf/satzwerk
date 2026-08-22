@@ -4,6 +4,11 @@ import com.satzwerk.PostgresTestContainer
 import com.satzwerk.auth.AuthResponse
 import com.satzwerk.partners.AppGrantResponse
 import com.satzwerk.partners.PartnerAppRegistrationResponse
+import com.satzwerk.publicapi.IdempotencyRecordRepository
+import com.satzwerk.publicapi.PartnerWriteAuditRepository
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -19,6 +24,12 @@ import java.util.UUID
 class PublicMeasurementIntegrationTest : PostgresTestContainer() {
     @Autowired
     lateinit var client: WebTestClient
+
+    @Autowired
+    lateinit var idempotencyRecordRepository: IdempotencyRecordRepository
+
+    @Autowired
+    lateinit var partnerWriteAuditRepository: PartnerWriteAuditRepository
 
     private val today: LocalDate = LocalDate.of(2026, 6, 1)
 
@@ -90,11 +101,13 @@ class PublicMeasurementIntegrationTest : PostgresTestContainer() {
         val token = registerAndLogin()
         val app = registerApp(token)
         val grant = grantAccess(token, app.clientId)
+        val idempotencyKey = UUID.randomUUID().toString()
 
         client
             .post()
             .uri("/api/public/measurements")
             .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", idempotencyKey)
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(
                 mapOf(
@@ -121,6 +134,7 @@ class PublicMeasurementIntegrationTest : PostgresTestContainer() {
             .post()
             .uri("/api/public/measurements")
             .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(
                 mapOf(
@@ -136,6 +150,7 @@ class PublicMeasurementIntegrationTest : PostgresTestContainer() {
             .post()
             .uri("/api/public/measurements")
             .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(
                 mapOf(
@@ -163,6 +178,7 @@ class PublicMeasurementIntegrationTest : PostgresTestContainer() {
             .post()
             .uri("/api/public/measurements")
             .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(mapOf("measurementDate" to today.toString(), "weightKg" to 80.0))
             .exchange()
@@ -188,6 +204,7 @@ class PublicMeasurementIntegrationTest : PostgresTestContainer() {
             .post()
             .uri("/api/public/measurements")
             .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(mapOf("measurementDate" to today.toString(), "weightKg" to 80.0))
             .exchange()
@@ -206,6 +223,7 @@ class PublicMeasurementIntegrationTest : PostgresTestContainer() {
             .post()
             .uri("/api/public/measurements")
             .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(
                 mapOf(
@@ -226,10 +244,73 @@ class PublicMeasurementIntegrationTest : PostgresTestContainer() {
             .post()
             .uri("/api/public/measurements")
             .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(mapOf("weightKg" to 80.0))
             .exchange()
             .expectStatus().isBadRequest
+    }
+
+    @Test
+    fun `missing Idempotency-Key is rejected with 400`() {
+        val token = registerAndLogin()
+        val app = registerApp(token)
+        val grant = grantAccess(token, app.clientId)
+
+        client
+            .post()
+            .uri("/api/public/measurements")
+            .header("X-App-Token", grant.accessToken)
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("measurementDate" to today.toString(), "weightKg" to 80.0))
+            .exchange()
+            .expectStatus().isBadRequest
+            .expectBody()
+            .jsonPath("$.message").isEqualTo("Idempotency-Key header required")
+    }
+
+    @Test
+    fun `same Idempotency-Key replays the original measurement response and records audit twice`() {
+        val token = registerAndLogin()
+        val app = registerApp(token)
+        val grant = grantAccess(token, app.clientId)
+        val idempotencyKey = UUID.randomUUID().toString()
+
+        val first =
+            client
+                .post()
+                .uri("/api/public/measurements")
+                .header("X-App-Token", grant.accessToken)
+                .header("Idempotency-Key", idempotencyKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(mapOf("measurementDate" to today.toString(), "weightKg" to 80.5))
+                .exchange()
+                .expectStatus().isOk
+                .returnResult<MeasurementResponse>()
+                .responseBody
+                .blockFirst()!!
+
+        val replayed =
+            client
+                .post()
+                .uri("/api/public/measurements")
+                .header("X-App-Token", grant.accessToken)
+                .header("Idempotency-Key", idempotencyKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(mapOf("measurementDate" to today.toString(), "weightKg" to 91.0))
+                .exchange()
+                .expectStatus().isOk
+                .returnResult<MeasurementResponse>()
+                .responseBody
+                .blockFirst()!!
+
+        assertEquals(first, replayed)
+        runBlocking {
+            val records = idempotencyRecordRepository.findAllByGrantId(grant.grantId).toList()
+            val audits = partnerWriteAuditRepository.findAllByGrantId(grant.grantId).toList()
+            assertEquals(1, records.size)
+            assertEquals(2, audits.size)
+        }
     }
 
     // ── Ownership isolation ───────────────────────────────────────────────────
@@ -247,6 +328,7 @@ class PublicMeasurementIntegrationTest : PostgresTestContainer() {
             .post()
             .uri("/api/public/measurements")
             .header("X-App-Token", grantA.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(mapOf("measurementDate" to today.toString(), "weightKg" to 90.0))
             .exchange()

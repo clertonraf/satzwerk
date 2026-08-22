@@ -7,12 +7,11 @@ import com.satzwerk.common.body
 import com.satzwerk.common.handleErrors
 import com.satzwerk.common.requireScope
 import com.satzwerk.common.validateOrBadRequest
+import com.satzwerk.publicapi.PartnerWritePolicyService
 import jakarta.validation.Validator
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpStatus
-import org.springframework.web.reactive.function.server.ServerResponse
-import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import org.springframework.web.reactive.function.server.coRouter
 
 @Configuration
@@ -20,6 +19,7 @@ class PublicMeasurementRouter {
     @Bean
     fun publicMeasurementRoutes(
         measurementService: MeasurementService,
+        partnerWritePolicyService: PartnerWritePolicyService,
         validator: Validator,
     ) = coRouter {
         "/api/public/measurements".nest {
@@ -37,8 +37,9 @@ class PublicMeasurementRouter {
                     val ctx = RequestContext(request)
                     val body = ctx.body<UpsertMeasurementRequest>()
                     validateOrBadRequest(validator, body) {
-                        val response = measurementService.upsert(ctx.userId(), body)
-                        ServerResponse.ok().bodyValueAndAwait(response)
+                        partnerWritePolicyService.execute(request, HttpStatus.OK) { userId ->
+                            measurementService.upsert(userId, body)
+                        }
                     }
                 }
             }
