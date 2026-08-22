@@ -17,9 +17,12 @@ internal const val APP_TOKEN_HEADER = "X-App-Token"
 /** The only path a partner token is permitted to authenticate. */
 private const val PARTNER_PROBE_PATH = "/api/partner-grants/me"
 
+/** Path prefix for all public read surfaces where partner tokens are also accepted. */
+private const val PUBLIC_API_PREFIX = "/api/public/"
+
 /**
- * Authenticates partner-app requests that present an [APP_TOKEN_HEADER] credential,
- * **only for the tightly scoped probe path** [PARTNER_PROBE_PATH].
+ * Authenticates partner-app requests that present an [APP_TOKEN_HEADER] credential on the
+ * exact probe path [PARTNER_PROBE_PATH] and on public API routes under [PUBLIC_API_PREFIX].
  *
  * All grant-management routes remain JWT-session-only — this filter skips them,
  * so presenting a partner token to a management route yields 401 from the security chain.
@@ -41,10 +44,12 @@ class PartnerTokenWebFilter(
         exchange: ServerWebExchange,
         chain: WebFilterChain,
     ): Mono<Void> {
+        val path = exchange.request.uri.path
         val rawToken =
-            exchange.request.uri.path
-                .takeIf { it == PARTNER_PROBE_PATH }
-                ?.let { exchange.request.headers.getFirst(APP_TOKEN_HEADER)?.trim() }
+            exchange.request.headers
+                .getFirst(APP_TOKEN_HEADER)
+                ?.trim()
+                ?.takeIf { path == PARTNER_PROBE_PATH || path.startsWith(PUBLIC_API_PREFIX) }
                 .orEmpty()
 
         if (rawToken.isBlank()) {

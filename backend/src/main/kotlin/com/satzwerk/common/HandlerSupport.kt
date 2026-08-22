@@ -1,5 +1,6 @@
 package com.satzwerk.common
 
+import com.satzwerk.auth.InsufficientScopeException
 import com.satzwerk.config.AUTHORITY_JWT_SESSION
 import jakarta.validation.Validator
 import kotlinx.coroutines.reactor.awaitSingle
@@ -100,3 +101,23 @@ suspend fun requireJwtSession(request: ServerRequest) {
 
 /** Thrown when a valid credential is present but is not a first-party JWT session. */
 class UnauthorizedException : RuntimeException("JWT session required")
+
+/**
+ * Checks that the resolved principal holds the required scope authority.
+ * Throws [InsufficientScopeException] when the scope is absent.
+ *
+ * Shared across all public read routers under `/api/public`.
+ * Accepts both personal API tokens and partner app tokens.
+ */
+suspend fun requireScope(
+    request: ServerRequest,
+    scope: String,
+) {
+    val authentication = request.principal().awaitSingle()
+    val authorities =
+        (authentication as? UsernamePasswordAuthenticationToken)
+            ?.authorities ?: emptyList()
+    if (SimpleGrantedAuthority(scope) !in authorities) {
+        throw InsufficientScopeException(scope)
+    }
+}
