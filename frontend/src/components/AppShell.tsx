@@ -15,6 +15,17 @@ const navigationItems = [
   { to: '/settings', label: 'Settings', icon: Settings },
 ] as const
 
+const navigationPresentation = {
+  desktop: {
+    itemClassName: 'gap-3 px-4 py-3',
+    iconClassName: 'size-4',
+  },
+  mobile: {
+    itemClassName: 'flex-col gap-1 px-2 py-2 text-xs',
+    iconClassName: 'size-5',
+  },
+} as const
+
 const PAGE_TITLES: Record<string, string> = {
   ...Object.fromEntries(navigationItems.map(({ to, label }) => [to, label])),
   '/workouts/exercises': 'Workouts',
@@ -127,6 +138,8 @@ interface NavItemProps {
 }
 
 function NavItem({ compact = false, icon: Icon, label, to }: NavItemProps) {
+  const variant = compact ? navigationPresentation.mobile : navigationPresentation.desktop
+
   return (
     <NavLink
       to={to}
@@ -134,7 +147,7 @@ function NavItem({ compact = false, icon: Icon, label, to }: NavItemProps) {
       className={({ isActive }) =>
         cn(
           'flex items-center rounded-xl text-sm font-medium transition-colors',
-          compact ? 'flex-col gap-1 px-2 py-2 text-xs' : 'gap-3 px-4 py-3',
+          variant.itemClassName,
           isActive
             ? 'bg-primary text-primary-foreground shadow-sm'
             : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
@@ -142,7 +155,7 @@ function NavItem({ compact = false, icon: Icon, label, to }: NavItemProps) {
       }
     >
       <span aria-hidden="true">
-        <Icon className={compact ? 'size-5' : 'size-4'} />
+        <Icon className={variant.iconClassName} />
       </span>
       <span>{label}</span>
     </NavLink>
