@@ -14,6 +14,7 @@ interface SessionStartupProps {
   isOnline: boolean
   stalePlanError: string | null
   isStartPending: boolean
+  planCompletionPercentage: number | null
   onStart: (groupId: string) => void
   onPreview: (group: WorkoutGroupDetail, planName: string) => void
 }
@@ -28,6 +29,7 @@ export default function SessionStartup({
   isOnline,
   stalePlanError,
   isStartPending,
+  planCompletionPercentage,
   onStart,
   onPreview,
 }: SessionStartupProps) {
@@ -53,6 +55,11 @@ export default function SessionStartup({
 
   return (
     <div className="space-y-3">
+      {planCompletionPercentage !== null ? (
+        <p className="text-sm text-muted-foreground" data-testid="plan-completion">
+          WorkoutPlan {planCompletionPercentage}% complete
+        </p>
+      ) : null}
       {!isOnline ? (
         <p className="text-sm text-muted-foreground">
           Reconnect to start a new workout. Your current session data stays available offline.

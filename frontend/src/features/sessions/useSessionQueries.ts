@@ -6,6 +6,7 @@ import { exerciseService } from '@/services/exerciseService'
 import { queryKeys } from '@/services/queryKeys'
 import { sessionService, type ExerciseReferenceWeights, type WorkoutSession } from '@/services/sessionService'
 import { sortGroupOptions } from './sessionHelpers'
+import { computePlanCompletionPercentage } from './planCompletion'
 
 interface UseSessionQueriesInput {
   session: WorkoutSession | null
@@ -63,6 +64,14 @@ export function useSessionQueries({ session, isSessionLoading }: UseSessionQueri
 
   const groupStatsMap = useMemo(() => buildGroupStatsMap(historyQuery.data ?? []), [historyQuery.data])
 
+  const planCompletionPercentage = useMemo(() => {
+    if (session || !startOptionsQuery.data || !historyQuery.data) {
+      return null
+    }
+
+    return computePlanCompletionPercentage(startOptionsQuery.data, historyQuery.data)
+  }, [session, startOptionsQuery.data, historyQuery.data])
+
   const groupOptions = useMemo(
     () => sortGroupOptions(Object.values(groupCatalog), groupStatsMap),
     [groupCatalog, groupStatsMap],
@@ -96,6 +105,7 @@ export function useSessionQueries({ session, isSessionLoading }: UseSessionQueri
     groupStatsMap,
     exercisesById,
     referenceWeightsMap,
+    planCompletionPercentage,
     isCatalogLoading,
     queryError,
     isHistoryLoading,
