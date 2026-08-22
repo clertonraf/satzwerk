@@ -10,4 +10,3 @@ CREATE TABLE personal_api_tokens (
 );
 
 CREATE INDEX personal_api_tokens_user_id_idx ON personal_api_tokens (user_id);
-CREATE INDEX personal_api_tokens_token_hash_idx ON personal_api_tokens (token_hash);

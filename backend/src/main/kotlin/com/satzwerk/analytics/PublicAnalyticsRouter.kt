@@ -38,7 +38,7 @@ private fun parseDate(
  * This is the minimal public-principal scope guard introduced for #204.
  * #205 (partner apps) should extend or replace this with a shared abstraction.
  */
-private suspend fun requireScope(
+suspend fun requireScope(
     request: ServerRequest,
     scope: String,
 ) {

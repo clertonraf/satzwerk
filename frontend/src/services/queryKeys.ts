@@ -35,6 +35,6 @@ export const queryKeys = {
     journal: (from: string, to: string) => ['medication-journal', from, to] as const,
   },
   tokens: {
-    all: () => ['personal-api-tokens'] as const,
+    all: () => ['tokens'] as const,
   },
 } as const

@@ -61,8 +61,10 @@ suspend fun handleErrors(
         ServerResponse.status(HttpStatus.NOT_FOUND).bodyValueAndAwait(ErrorResponse("Not found"))
     } catch (e: BadRequestException) {
         ServerResponse.badRequest().bodyValueAndAwait(ErrorResponse(e.message ?: "Bad request"))
-    } catch (_: UnauthorizedException) {
-        ServerResponse.status(HttpStatus.UNAUTHORIZED).bodyValueAndAwait(ErrorResponse("Unauthorized"))
+    } catch (e: UnauthorizedException) {
+        ServerResponse.status(HttpStatus.UNAUTHORIZED).bodyValueAndAwait(
+            ErrorResponse(e.message ?: "Unauthorized"),
+        )
     } catch (e: Throwable) {
         val status =
             extra.entries.firstOrNull { (klass, _) -> klass.isInstance(e) }?.value
