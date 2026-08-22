@@ -2,6 +2,8 @@ package com.satzwerk.partners
 
 import com.satzwerk.PostgresTestContainer
 import com.satzwerk.auth.AuthResponse
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -343,8 +345,8 @@ class PartnerAppIntegrationTest : PostgresTestContainer() {
                 .blockFirst()!!
 
         // Each token resolves to its own grant and its own user.
-        assert(bindingA.grantId == grantA.grantId) { "Token A must resolve to grant A" }
-        assert(bindingB.grantId == grantB.grantId) { "Token B must resolve to grant B" }
-        assert(bindingA.userId != bindingB.userId) { "Tokens must resolve to different users" }
+        assertEquals(grantA.grantId, bindingA.grantId, "Token A must resolve to grant A")
+        assertEquals(grantB.grantId, bindingB.grantId, "Token B must resolve to grant B")
+        assertNotEquals(bindingA.userId, bindingB.userId, "Tokens must resolve to different users")
     }
 }

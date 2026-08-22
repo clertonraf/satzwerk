@@ -31,9 +31,8 @@ private const val PUBLIC_API_PREFIX = "/api/public/"
  * so presenting a partner token to a management route yields 401 from the security chain.
  *
  * On success, places a [UsernamePasswordAuthenticationToken] whose:
- * - **principal** = [PartnerPrincipal] → app/user/grant context for callers that need it
- * - **principal.name** = consenting-user UUID string via [PartnerPrincipal.getName] →
- *   [com.satzwerk.common.RequestContext.userId] works unchanged
+ * - **principal** = [PartnerPrincipal] whose `name` is the consenting-user UUID string;
+ *   cast to [PartnerPrincipal] for app/grant context via [com.satzwerk.common.requirePartnerPrincipal]
  * - **authorities** = raw scope strings (e.g. `"exercises:read"`) — no `SCOPE_` prefix,
  *   aligned with the shared convention in ADR-0005 / #204.
  *

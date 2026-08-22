@@ -15,8 +15,15 @@ import org.springframework.web.reactive.function.server.coRouter
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeParseException
+import kotlin.reflect.KClass
 
 private const val DEFAULT_HEATMAP_MONTHS = 3L
+private const val DEFAULT_TREND_WEEKS = 8
+private const val MIN_TREND_WEEKS = 1
+private const val MAX_TREND_WEEKS = 52
+private const val DEFAULT_PR_LIMIT = 5
+private const val MIN_PR_LIMIT = 1
+private const val MAX_PR_LIMIT = 20
 
 private fun parseDate(
     param: String,
@@ -28,21 +35,37 @@ private fun parseDate(
         throw BadRequestException("Invalid date for '$param': '$value'. Expected format: yyyy-MM-dd")
     }
 
+private fun parseIntParam(
+    ctx: RequestContext,
+    name: String,
+    default: Int,
+    min: Int,
+    max: Int,
+): Int {
+    val value =
+        ctx.queryParam(name)?.let {
+            it.toIntOrNull() ?: throw BadRequestException("'$name' must be a valid integer")
+        } ?: default
+    if (value !in min..max) throw BadRequestException("'$name' must be between $min and $max")
+    return value
+}
+
+private val scopeErrors: Map<KClass<out Throwable>, HttpStatus> =
+    mapOf(InsufficientScopeException::class to HttpStatus.FORBIDDEN)
+
+/**
+ * Public analytics read surfaces under `/api/public/analytics`.
+ * Accepted credentials: personal API tokens (#204) and partner app tokens (#205).
+ * All endpoints require [TokenScope.ANALYTICS_READ].
+ */
 @Configuration
 class PublicAnalyticsRouter {
     @Bean
     fun publicAnalyticsRoutes(analyticsService: AnalyticsService) =
         coRouter {
             "/api/public/analytics".nest {
-                /**
-                 * Public heatmap endpoint — tracer bullet for personal automation token access.
-                 * Requires a valid personal API token with the [TokenScope.ANALYTICS_READ] scope.
-                 * Returns the same payload as the internal /api/analytics/heatmap.
-                 */
                 GET("/heatmap") { request ->
-                    handleErrors(
-                        extra = mapOf(InsufficientScopeException::class to HttpStatus.FORBIDDEN),
-                    ) {
+                    handleErrors(extra = scopeErrors) {
                         requireScope(request, TokenScope.ANALYTICS_READ)
                         val ctx = RequestContext(request)
                         val today = LocalDate.now(ZoneOffset.UTC)
@@ -51,6 +74,37 @@ class PublicAnalyticsRouter {
                                 ?: today.minusMonths(DEFAULT_HEATMAP_MONTHS)
                         val to = ctx.queryParam("to")?.let { parseDate("to", it) } ?: today
                         ServerResponse.ok().bodyValueAndAwait(analyticsService.heatmap(ctx.userId(), from, to))
+                    }
+                }
+                GET("/streak") { request ->
+                    handleErrors(extra = scopeErrors) {
+                        requireScope(request, TokenScope.ANALYTICS_READ)
+                        val ctx = RequestContext(request)
+                        ServerResponse.ok().bodyValueAndAwait(analyticsService.streak(ctx.userId()))
+                    }
+                }
+                GET("/summary") { request ->
+                    handleErrors(extra = scopeErrors) {
+                        requireScope(request, TokenScope.ANALYTICS_READ)
+                        val ctx = RequestContext(request)
+                        ServerResponse.ok().bodyValueAndAwait(analyticsService.dashboardSummary(ctx.userId()))
+                    }
+                }
+                GET("/weekly-trend") { request ->
+                    handleErrors(extra = scopeErrors) {
+                        requireScope(request, TokenScope.ANALYTICS_READ)
+                        val ctx = RequestContext(request)
+                        val weeks =
+                            parseIntParam(ctx, "weeks", DEFAULT_TREND_WEEKS, MIN_TREND_WEEKS, MAX_TREND_WEEKS)
+                        ServerResponse.ok().bodyValueAndAwait(analyticsService.weeklyTrend(ctx.userId(), weeks))
+                    }
+                }
+                GET("/personal-records") { request ->
+                    handleErrors(extra = scopeErrors) {
+                        requireScope(request, TokenScope.ANALYTICS_READ)
+                        val ctx = RequestContext(request)
+                        val limit = parseIntParam(ctx, "limit", DEFAULT_PR_LIMIT, MIN_PR_LIMIT, MAX_PR_LIMIT)
+                        ServerResponse.ok().bodyValueAndAwait(analyticsService.personalRecords(ctx.userId(), limit))
                     }
                 }
             }

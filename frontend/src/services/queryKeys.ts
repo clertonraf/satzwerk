@@ -38,6 +38,6 @@ export const queryKeys = {
     all: () => ['personal-api-tokens'] as const,
   },
   partnerGrants: {
-    active: () => ['partner-grants-active'] as const,
+    active: () => ['active'] as const,
   },
 } as const

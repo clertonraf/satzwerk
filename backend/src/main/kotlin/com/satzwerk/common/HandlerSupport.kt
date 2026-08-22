@@ -107,6 +107,7 @@ class UnauthorizedException : RuntimeException("JWT session required")
  * Checks that the resolved principal holds the required scope authority.
  * Works for both personal-token and partner-app principals — both encode scopes
  * as [SimpleGrantedAuthority] entries on the [UsernamePasswordAuthenticationToken].
+ * Shared across all public routes under `/api/public`.
  *
  * Throws [InsufficientScopeException] (→ 403) when the scope is absent.
  */
