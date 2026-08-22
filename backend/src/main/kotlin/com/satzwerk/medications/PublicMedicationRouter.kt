@@ -14,6 +14,13 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpStatus
 import org.springframework.web.reactive.function.server.coRouter
+import kotlin.reflect.KClass
+
+private val publicMedicationWriteErrors: Map<KClass<out Throwable>, HttpStatus> =
+    mapOf(
+        InsufficientScopeException::class to HttpStatus.FORBIDDEN,
+        ConflictException::class to HttpStatus.CONFLICT,
+    )
 
 @Configuration
 class PublicMedicationRouter {
@@ -31,13 +38,7 @@ class PublicMedicationRouter {
              * Requires scope [TokenScope.MEDICATIONS_WRITE].
              */
             POST("") { request ->
-                handleErrors(
-                    extra =
-                        mapOf(
-                            InsufficientScopeException::class to HttpStatus.FORBIDDEN,
-                            ConflictException::class to HttpStatus.CONFLICT,
-                        ),
-                ) {
+                handleErrors(extra = publicMedicationWriteErrors) {
                     requireScope(request, TokenScope.MEDICATIONS_WRITE)
                     val ctx = RequestContext(request)
                     val body = ctx.body<CreateMedicationRequest>()
@@ -56,13 +57,7 @@ class PublicMedicationRouter {
              * Requires scope [TokenScope.MEDICATIONS_WRITE].
              */
             PUT("/{id}") { request ->
-                handleErrors(
-                    extra =
-                        mapOf(
-                            InsufficientScopeException::class to HttpStatus.FORBIDDEN,
-                            ConflictException::class to HttpStatus.CONFLICT,
-                        ),
-                ) {
+                handleErrors(extra = publicMedicationWriteErrors) {
                     requireScope(request, TokenScope.MEDICATIONS_WRITE)
                     val ctx = RequestContext(request)
                     val id = ctx.pathId("id")
@@ -82,9 +77,7 @@ class PublicMedicationRouter {
              * Requires scope [TokenScope.MEDICATIONS_WRITE].
              */
             POST("/{id}/logs") { request ->
-                handleErrors(
-                    extra = mapOf(InsufficientScopeException::class to HttpStatus.FORBIDDEN),
-                ) {
+                handleErrors(extra = publicMedicationWriteErrors) {
                     requireScope(request, TokenScope.MEDICATIONS_WRITE)
                     val ctx = RequestContext(request)
                     val medicationId = ctx.pathId("id")

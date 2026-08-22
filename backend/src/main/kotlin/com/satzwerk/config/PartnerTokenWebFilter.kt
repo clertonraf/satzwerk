@@ -3,6 +3,9 @@ package com.satzwerk.config
 import com.satzwerk.partners.PartnerAppService
 import com.satzwerk.partners.PartnerPrincipal
 import kotlinx.coroutines.reactor.mono
+import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.ReactiveSecurityContextHolder
@@ -60,33 +63,40 @@ class PartnerTokenWebFilter(
         }
 
         return mono { partnerAppService.resolveActiveGrant(rawToken) }
+            .switchIfEmpty(unauthorized(exchange).then(Mono.empty()))
             .flatMap { grant ->
-                if (grant == null) {
-                    chain.filter(exchange)
-                } else {
-                    val partnerPrincipal =
-                        PartnerPrincipal(
-                            userId = grant.userId.toString(),
-                            appId = grant.appId.toString(),
-                            grantId = requireNotNull(grant.id).toString(),
-                            grantedScopes = grant.grantedScopes,
-                        )
-                    val scopeAuthorities =
-                        grant.grantedScopes
-                            .split(" ")
-                            .filter { it.isNotBlank() }
-                            .map { SimpleGrantedAuthority(it) }
-                    val authentication =
-                        UsernamePasswordAuthenticationToken(
-                            // principal.name == userId UUID string; RequestContext.userId() parses it ✓
-                            grant.userId.toString(),
-                            // credentials carry full partner context (appId, grantId, scopes)
-                            partnerPrincipal,
-                            scopeAuthorities,
-                        )
-                    chain.filter(exchange)
-                        .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authentication))
-                }
+                val partnerPrincipal =
+                    PartnerPrincipal(
+                        userId = grant.userId.toString(),
+                        appId = grant.appId.toString(),
+                        grantId = requireNotNull(grant.id).toString(),
+                        grantedScopes = grant.grantedScopes,
+                    )
+                val scopeAuthorities =
+                    grant.grantedScopes
+                        .split(" ")
+                        .filter { it.isNotBlank() }
+                        .map { SimpleGrantedAuthority(it) }
+                val authentication =
+                    UsernamePasswordAuthenticationToken(
+                        // principal.name == userId UUID string; RequestContext.userId() parses it ✓
+                        grant.userId.toString(),
+                        // credentials carry full partner context (appId, grantId, scopes)
+                        partnerPrincipal,
+                        scopeAuthorities,
+                    )
+                chain.filter(exchange)
+                    .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authentication))
             }
+    }
+
+    private fun unauthorized(exchange: ServerWebExchange): Mono<Void> {
+        exchange.response.statusCode = HttpStatus.UNAUTHORIZED
+        exchange.response.headers.remove(HttpHeaders.WWW_AUTHENTICATE)
+        exchange.response.headers.contentType = MediaType.APPLICATION_JSON
+        val body =
+            exchange.response.bufferFactory()
+                .wrap("""{"message":"Unauthorized","error":"Unauthorized"}""".toByteArray(Charsets.UTF_8))
+        return exchange.response.writeWith(Mono.just(body))
     }
 }

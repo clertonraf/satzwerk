@@ -2,9 +2,14 @@ package com.satzwerk.publicapi
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.satzwerk.common.BadRequestException
+import com.satzwerk.common.ConflictException
+import com.satzwerk.common.UnauthorizedException
 import com.satzwerk.common.parseUuid
 import com.satzwerk.common.requirePartnerPrincipal
+import com.satzwerk.partners.PartnerAppService
+import kotlinx.coroutines.delay
 import org.springframework.data.annotation.Id
+import org.springframework.data.r2dbc.repository.Query
 import org.springframework.data.relational.core.mapping.Column
 import org.springframework.data.relational.core.mapping.Table
 import org.springframework.data.repository.kotlin.CoroutineCrudRepository
@@ -18,6 +23,10 @@ import java.time.Instant
 import java.util.UUID
 
 private const val IDEMPOTENCY_HEADER = "Idempotency-Key"
+private const val APP_TOKEN_HEADER = "X-App-Token"
+private const val PENDING_RESPONSE_STATUS = -1
+private const val MAX_PENDING_RECORD_POLLS = 40
+private const val PENDING_RECORD_POLL_DELAY_MILLIS = 25L
 
 private data class PartnerWriteRequestMetadata(
     val grantId: UUID,
@@ -71,6 +80,35 @@ data class PartnerWriteAuditEntry(
 )
 
 interface IdempotencyRecordRepository : CoroutineCrudRepository<IdempotencyRecord, UUID> {
+    @Query(
+        """
+        INSERT INTO idempotency_records (
+            grant_id,
+            request_method,
+            request_path,
+            idempotency_key,
+            response_status,
+            response_body
+        )
+        VALUES (
+            :grantId,
+            :requestMethod,
+            :requestPath,
+            :idempotencyKey,
+            -1,
+            '__pending__'
+        )
+        ON CONFLICT (grant_id, request_method, request_path, idempotency_key) DO NOTHING
+        RETURNING id, grant_id, request_method, request_path, idempotency_key, response_status, response_body, created_at
+        """,
+    )
+    suspend fun claim(
+        grantId: UUID,
+        requestMethod: String,
+        requestPath: String,
+        idempotencyKey: String,
+    ): IdempotencyRecord?
+
     suspend fun findByGrantIdAndRequestMethodAndRequestPathAndIdempotencyKey(
         grantId: UUID,
         requestMethod: String,
@@ -90,6 +128,7 @@ class PartnerWritePolicyService(
     private val idempotencyRecordRepository: IdempotencyRecordRepository,
     private val partnerWriteAuditRepository: PartnerWriteAuditRepository,
     private val objectMapper: ObjectMapper,
+    private val partnerAppService: PartnerAppService,
 ) {
     @Transactional
     suspend fun <T : Any> execute(
@@ -107,37 +146,39 @@ class PartnerWritePolicyService(
                 requestPath = request.path(),
                 idempotencyKey = requireIdempotencyKey(request),
             )
-
-        val existing =
-            idempotencyRecordRepository.findByGrantIdAndRequestMethodAndRequestPathAndIdempotencyKey(
+        requireFreshActiveGrant(request, metadata.grantId)
+        val claimedRecord =
+            idempotencyRecordRepository.claim(
                 grantId = metadata.grantId,
                 requestMethod = metadata.requestMethod,
                 requestPath = metadata.requestPath,
                 idempotencyKey = metadata.idempotencyKey,
             )
-        if (existing != null) {
+        if (claimedRecord == null) {
+            val existing = awaitCompletedRecord(metadata)
             recordAudit(metadata, existing.responseStatus)
             return ServerResponse.status(existing.responseStatus)
                 .bodyValueAndAwait(objectMapper.readTree(existing.responseBody))
         }
 
-        val responseBody = block(metadata.userId)
-        val responseStatus = successStatus.value()
-        val serializedResponse = objectMapper.writeValueAsString(responseBody)
+        return runCatching {
+            val responseBody = block(metadata.userId)
+            val responseStatus = successStatus.value()
+            val serializedResponse = objectMapper.writeValueAsString(responseBody)
 
-        idempotencyRecordRepository.save(
-            IdempotencyRecord(
-                grantId = metadata.grantId,
-                requestMethod = metadata.requestMethod,
-                requestPath = metadata.requestPath,
-                idempotencyKey = metadata.idempotencyKey,
-                responseStatus = responseStatus,
-                responseBody = serializedResponse,
-            ),
-        )
-        recordAudit(metadata, responseStatus)
+            idempotencyRecordRepository.save(
+                claimedRecord.copy(
+                    responseStatus = responseStatus,
+                    responseBody = serializedResponse,
+                ),
+            )
+            recordAudit(metadata, responseStatus)
 
-        return ServerResponse.status(successStatus).bodyValueAndAwait(responseBody)
+            ServerResponse.status(successStatus).bodyValueAndAwait(responseBody)
+        }.getOrElse { failure ->
+            idempotencyRecordRepository.deleteById(requireNotNull(claimedRecord.id))
+            throw failure
+        }
     }
 
     private suspend fun recordAudit(
@@ -162,4 +203,38 @@ class PartnerWritePolicyService(
             ?.trim()
             ?.takeIf { it.isNotBlank() }
             ?: throw BadRequestException("$IDEMPOTENCY_HEADER header required")
+
+    private suspend fun awaitCompletedRecord(metadata: PartnerWriteRequestMetadata): IdempotencyRecord {
+        repeat(MAX_PENDING_RECORD_POLLS) {
+            val record =
+                idempotencyRecordRepository.findByGrantIdAndRequestMethodAndRequestPathAndIdempotencyKey(
+                    grantId = metadata.grantId,
+                    requestMethod = metadata.requestMethod,
+                    requestPath = metadata.requestPath,
+                    idempotencyKey = metadata.idempotencyKey,
+                )
+            if (record != null && record.responseStatus != PENDING_RESPONSE_STATUS) {
+                return record
+            }
+            delay(PENDING_RECORD_POLL_DELAY_MILLIS)
+        }
+        throw ConflictException("Idempotent request is still in progress")
+    }
+
+    private suspend fun requireFreshActiveGrant(
+        request: ServerRequest,
+        expectedGrantId: UUID,
+    ) {
+        val appToken =
+            request.headers().firstHeader(APP_TOKEN_HEADER)
+                ?.trim()
+                .orEmpty()
+        if (appToken.isBlank()) {
+            throw UnauthorizedException()
+        }
+        val activeGrantId = partnerAppService.resolveActiveGrant(appToken)?.id
+        if (activeGrantId == null || activeGrantId != expectedGrantId) {
+            throw UnauthorizedException()
+        }
+    }
 }

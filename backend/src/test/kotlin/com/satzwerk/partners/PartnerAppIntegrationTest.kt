@@ -2,6 +2,8 @@ package com.satzwerk.partners
 
 import com.satzwerk.PostgresTestContainer
 import com.satzwerk.auth.AuthResponse
+import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -16,6 +18,9 @@ import java.util.UUID
 class PartnerAppIntegrationTest : PostgresTestContainer() {
     @Autowired
     lateinit var client: WebTestClient
+
+    @Autowired
+    lateinit var partnerAppService: PartnerAppService
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -292,6 +297,24 @@ class PartnerAppIntegrationTest : PostgresTestContainer() {
             .header("X-App-Token", grant.accessToken)
             .exchange()
             .expectStatus().isUnauthorized
+    }
+
+    @Test
+    fun `resolveActiveGrant returns null after revocation`() {
+        val token = registerAndLogin()
+        val app = registerApp(token)
+        val grant = grantAccess(token, app.clientId)
+
+        client
+            .delete()
+            .uri("/api/partner-grants/${grant.grantId}")
+            .header("Authorization", "Bearer $token")
+            .exchange()
+            .expectStatus().isNoContent
+
+        runBlocking {
+            assertNull(partnerAppService.resolveActiveGrant(grant.accessToken))
+        }
     }
 
     @Test

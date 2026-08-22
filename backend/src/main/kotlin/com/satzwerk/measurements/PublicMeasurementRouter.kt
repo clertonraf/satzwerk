@@ -2,6 +2,7 @@ package com.satzwerk.measurements
 
 import com.satzwerk.auth.InsufficientScopeException
 import com.satzwerk.auth.TokenScope
+import com.satzwerk.common.ConflictException
 import com.satzwerk.common.RequestContext
 import com.satzwerk.common.body
 import com.satzwerk.common.handleErrors
@@ -31,7 +32,11 @@ class PublicMeasurementRouter {
              */
             POST("") { request ->
                 handleErrors(
-                    extra = mapOf(InsufficientScopeException::class to HttpStatus.FORBIDDEN),
+                    extra =
+                        mapOf(
+                            InsufficientScopeException::class to HttpStatus.FORBIDDEN,
+                            ConflictException::class to HttpStatus.CONFLICT,
+                        ),
                 ) {
                     requireScope(request, TokenScope.MEASUREMENTS_WRITE)
                     val ctx = RequestContext(request)
