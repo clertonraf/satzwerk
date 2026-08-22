@@ -97,7 +97,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
             "name" to name,
             "dosageAmount" to 1000.0,
             "dosageUnit" to "IU",
-            "frequency" to mapOf("type" to "daily", "timesPerDay" to 1),
+            "frequency" to mapOf("type" to "DAILY", "timesPerDay" to 1),
         )
 
     // ── Medication create ─────────────────────────────────────────────────────
@@ -184,7 +184,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
                     "name" to "Zinc Updated",
                     "dosageAmount" to 500.0,
                     "dosageUnit" to "MG",
-                    "frequency" to mapOf("type" to "daily", "timesPerDay" to 2),
+                    "frequency" to mapOf("type" to "DAILY", "timesPerDay" to 2),
                 ),
             ).exchange()
             .expectStatus().isOk
@@ -228,7 +228,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
                     "name" to "Owned By A",
                     "dosageAmount" to 1.0,
                     "dosageUnit" to "MG",
-                    "frequency" to mapOf("type" to "daily", "timesPerDay" to 1),
+                    "frequency" to mapOf("type" to "DAILY", "timesPerDay" to 1),
                 ),
             ).exchange()
             .expectStatus().isNotFound
@@ -408,7 +408,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
                     "name" to "Bad Med",
                     "dosageAmount" to 0.0,
                     "dosageUnit" to "MG",
-                    "frequency" to mapOf("type" to "daily", "timesPerDay" to 1),
+                    "frequency" to mapOf("type" to "DAILY", "timesPerDay" to 1),
                 ),
             ).exchange()
             .expectStatus().isBadRequest
