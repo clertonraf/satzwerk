@@ -84,6 +84,19 @@ export function sortGroupOptions(
 }
 
 /**
+ * Returns an inline style for the progress indicator that transitions the
+ * background color from red (0%) toward green (100%) using HSL interpolation.
+ * The input is clamped to 0..100 so over-target values still render as fully
+ * green rather than wrapping back through the hue wheel.
+ */
+export function computeProgressIndicatorStyle(pct: number): { backgroundColor: string } {
+  const clamped = Math.min(100, Math.max(0, pct))
+  // Hue: 0 = red, 120 = green
+  const hue = Math.round((clamped / 100) * 120)
+  return { backgroundColor: `hsl(${hue}, 70%, 45%)` }
+}
+
+/**
  * Returns the set completion percentage (0-100+, rounded to nearest integer),
  * or null when totalTargetSets is 0 or negative.
  */
