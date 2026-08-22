@@ -55,6 +55,7 @@ export default function SessionPage() {
     groupStatsMap,
     exercisesById,
     referenceWeightsMap,
+    planCompletionPercentage,
     isCatalogLoading,
     queryError,
     isHistoryLoading,
@@ -125,6 +126,7 @@ export default function SessionPage() {
               isOnline={isOnline}
               stalePlanError={stalePlanError}
               isStartPending={isStartPending}
+              planCompletionPercentage={planCompletionPercentage}
               onStart={(groupId) => void dispatch({ type: 'START', workoutGroupId: groupId })}
               onPreview={(group, planName) => setPreviewGroup({ group, planName })}
             />

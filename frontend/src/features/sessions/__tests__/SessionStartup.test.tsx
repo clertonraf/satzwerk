@@ -34,6 +34,7 @@ const defaultProps = {
   isOnline: true,
   stalePlanError: null,
   isStartPending: false,
+  planCompletionPercentage: null,
   onStart: vi.fn(),
   onPreview: vi.fn(),
 }
@@ -95,5 +96,15 @@ describe('SessionStartup', () => {
   it('shows stale plan error when provided', () => {
     renderStartup({ stalePlanError: 'Plan has changed. Please review.' })
     expect(screen.getByText('Plan has changed. Please review.')).toBeInTheDocument()
+  })
+
+  it('shows the WorkoutPlan completion percentage when available', () => {
+    renderStartup({ planCompletionPercentage: 67 })
+    expect(screen.getByTestId('plan-completion')).toHaveTextContent('WorkoutPlan 67% complete')
+  })
+
+  it('omits the WorkoutPlan completion percentage when unavailable', () => {
+    renderStartup({ planCompletionPercentage: null })
+    expect(screen.queryByTestId('plan-completion')).not.toBeInTheDocument()
   })
 })
