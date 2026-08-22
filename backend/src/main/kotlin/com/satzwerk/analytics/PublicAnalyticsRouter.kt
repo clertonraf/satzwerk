@@ -5,13 +5,10 @@ import com.satzwerk.auth.TokenScope
 import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.RequestContext
 import com.satzwerk.common.handleErrors
-import kotlinx.coroutines.reactor.awaitSingle
+import com.satzwerk.common.requireScope
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpStatus
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
-import org.springframework.security.core.authority.SimpleGrantedAuthority
-import org.springframework.web.reactive.function.server.ServerRequest
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import org.springframework.web.reactive.function.server.coRouter
@@ -30,26 +27,6 @@ private fun parseDate(
     } catch (_: DateTimeParseException) {
         throw BadRequestException("Invalid date for '$param': '$value'. Expected format: yyyy-MM-dd")
     }
-
-/**
- * Checks that the resolved principal holds the required scope authority.
- * Throws [InsufficientScopeException] when the scope is absent.
- *
- * This is the minimal public-principal scope guard introduced for #204.
- * #205 (partner apps) should extend or replace this with a shared abstraction.
- */
-private suspend fun requireScope(
-    request: ServerRequest,
-    scope: String,
-) {
-    val authentication = request.principal().awaitSingle()
-    val authorities =
-        (authentication as? UsernamePasswordAuthenticationToken)
-            ?.authorities ?: emptyList()
-    if (SimpleGrantedAuthority(scope) !in authorities) {
-        throw InsufficientScopeException(scope)
-    }
-}
 
 @Configuration
 class PublicAnalyticsRouter {
