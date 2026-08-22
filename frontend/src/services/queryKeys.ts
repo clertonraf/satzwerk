@@ -37,4 +37,7 @@ export const queryKeys = {
   tokens: {
     all: () => ['tokens'] as const,
   },
+  partnerGrants: {
+    active: () => ['active'] as const,
+  },
 } as const
