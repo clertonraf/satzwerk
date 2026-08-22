@@ -15,6 +15,7 @@ import reactor.core.publisher.Mono
 @EnableWebFluxSecurity
 class SecurityConfig(
     private val jwtAuthenticationWebFilter: JwtAuthenticationWebFilter,
+    private val partnerTokenWebFilter: PartnerTokenWebFilter,
 ) {
     @Bean
     fun securityWebFilterChain(http: ServerHttpSecurity): SecurityWebFilterChain =
@@ -33,7 +34,12 @@ class SecurityConfig(
                     exchange.response.writeWith(Mono.just(body))
                 }
             }
+            // JWT filter: resolves `Authorization: Bearer <jwt>` → first-party user principal.
             .addFilterAt(jwtAuthenticationWebFilter, SecurityWebFiltersOrder.AUTHENTICATION)
+            // Partner filter: resolves `X-App-Token: <opaque>` → partner principal (app+user bound).
+            // Both run at AUTHENTICATION order; they key on different headers so are mutually
+            // exclusive by design — no ordering conflict arises.
+            .addFilterBefore(partnerTokenWebFilter, SecurityWebFiltersOrder.AUTHORIZATION)
             .authorizeExchange {
                 it.pathMatchers("/api/auth/**", "/actuator/**").permitAll()
                 it.anyExchange().authenticated()
