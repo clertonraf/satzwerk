@@ -16,6 +16,7 @@ const Progress = React.forwardRef<
   return (
     <ProgressPrimitive.Root
       ref={ref}
+      value={clamped}
       className={cn(
         "relative h-4 w-full overflow-hidden rounded-full bg-secondary",
         className
@@ -24,7 +25,7 @@ const Progress = React.forwardRef<
     >
       <ProgressPrimitive.Indicator
         className={cn("h-full w-full flex-1 bg-primary transition-all", indicatorClassName)}
-        style={{ transform: `translateX(-${100 - clamped}%)`, ...indicatorStyle }}
+        style={{ ...indicatorStyle, transform: `translateX(-${100 - clamped}%)` }}
       />
     </ProgressPrimitive.Root>
   )

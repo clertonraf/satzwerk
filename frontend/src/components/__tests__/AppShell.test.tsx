@@ -235,6 +235,11 @@ describe('AppShell', () => {
     expect(mobileNav).toHaveTextContent('Settings')
     // Exactly four links — catches future navigationItems drift
     expect(mobileNav.querySelectorAll('a')).toHaveLength(4)
+    const mobileIcons = mobileNav.querySelectorAll('svg')
+    expect(mobileIcons).toHaveLength(4)
+    mobileIcons.forEach((icon) => {
+      expect(icon.className.baseVal || icon.getAttribute('class') || '').toContain('size-5')
+    })
   })
 
   it('mobile bottom navigation does not show Plans, Exercises, History, or Profile items', () => {
@@ -251,7 +256,6 @@ describe('AppShell', () => {
     expect(mobileNav).not.toHaveTextContent('History')
     expect(mobileNav).not.toHaveTextContent('Profile')
   })
-
   it('renders children', () => {
     render(
       <MemoryRouter>
@@ -358,4 +362,3 @@ describe('AppShell', () => {
     expect(document.title).toBe('Workouts | Satzwerk')
   })
 })
-

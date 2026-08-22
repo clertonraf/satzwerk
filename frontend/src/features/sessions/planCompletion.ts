@@ -19,13 +19,22 @@ export function computePlanCompletionPercentage(
   plan: WorkoutPlanDetail,
   history: WorkoutSession[],
 ): number | null {
+  const mostRecentCompletedByGroup = new Map<string, WorkoutSession>()
+
+  for (const session of history) {
+    if (!session.completedAt) continue
+
+    const existing = mostRecentCompletedByGroup.get(session.workoutGroupId)
+    if (!existing || new Date(existing.completedAt!).getTime() < new Date(session.completedAt).getTime()) {
+      mostRecentCompletedByGroup.set(session.workoutGroupId, session)
+    }
+  }
+
   let numerator = 0
   let denominator = 0
 
   for (const group of plan.groups) {
-    const mostRecentCompleted = history
-      .filter((s) => s.workoutGroupId === group.id && s.completedAt != null)
-      .sort((a, b) => new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime())[0]
+    const mostRecentCompleted = mostRecentCompletedByGroup.get(group.id)
 
     if (!mostRecentCompleted) continue
 
