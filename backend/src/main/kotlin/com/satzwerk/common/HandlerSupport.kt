@@ -127,5 +127,9 @@ suspend fun requirePartnerPrincipal(request: ServerRequest): PartnerPrincipal {
     val authentication =
         request.principal().awaitSingle() as? UsernamePasswordAuthenticationToken
             ?: throw UnauthorizedException()
-    return authentication.credentials as? PartnerPrincipal ?: throw UnauthorizedException()
+    return when {
+        authentication.principal is PartnerPrincipal -> authentication.principal as PartnerPrincipal
+        authentication.credentials is PartnerPrincipal -> authentication.credentials as PartnerPrincipal
+        else -> throw UnauthorizedException()
+    }
 }
