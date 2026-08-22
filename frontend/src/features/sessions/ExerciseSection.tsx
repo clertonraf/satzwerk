@@ -16,7 +16,7 @@ import AdvancedTechniqueBadge from '@/features/sessions/AdvancedTechniqueBadge'
 import ExerciseReferenceRow from '@/features/sessions/ExerciseReferenceRow'
 import RestTimer from '@/features/sessions/RestTimer'
 import SetInput from '@/features/sessions/SetInput'
-import { toPounds } from '@/features/sessions/sessionHelpers'
+import { toPounds, setLogCompletionClass } from '@/features/sessions/sessionHelpers'
 import { getAdvancedTechniqueRestSeconds } from '@/features/workouts/advancedTechnique'
 import { cn } from '@/lib/utils'
 import { formatDisplayWeight } from '@/lib/unitFormatters'
@@ -133,9 +133,7 @@ export default function ExerciseSection({
                   key={log.id}
                   className={cn(
                     'rounded-lg border px-3 py-2',
-                    log.reps > exercise.reps && !exercise.toFailure && !log.pending
-                      ? 'border-green-500 bg-green-50 dark:bg-green-950/30'
-                      : 'border-border',
+                    setLogCompletionClass(log.setNumber, exercise.sets, log.pending ?? false),
                     log.pending && 'opacity-60',
                   )}
                 >

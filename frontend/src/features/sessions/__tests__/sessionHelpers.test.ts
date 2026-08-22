@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildGroupStatsMap } from '@/lib/domainBuilders'
-import { computeAvgMinPerExercise, computeSetCompletionPercentage, formatGroupStats, sortGroupOptions } from '../sessionHelpers'
+import { computeAvgMinPerExercise, computeSetCompletionPercentage, formatGroupStats, setLogCompletionClass, sortGroupOptions } from '../sessionHelpers'
 import type { WorkoutGroupCatalogEntry } from '@/lib/domainBuilders'
 import type { WorkoutPlanDetail } from '@/services/planService'
 import type { WorkoutSession } from '@/services/sessionService'
@@ -193,5 +193,40 @@ describe('computeAvgMinPerExercise', () => {
 
   it('returns the full duration when there is 1 exercise', () => {
     expect(computeAvgMinPerExercise(45, 1)).toBe(45)
+  })
+})
+
+describe('setLogCompletionClass', () => {
+  // targetSets = 4, so threshold = 2
+  it('returns red classes for set 1 of 4 (low completion)', () => {
+    expect(setLogCompletionClass(1, 4, false)).toMatch(/red/)
+  })
+
+  it('returns amber classes for set 2 of 4 (mid completion, exactly at half)', () => {
+    expect(setLogCompletionClass(2, 4, false)).toMatch(/amber/)
+  })
+
+  it('returns amber classes for set 3 of 4 (mid completion)', () => {
+    expect(setLogCompletionClass(3, 4, false)).toMatch(/amber/)
+  })
+
+  it('returns green classes for set 4 of 4 (full completion)', () => {
+    expect(setLogCompletionClass(4, 4, false)).toMatch(/green/)
+  })
+
+  it('returns green classes for set 5 of 4 (over-target)', () => {
+    expect(setLogCompletionClass(5, 4, false)).toMatch(/green/)
+  })
+
+  it('returns neutral border when pending regardless of setNumber', () => {
+    expect(setLogCompletionClass(4, 4, true)).toBe('border-border')
+  })
+
+  it('returns neutral border when targetSets is 0', () => {
+    expect(setLogCompletionClass(1, 0, false)).toBe('border-border')
+  })
+
+  it('returns neutral border when targetSets is negative', () => {
+    expect(setLogCompletionClass(1, -1, false)).toBe('border-border')
   })
 })

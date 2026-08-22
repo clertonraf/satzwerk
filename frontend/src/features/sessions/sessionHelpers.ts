@@ -94,3 +94,20 @@ export function computeSetCompletionPercentage(
   if (totalTargetSets <= 0) return null
   return Math.round((setCount / totalTargetSets) * 100)
 }
+
+/**
+ * Returns Tailwind class strings for a logged-set row based on how far through
+ * the target set count the given set number is. Pending logs always get the
+ * neutral border so the syncing treatment is not obscured.
+ *
+ * Bands (set index is 1-based):
+ *   - setNumber >= targetSets  →  green  (full/over completion)
+ *   - setNumber >= targetSets / 2  →  amber  (mid completion)
+ *   - otherwise  →  red  (low completion)
+ */
+export function setLogCompletionClass(setNumber: number, targetSets: number, pending: boolean): string {
+  if (pending || targetSets <= 0) return 'border-border'
+  if (setNumber >= targetSets) return 'border-green-500 bg-green-50 dark:bg-green-950/30'
+  if (setNumber >= targetSets / 2) return 'border-amber-400 bg-amber-50 dark:bg-amber-950/30'
+  return 'border-red-400 bg-red-50 dark:bg-red-950/30'
+}
