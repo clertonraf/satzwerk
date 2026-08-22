@@ -82,7 +82,7 @@ class PartnerTokenWebFilter(
                 chain.filter(exchange)
                     .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authentication))
             }
-            .switchIfEmpty(unauthorized(exchange))
+            .switchIfEmpty(Mono.defer { unauthorized(exchange) })
     }
 
     private fun unauthorized(exchange: ServerWebExchange): Mono<Void> {
