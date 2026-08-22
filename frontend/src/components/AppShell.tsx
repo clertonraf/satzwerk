@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
 import { Dumbbell, Heart, Home, MoonStar, Settings, SunMedium } from 'lucide-react'
 import { NavLink, useLocation, useMatch } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -77,8 +77,8 @@ export default function AppShell({ children }: AppShellProps) {
           </div>
 
           <nav aria-label="Desktop navigation" className="flex flex-1 flex-col gap-2 p-4">
-            {navigationItems.map(({ to, label, icon: Icon }) => (
-              <NavItem key={to} to={to} label={label} icon={<Icon className="size-4" />} />
+            {navigationItems.map(({ to, label, icon }) => (
+              <NavItem key={to} to={to} label={label} icon={icon} />
             ))}
           </nav>
         </aside>
@@ -110,8 +110,8 @@ export default function AppShell({ children }: AppShellProps) {
         className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 px-2 py-2 backdrop-blur md:hidden dark:bg-background/95"
       >
         <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
-          {navigationItems.map(({ to, label, icon: Icon }) => (
-            <NavItem key={to} to={to} label={label} icon={<Icon className="size-5" />} compact />
+          {navigationItems.map(({ to, label, icon }) => (
+            <NavItem key={to} to={to} label={label} icon={icon} compact />
           ))}
         </div>
       </nav>
@@ -121,12 +121,12 @@ export default function AppShell({ children }: AppShellProps) {
 
 interface NavItemProps {
   compact?: boolean
-  icon: ReactNode
+  icon: ComponentType<{ className?: string }>
   label: string
   to: string
 }
 
-function NavItem({ compact = false, icon, label, to }: NavItemProps) {
+function NavItem({ compact = false, icon: Icon, label, to }: NavItemProps) {
   return (
     <NavLink
       to={to}
@@ -141,7 +141,9 @@ function NavItem({ compact = false, icon, label, to }: NavItemProps) {
         )
       }
     >
-      <span aria-hidden="true">{icon}</span>
+      <span aria-hidden="true">
+        <Icon className={compact ? 'size-5' : 'size-4'} />
+      </span>
       <span>{label}</span>
     </NavLink>
   )

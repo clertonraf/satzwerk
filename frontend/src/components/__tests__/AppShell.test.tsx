@@ -220,6 +220,23 @@ describe('AppShell', () => {
     expect(mobileNav).toHaveTextContent('Settings')
   })
 
+  it('mobile bottom navigation renders all four navigation items (Dashboard, Workouts, Health, Settings)', () => {
+    render(
+      <MemoryRouter>
+        <AppShell>
+          <div>content</div>
+        </AppShell>
+      </MemoryRouter>
+    )
+    const mobileNav = screen.getByRole('navigation', { name: /main navigation/i })
+    expect(mobileNav).toHaveTextContent('Dashboard')
+    expect(mobileNav).toHaveTextContent('Workouts')
+    expect(mobileNav).toHaveTextContent('Health')
+    expect(mobileNav).toHaveTextContent('Settings')
+    // Exactly four links — catches future navigationItems drift
+    expect(mobileNav.querySelectorAll('a')).toHaveLength(4)
+  })
+
   it('mobile bottom navigation does not show Plans, Exercises, History, or Profile items', () => {
     render(
       <MemoryRouter>
