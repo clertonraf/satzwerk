@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
 import { Dumbbell, Heart, Home, MoonStar, Settings, SunMedium } from 'lucide-react'
 import { NavLink, useLocation, useMatch } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,17 @@ const navigationItems = [
   { to: '/health', label: 'Health', icon: Heart },
   { to: '/settings', label: 'Settings', icon: Settings },
 ] as const
+
+const navigationPresentation = {
+  desktop: {
+    itemClassName: 'gap-3 px-4 py-3',
+    iconClassName: 'size-4',
+  },
+  mobile: {
+    itemClassName: 'flex-col gap-1 px-2 py-2 text-xs',
+    iconClassName: 'size-5',
+  },
+} as const
 
 const PAGE_TITLES: Record<string, string> = {
   ...Object.fromEntries(navigationItems.map(({ to, label }) => [to, label])),
@@ -77,8 +88,8 @@ export default function AppShell({ children }: AppShellProps) {
           </div>
 
           <nav aria-label="Desktop navigation" className="flex flex-1 flex-col gap-2 p-4">
-            {navigationItems.map(({ to, label, icon: Icon }) => (
-              <NavItem key={to} to={to} label={label} icon={<Icon className="size-4" />} />
+            {navigationItems.map(({ to, label, icon }) => (
+              <NavItem key={to} to={to} label={label} icon={icon} />
             ))}
           </nav>
         </aside>
@@ -110,8 +121,8 @@ export default function AppShell({ children }: AppShellProps) {
         className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 px-2 py-2 backdrop-blur md:hidden dark:bg-background/95"
       >
         <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
-          {navigationItems.map(({ to, label, icon: Icon }) => (
-            <NavItem key={to} to={to} label={label} icon={<Icon className="size-5" />} compact />
+          {navigationItems.map(({ to, label, icon }) => (
+            <NavItem key={to} to={to} label={label} icon={icon} compact />
           ))}
         </div>
       </nav>
@@ -121,12 +132,14 @@ export default function AppShell({ children }: AppShellProps) {
 
 interface NavItemProps {
   compact?: boolean
-  icon: ReactNode
+  icon: ComponentType<{ className?: string }>
   label: string
   to: string
 }
 
-function NavItem({ compact = false, icon, label, to }: NavItemProps) {
+function NavItem({ compact = false, icon: Icon, label, to }: NavItemProps) {
+  const variant = compact ? navigationPresentation.mobile : navigationPresentation.desktop
+
   return (
     <NavLink
       to={to}
@@ -134,14 +147,16 @@ function NavItem({ compact = false, icon, label, to }: NavItemProps) {
       className={({ isActive }) =>
         cn(
           'flex items-center rounded-xl text-sm font-medium transition-colors',
-          compact ? 'flex-col gap-1 px-2 py-2 text-xs' : 'gap-3 px-4 py-3',
+          variant.itemClassName,
           isActive
             ? 'bg-primary text-primary-foreground shadow-sm'
             : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
         )
       }
     >
-      <span aria-hidden="true">{icon}</span>
+      <span aria-hidden="true">
+        <Icon className={variant.iconClassName} />
+      </span>
       <span>{label}</span>
     </NavLink>
   )
