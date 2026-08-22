@@ -107,7 +107,7 @@ export default function SettingsPage() {
   }
 
   // Connected Apps state (#205)
-  const { data: activeGrants = [], isLoading: grantsLoading } = useQuery({
+  const { data: activeGrants = [], isLoading: grantsLoading, isError: grantsError } = useQuery({
     queryKey: queryKeys.partnerGrants.active(),
     queryFn: () => partnerGrantsApi.listActiveGrants(),
   })
@@ -273,7 +273,10 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             {grantsLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
-            {!grantsLoading && activeGrants.length === 0 && (
+            {!grantsLoading && grantsError && (
+              <p className="text-sm text-destructive">Failed to load connected apps. Please try again.</p>
+            )}
+            {!grantsLoading && !grantsError && activeGrants.length === 0 && (
               <p className="text-sm text-muted-foreground">No connected apps.</p>
             )}
             {activeGrants.map((grant) => (

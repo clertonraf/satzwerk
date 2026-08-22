@@ -1,5 +1,6 @@
 package com.satzwerk.partners
 
+import com.satzwerk.auth.TokenScope
 import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.ForbiddenException
@@ -13,15 +14,7 @@ import java.security.SecureRandom
 import java.time.Instant
 import java.util.UUID
 
-private val ALLOWED_SCOPES =
-    setOf(
-        "exercises:read", "exercises:write",
-        "plans:read", "plans:write",
-        "sessions:read", "sessions:write",
-        "analytics:read",
-        "measurements:read", "measurements:write",
-        "medications:read", "medications:write",
-    )
+private val ALLOWED_SCOPES = TokenScope.all
 
 @Service
 class PartnerAppService(

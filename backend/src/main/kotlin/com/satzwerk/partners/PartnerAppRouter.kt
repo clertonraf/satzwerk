@@ -5,6 +5,7 @@ import com.satzwerk.common.ConflictException
 import com.satzwerk.common.ForbiddenException
 import com.satzwerk.common.body
 import com.satzwerk.common.handleErrors
+import com.satzwerk.common.requireJwtSession
 import com.satzwerk.common.validateOrBadRequest
 import com.satzwerk.config.APP_TOKEN_HEADER
 import jakarta.validation.Validator
@@ -33,6 +34,7 @@ class PartnerAppRouter {
                     request,
                     extra = mapOf(ConflictException::class to HttpStatus.CONFLICT),
                 ) { ctx ->
+                    requireJwtSession(request)
                     val body = ctx.body<RegisterPartnerAppRequest>()
                     validateOrBadRequest(validator, body) {
                         val result = service.registerApp(body)
@@ -40,8 +42,9 @@ class PartnerAppRouter {
                     }
                 }
             }
-            GET("") { _ ->
+            GET("") { request ->
                 handleErrors {
+                    requireJwtSession(request)
                     ServerResponse.ok().bodyValueAndAwait(service.listApps())
                 }
             }
@@ -76,6 +79,7 @@ class PartnerAppRouter {
                     request,
                     extra = mapOf(ConflictException::class to HttpStatus.CONFLICT),
                 ) { ctx ->
+                    requireJwtSession(request)
                     val userId = ctx.userId()
                     val body = ctx.body<GrantAppAccessRequest>()
                     validateOrBadRequest(validator, body) {
@@ -86,6 +90,7 @@ class PartnerAppRouter {
             }
             GET("") { request ->
                 handleErrors(request) { ctx ->
+                    requireJwtSession(request)
                     ServerResponse.ok().bodyValueAndAwait(service.listActiveGrants(ctx.userId()))
                 }
             }
@@ -94,6 +99,7 @@ class PartnerAppRouter {
                     request,
                     extra = mapOf(BadRequestException::class to HttpStatus.BAD_REQUEST),
                 ) { ctx ->
+                    requireJwtSession(request)
                     service.revokeGrant(ctx.userId(), ctx.pathId("grantId"))
                     ServerResponse.noContent().buildAndAwait()
                 }

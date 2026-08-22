@@ -25,8 +25,9 @@ private const val PARTNER_PROBE_PATH = "/api/partner-grants/me"
  * so presenting a partner token to a management route yields 401 from the security chain.
  *
  * On success, places a [UsernamePasswordAuthenticationToken] whose:
- * - **principal** = consenting-user UUID string → [com.satzwerk.common.RequestContext.userId] ✓
- * - **credentials** = [PartnerPrincipal] → app/scope context for callers that need it
+ * - **principal** = [PartnerPrincipal] whose `name` is the consenting-user UUID string
+ *   → [com.satzwerk.common.RequestContext.userId] works unchanged
+ * - **credentials** = opaque app token string (not used downstream)
  * - **authorities** = raw scope strings (e.g. `"exercises:read"`) — no `SCOPE_` prefix,
  *   aligned with the shared convention in ADR-0005 / #204.
  *
@@ -70,9 +71,8 @@ class PartnerTokenWebFilter(
                     val authentication =
                         UsernamePasswordAuthenticationToken(
                             // principal.name == userId UUID string; RequestContext.userId() parses it ✓
-                            grant.userId.toString(),
-                            // credentials carry full partner context (appId, grantId, scopes)
                             partnerPrincipal,
+                            rawToken,
                             scopeAuthorities,
                         )
                     chain.filter(exchange)
