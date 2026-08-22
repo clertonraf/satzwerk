@@ -1,5 +1,6 @@
 package com.satzwerk.workouts
 
+import com.satzwerk.common.ConflictException
 import com.satzwerk.common.ErrorResponse
 import com.satzwerk.common.RequestContext
 import com.satzwerk.common.body
@@ -26,6 +27,9 @@ private val webClientErrors: Map<KClass<out Throwable>, HttpStatus> =
         WebClientResponseException::class to HttpStatus.SERVICE_UNAVAILABLE,
     )
 
+private val workoutPlanErrors: Map<KClass<out Throwable>, HttpStatus> =
+    webClientErrors + mapOf(ConflictException::class to HttpStatus.CONFLICT)
+
 @Configuration
 class WorkoutPlanRouter {
     @Bean
@@ -50,13 +54,13 @@ private fun CoRouterFunctionDsl.planCrudRoutes(
     validator: Validator,
 ) {
     GET("") { request ->
-        handleErrors(extra = webClientErrors) {
+        handleErrors(extra = workoutPlanErrors) {
             val ctx = RequestContext(request)
             ServerResponse.ok().bodyValueAndAwait(workoutPlanService.list(ctx.userId()))
         }
     }
     POST("") { request ->
-        handleErrors(extra = webClientErrors) {
+        handleErrors(extra = workoutPlanErrors) {
             val ctx = RequestContext(request)
             val body = ctx.body<CreatePlanRequest>()
             validateOrBadRequest(validator, body) {
@@ -68,7 +72,7 @@ private fun CoRouterFunctionDsl.planCrudRoutes(
     }
     planImportRoute(planImportService)
     GET("/{planId}") { request ->
-        handleErrors(extra = webClientErrors) {
+        handleErrors(extra = workoutPlanErrors) {
             val ctx = RequestContext(request)
             ServerResponse.ok().bodyValueAndAwait(
                 workoutPlanService.getDetail(ctx.userId(), ctx.pathId("planId")),
@@ -76,7 +80,7 @@ private fun CoRouterFunctionDsl.planCrudRoutes(
         }
     }
     PATCH("/{planId}") { request ->
-        handleErrors(extra = webClientErrors) {
+        handleErrors(extra = workoutPlanErrors) {
             val ctx = RequestContext(request)
             val body = ctx.body<UpdatePlanRequest>()
             validateOrBadRequest(validator, body) {
@@ -87,14 +91,14 @@ private fun CoRouterFunctionDsl.planCrudRoutes(
         }
     }
     DELETE("/{planId}") { request ->
-        handleErrors(extra = webClientErrors) {
+        handleErrors(extra = workoutPlanErrors) {
             val ctx = RequestContext(request)
             workoutPlanService.delete(ctx.userId(), ctx.pathId("planId"))
             ServerResponse.noContent().buildAndAwait()
         }
     }
     POST("/{planId}/activate") { request ->
-        handleErrors(extra = webClientErrors) {
+        handleErrors(extra = workoutPlanErrors) {
             val ctx = RequestContext(request)
             workoutPlanService.activate(ctx.userId(), ctx.pathId("planId"))
             ServerResponse.noContent().buildAndAwait()

@@ -1,8 +1,10 @@
 package com.satzwerk.workouts
 
+import com.satzwerk.common.ConflictException
 import com.satzwerk.common.NotFoundException
 import com.satzwerk.common.Owned
 import com.satzwerk.common.assertOwner
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -93,7 +95,11 @@ class WorkoutPlanService(
             .forEach { activePlan ->
                 workoutPlanRepository.save(activePlan.copy(isActive = false, activatedAt = null, updatedAt = now))
             }
-        workoutPlanRepository.save(plan.copy(isActive = true, activatedAt = now, updatedAt = now))
+        try {
+            workoutPlanRepository.save(plan.copy(isActive = true, activatedAt = now, updatedAt = now))
+        } catch (_: DataIntegrityViolationException) {
+            throw ConflictException("Another WorkoutPlan was activated concurrently")
+        }
     }
 
     suspend fun getRequiredPlan(

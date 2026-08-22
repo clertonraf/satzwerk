@@ -34,4 +34,10 @@ export const queryKeys = {
     analytics: (id: string, granularity: string) => ['medication-analytics', id, granularity] as const,
     journal: (from: string, to: string) => ['medication-journal', from, to] as const,
   },
+  tokens: {
+    all: () => ['tokens'] as const,
+  },
+  partnerGrants: {
+    active: () => ['active'] as const,
+  },
 } as const
