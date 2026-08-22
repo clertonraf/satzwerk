@@ -20,6 +20,7 @@ import {
   personalApiTokenService,
   type TokenScope,
 } from '@/services/personalApiTokenService'
+import { partnerGrantsApi } from '@/services/partnerGrantsApi'
 import { queryKeys } from '@/services/queryKeys'
 
 export default function SettingsPage() {
@@ -31,7 +32,7 @@ export default function SettingsPage() {
   const [importError, setImportError] = useState<string | null>(null)
   const [importSummary, setImportSummary] = useState<ImportSummaryResponse | null>(null)
 
-  // Token management state
+  // Personal API token management state (#204)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [newTokenName, setNewTokenName] = useState('')
   const [selectedScopes, setSelectedScopes] = useState<Set<TokenScope>>(new Set())
@@ -61,7 +62,7 @@ export default function SettingsPage() {
     },
   })
 
-  const revokeMutation = useMutation({
+  const revokeTokenMutation = useMutation({
     mutationFn: (id: string) => personalApiTokenService.revoke(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tokens.all() })
@@ -104,6 +105,17 @@ export default function SettingsPage() {
     setTokenError(null)
     createMutation.mutate({ name: newTokenName.trim(), scopes: [...selectedScopes] })
   }
+
+  // Connected Apps state (#205)
+  const { data: activeGrants = [], isLoading: grantsLoading } = useQuery({
+    queryKey: queryKeys.partnerGrants.active(),
+    queryFn: () => partnerGrantsApi.listActiveGrants(),
+  })
+
+  const revokeGrantMutation = useMutation({
+    mutationFn: (grantId: string) => partnerGrantsApi.revokeGrant(grantId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.partnerGrants.active() }),
+  })
 
   async function handleExport() {
     setExportError(null)
@@ -203,6 +215,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Personal API Tokens — from #204 */}
         <Card className="border-border bg-card/90 shadow-sm">
           <CardHeader>
             <CardTitle>Personal API Tokens</CardTitle>
@@ -247,6 +260,45 @@ export default function SettingsPage() {
                   </li>
                 ))}
               </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Connected Apps — from #205 */}
+        <Card className="border-border bg-card/90 shadow-sm">
+          <CardHeader>
+            <CardTitle>Connected Apps</CardTitle>
+            <CardDescription>
+              Third-party apps you have authorised to access your Satzwerk data.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {grantsLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+            {!grantsLoading && activeGrants.length === 0 && (
+              <p className="text-sm text-muted-foreground">No connected apps.</p>
+            )}
+            {activeGrants.map((grant) => (
+              <div
+                key={grant.grantId}
+                className="flex items-center justify-between py-2 border-b border-border last:border-0"
+              >
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">{grant.appName}</p>
+                  <p className="text-xs text-muted-foreground">{grant.grantedScopes}</p>
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={revokeGrantMutation.isPending}
+                  onClick={() => revokeGrantMutation.mutate(grant.grantId)}
+                  aria-label={`Revoke access for ${grant.appName}`}
+                >
+                  Revoke
+                </Button>
+              </div>
+            ))}
+            {revokeGrantMutation.isError && (
+              <p className="text-sm text-destructive mt-2">Failed to revoke access. Please try again.</p>
             )}
           </CardContent>
         </Card>
@@ -356,7 +408,7 @@ export default function SettingsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Revoke confirmation dialog */}
+      {/* Revoke token confirmation dialog */}
       <Dialog open={revokeConfirmId !== null} onOpenChange={(open) => !open && setRevokeConfirmId(null)}>
         <DialogContent>
           <DialogHeader>
@@ -369,17 +421,17 @@ export default function SettingsPage() {
             <Button
               variant="outline"
               onClick={() => setRevokeConfirmId(null)}
-              disabled={revokeMutation.isPending}
+              disabled={revokeTokenMutation.isPending}
             >
               Cancel
             </Button>
             <Button
               variant="outline"
-              onClick={() => revokeConfirmId && revokeMutation.mutate(revokeConfirmId)}
-              disabled={revokeMutation.isPending}
+              onClick={() => revokeConfirmId && revokeTokenMutation.mutate(revokeConfirmId)}
+              disabled={revokeTokenMutation.isPending}
               aria-label="Confirm revoke"
             >
-              {revokeMutation.isPending ? 'Revoking…' : 'Revoke'}
+              {revokeTokenMutation.isPending ? 'Revoking…' : 'Revoke'}
             </Button>
           </DialogFooter>
         </DialogContent>

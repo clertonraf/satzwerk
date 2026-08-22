@@ -2,9 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import axios from 'axios'
 import SettingsPage from '../SettingsPage'
 import { exportService } from '@/services/exportService'
+import { partnerGrantsApi } from '@/services/partnerGrantsApi'
+import { personalApiTokenService } from '@/services/personalApiTokenService'
 
 vi.mock('@/services/exportService', () => ({
   exportService: {
@@ -13,8 +16,27 @@ vi.mock('@/services/exportService', () => ({
   },
 }))
 
+vi.mock('@/services/partnerGrantsApi', () => ({
+  partnerGrantsApi: {
+    listActiveGrants: vi.fn(),
+    revokeGrant: vi.fn(),
+  },
+}))
+
+vi.mock('@/services/personalApiTokenService', () => ({
+  personalApiTokenService: {
+    list: vi.fn(),
+    create: vi.fn(),
+    revoke: vi.fn(),
+  },
+  ALL_SCOPES: ['exercises:read', 'plans:read'],
+}))
+
 const mockDownload = exportService.downloadExport as ReturnType<typeof vi.fn>
 const mockImport = exportService.importData as ReturnType<typeof vi.fn>
+const mockListGrants = partnerGrantsApi.listActiveGrants as ReturnType<typeof vi.fn>
+const mockRevokeGrant = partnerGrantsApi.revokeGrant as ReturnType<typeof vi.fn>
+const mockListTokens = personalApiTokenService.list as ReturnType<typeof vi.fn>
 
 const IMPORT_SUMMARY = {
   importedExercises: 5,
@@ -28,10 +50,13 @@ const IMPORT_SUMMARY = {
 }
 
 function renderPage() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <MemoryRouter>
-      <SettingsPage />
-    </MemoryRouter>
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <SettingsPage />
+      </MemoryRouter>
+    </QueryClientProvider>
   )
 }
 
@@ -39,6 +64,12 @@ describe('SettingsPage', () => {
   beforeEach(() => {
     mockDownload.mockReset()
     mockImport.mockReset()
+    mockListGrants.mockReset()
+    mockRevokeGrant.mockReset()
+    mockListTokens.mockReset()
+    // Default: empty lists
+    mockListGrants.mockResolvedValue([])
+    mockListTokens.mockResolvedValue([])
   })
 
   it('renders export button and file input', () => {
@@ -158,5 +189,76 @@ describe('SettingsPage', () => {
     await user.click(confirmButton)
 
     expect(await screen.findByText(/failed to import/i)).toBeInTheDocument()
+  })
+})
+
+describe('SettingsPage — Connected Apps', () => {
+  beforeEach(() => {
+    mockDownload.mockReset()
+    mockImport.mockReset()
+    mockListGrants.mockReset()
+    mockRevokeGrant.mockReset()
+    mockListTokens.mockReset()
+    mockListTokens.mockResolvedValue([])
+  })
+
+  it('shows "No connected apps" when the grant list is empty', async () => {
+    mockListGrants.mockResolvedValue([])
+    renderPage()
+    expect(await screen.findByText(/no connected apps/i)).toBeInTheDocument()
+  })
+
+  it('renders active grants with app name, scopes, and revoke button', async () => {
+    mockListGrants.mockResolvedValue([
+      {
+        grantId: 'grant-1',
+        appId: 'app-1',
+        appName: 'My Partner App',
+        grantedScopes: 'exercises:read',
+        grantedAt: '2024-01-01T00:00:00Z',
+      },
+    ])
+    renderPage()
+    expect(await screen.findByText('My Partner App')).toBeInTheDocument()
+    expect(screen.getByText('exercises:read')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /revoke access for my partner app/i })).toBeInTheDocument()
+  })
+
+  it('calls revokeGrant and refreshes list on revoke', async () => {
+    const user = userEvent.setup()
+    mockListGrants.mockResolvedValue([
+      {
+        grantId: 'grant-1',
+        appId: 'app-1',
+        appName: 'My Partner App',
+        grantedScopes: 'exercises:read',
+        grantedAt: '2024-01-01T00:00:00Z',
+      },
+    ])
+    mockRevokeGrant.mockResolvedValue(undefined)
+
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: /revoke access for my partner app/i }))
+
+    await waitFor(() => expect(mockRevokeGrant).toHaveBeenCalledWith('grant-1'))
+  })
+
+  it('shows error message when revoke fails', async () => {
+    const user = userEvent.setup()
+    mockListGrants.mockResolvedValue([
+      {
+        grantId: 'grant-1',
+        appId: 'app-1',
+        appName: 'Broken App',
+        grantedScopes: 'plans:read',
+        grantedAt: '2024-01-01T00:00:00Z',
+      },
+    ])
+    mockRevokeGrant.mockRejectedValue(new Error('Network error'))
+
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: /revoke access for broken app/i }))
+
+    expect(await screen.findByText(/failed to revoke access/i)).toBeInTheDocument()
   })
 })

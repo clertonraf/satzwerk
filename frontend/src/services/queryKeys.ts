@@ -37,4 +37,7 @@ export const queryKeys = {
   tokens: {
     all: () => ['personal-api-tokens'] as const,
   },
+  partnerGrants: {
+    active: () => ['partner-grants-active'] as const,
+  },
 } as const
