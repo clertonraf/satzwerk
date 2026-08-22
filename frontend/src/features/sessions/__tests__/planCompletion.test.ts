@@ -39,18 +39,29 @@ const makePlan = (overrides: Partial<WorkoutPlanDetail> = {}): WorkoutPlanDetail
   ...overrides,
 })
 
-const makeSession = (overrides: Partial<WorkoutSession> = {}): WorkoutSession => ({
-  id: 'session-1',
-  workoutGroupId: 'group-1',
-  workoutGroupTitle: 'Push Day',
-  startedAt: '2026-06-01T10:00:00Z',
-  completedAt: '2026-06-01T11:00:00Z',
-  notes: null,
-  setLogs: [],
-  setCount: 4,
-  exerciseCount: 1,
-  ...overrides,
-})
+const makeSession = (overrides: Partial<WorkoutSession> = {}): WorkoutSession => {
+  const setLogs = overrides.setLogs ?? Array.from({ length: overrides.setCount ?? 4 }, (_, index) => ({
+    id: `log-${index + 1}`,
+    exerciseId: 'exercise-1',
+    setNumber: index + 1,
+    weight: 80,
+    reps: 8,
+    loggedAt: '2026-06-01T10:00:00Z',
+  }))
+
+  return {
+    id: 'session-1',
+    workoutGroupId: 'group-1',
+    workoutGroupTitle: 'Push Day',
+    startedAt: '2026-06-01T10:00:00Z',
+    completedAt: '2026-06-01T11:00:00Z',
+    notes: null,
+    exerciseCount: 1,
+    ...overrides,
+    setLogs,
+    setCount: setLogs.length,
+  }
+}
 
 describe('computePlanCompletionPercentage', () => {
   it('returns null when no WorkoutGroups have been executed', () => {
