@@ -5,6 +5,8 @@ import com.satzwerk.auth.PersonalApiToken
 import com.satzwerk.auth.PersonalApiTokenService
 import kotlinx.coroutines.reactor.mono
 import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.Authentication
 import org.springframework.security.core.authority.SimpleGrantedAuthority
@@ -41,6 +43,7 @@ class JwtAuthenticationWebFilter(
             bearerToken.startsWith(PAT_PREFIX) ->
                 mono { personalApiTokenService.resolve(bearerToken) }
                     .flatMap { pat -> chainMono.withPatAuth(pat, bearerToken) }
+                    .switchIfEmpty(Mono.defer { unauthorized(exchange) })
             else -> chainMono.withJwtAuth(bearerToken)
         }
     }
@@ -71,6 +74,16 @@ class JwtAuthenticationWebFilter(
         } catch (_: Exception) {
             null
         }
+
+    private fun unauthorized(exchange: ServerWebExchange): Mono<Void> {
+        exchange.response.statusCode = HttpStatus.UNAUTHORIZED
+        exchange.response.headers.remove(HttpHeaders.WWW_AUTHENTICATE)
+        exchange.response.headers.contentType = MediaType.APPLICATION_JSON
+        val body =
+            exchange.response.bufferFactory()
+                .wrap("""{"message":"Unauthorized","error":"Unauthorized"}""".toByteArray(Charsets.UTF_8))
+        return exchange.response.writeWith(Mono.just(body))
+    }
 }
 
 private fun extractBearerToken(exchange: ServerWebExchange): String =
