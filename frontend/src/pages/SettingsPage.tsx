@@ -213,7 +213,6 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <Button onClick={handleOpenCreateDialog}>Create token</Button>
-            {tokenError && <p className="text-sm text-destructive">{tokenError}</p>}
             {tokensQuery.isLoading && <p className="text-sm text-muted-foreground">Loading tokens…</p>}
             {tokensQuery.data && tokensQuery.data.length === 0 && (
               <p className="text-sm text-muted-foreground">No active tokens.</p>
