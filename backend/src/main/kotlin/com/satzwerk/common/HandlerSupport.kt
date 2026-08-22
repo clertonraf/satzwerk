@@ -2,6 +2,7 @@ package com.satzwerk.common
 
 import com.satzwerk.auth.InsufficientScopeException
 import com.satzwerk.config.AUTHORITY_JWT_SESSION
+import com.satzwerk.partners.PartnerPrincipal
 import jakarta.validation.Validator
 import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.http.HttpStatus
@@ -106,10 +107,11 @@ class UnauthorizedException : RuntimeException("JWT session required")
 
 /**
  * Checks that the resolved principal holds the required scope authority.
- * Throws [InsufficientScopeException] when the scope is absent.
+ * Works for both personal-token and partner-app principals — both encode scopes
+ * as [SimpleGrantedAuthority] entries on the [UsernamePasswordAuthenticationToken].
+ * Shared across all public routes under `/api/public`.
  *
- * Shared across all public read routers under `/api/public`.
- * Accepts both personal API tokens and partner app tokens.
+ * Throws [InsufficientScopeException] (→ 403) when the scope is absent.
  */
 suspend fun requireScope(
     request: ServerRequest,
@@ -121,5 +123,16 @@ suspend fun requireScope(
             ?.authorities ?: emptyList()
     if (SimpleGrantedAuthority(scope) !in authorities) {
         throw InsufficientScopeException(scope)
+    }
+}
+
+suspend fun requirePartnerPrincipal(request: ServerRequest): PartnerPrincipal {
+    val authentication =
+        request.principal().awaitSingle() as? UsernamePasswordAuthenticationToken
+            ?: throw UnauthorizedException()
+    return when {
+        authentication.principal is PartnerPrincipal -> authentication.principal as PartnerPrincipal
+        authentication.credentials is PartnerPrincipal -> authentication.credentials as PartnerPrincipal
+        else -> throw UnauthorizedException()
     }
 }

@@ -3,6 +3,9 @@ package com.satzwerk.config
 import com.satzwerk.partners.PartnerAppService
 import com.satzwerk.partners.PartnerPrincipal
 import kotlinx.coroutines.reactor.mono
+import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.ReactiveSecurityContextHolder
@@ -14,10 +17,10 @@ import reactor.core.publisher.Mono
 
 internal const val APP_TOKEN_HEADER = "X-App-Token"
 
-/** The only path a partner token is permitted to authenticate. */
+/** The exact probe path where a partner token may be presented. */
 private const val PARTNER_PROBE_PATH = "/api/partner-grants/me"
 
-/** Path prefix for all public read surfaces where partner tokens are also accepted. */
+/** Path prefix for public API routes that also accept partner tokens. */
 private const val PUBLIC_API_PREFIX = "/api/public/"
 
 /**
@@ -28,13 +31,12 @@ private const val PUBLIC_API_PREFIX = "/api/public/"
  * so presenting a partner token to a management route yields 401 from the security chain.
  *
  * On success, places a [UsernamePasswordAuthenticationToken] whose:
- * - **principal** = [PartnerPrincipal] whose `name` is the consenting-user UUID string
- *   → [com.satzwerk.common.RequestContext.userId] works unchanged
- * - **credentials** = opaque app token string (not used downstream)
+ * - **principal** = [PartnerPrincipal] whose `name` is the consenting-user UUID string;
+ *   cast to [PartnerPrincipal] for app/grant context via [com.satzwerk.common.requirePartnerPrincipal]
  * - **authorities** = raw scope strings (e.g. `"exercises:read"`) — no `SCOPE_` prefix,
  *   aligned with the shared convention in ADR-0005 / #204.
  *
- * Revoked or unknown tokens produce no authentication; the security chain returns 401.
+ * Revoked or unknown tokens return the same JSON 401 shape as the security entry point.
  */
 @Component
 class PartnerTokenWebFilter(
@@ -58,31 +60,37 @@ class PartnerTokenWebFilter(
 
         return mono { partnerAppService.resolveActiveGrant(rawToken) }
             .flatMap { grant ->
-                if (grant == null) {
-                    chain.filter(exchange)
-                } else {
-                    val partnerPrincipal =
-                        PartnerPrincipal(
-                            userId = grant.userId.toString(),
-                            appId = grant.appId.toString(),
-                            grantId = requireNotNull(grant.id).toString(),
-                            grantedScopes = grant.grantedScopes,
-                        )
-                    val scopeAuthorities =
-                        grant.grantedScopes
-                            .split(" ")
-                            .filter { it.isNotBlank() }
-                            .map { SimpleGrantedAuthority(it) }
-                    val authentication =
-                        UsernamePasswordAuthenticationToken(
-                            // principal.name == userId UUID string; RequestContext.userId() parses it ✓
-                            partnerPrincipal,
-                            rawToken,
-                            scopeAuthorities,
-                        )
-                    chain.filter(exchange)
-                        .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authentication))
-                }
+                val partnerPrincipal =
+                    PartnerPrincipal(
+                        userId = grant.userId.toString(),
+                        appId = grant.appId.toString(),
+                        grantId = requireNotNull(grant.id).toString(),
+                        grantedScopes = grant.grantedScopes,
+                    )
+                val scopeAuthorities =
+                    grant.grantedScopes
+                        .split(" ")
+                        .filter { it.isNotBlank() }
+                        .map { SimpleGrantedAuthority(it) }
+                val authentication =
+                    UsernamePasswordAuthenticationToken(
+                        partnerPrincipal,
+                        "",
+                        scopeAuthorities,
+                    )
+                chain.filter(exchange)
+                    .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authentication))
             }
+            .switchIfEmpty(Mono.defer { unauthorized(exchange) })
+    }
+
+    private fun unauthorized(exchange: ServerWebExchange): Mono<Void> {
+        exchange.response.statusCode = HttpStatus.UNAUTHORIZED
+        exchange.response.headers.remove(HttpHeaders.WWW_AUTHENTICATE)
+        exchange.response.headers.contentType = MediaType.APPLICATION_JSON
+        val body =
+            exchange.response.bufferFactory()
+                .wrap("""{"message":"Unauthorized","error":"Unauthorized"}""".toByteArray(Charsets.UTF_8))
+        return exchange.response.writeWith(Mono.just(body))
     }
 }
