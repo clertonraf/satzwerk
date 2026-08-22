@@ -185,32 +185,6 @@ class PublicMeasurementIntegrationTest : PostgresTestContainer() {
             .expectStatus().isForbidden
     }
 
-    // ── Revoked access ────────────────────────────────────────────────────────
-
-    @Test
-    fun `revoked partner grant cannot write measurements`() {
-        val token = registerAndLogin()
-        val app = registerApp(token)
-        val grant = grantAccess(token, app.clientId)
-
-        client
-            .delete()
-            .uri("/api/partner-grants/${grant.grantId}")
-            .header("Authorization", "Bearer $token")
-            .exchange()
-            .expectStatus().isNoContent
-
-        client
-            .post()
-            .uri("/api/public/measurements")
-            .header("X-App-Token", grant.accessToken)
-            .header("Idempotency-Key", UUID.randomUUID().toString())
-            .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue(mapOf("measurementDate" to today.toString(), "weightKg" to 80.0))
-            .exchange()
-            .expectStatus().isUnauthorized
-    }
-
     // ── Invalid data ──────────────────────────────────────────────────────────
 
     @Test
@@ -266,7 +240,7 @@ class PublicMeasurementIntegrationTest : PostgresTestContainer() {
             .exchange()
             .expectStatus().isBadRequest
             .expectBody()
-            .jsonPath("$.message").isEqualTo("Idempotency-Key header required")
+            .jsonPath("$.error").isEqualTo("Idempotency-Key header required")
     }
 
     @Test

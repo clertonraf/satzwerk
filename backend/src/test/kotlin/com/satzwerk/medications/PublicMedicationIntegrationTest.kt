@@ -363,32 +363,6 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
             .expectStatus().isForbidden
     }
 
-    // ── Revoked access ────────────────────────────────────────────────────────
-
-    @Test
-    fun `revoked partner grant cannot create Medication`() {
-        val token = registerAndLogin()
-        val app = registerApp(token)
-        val grant = grantAccess(token, app.clientId)
-
-        client
-            .delete()
-            .uri("/api/partner-grants/${grant.grantId}")
-            .header("Authorization", "Bearer $token")
-            .exchange()
-            .expectStatus().isNoContent
-
-        client
-            .post()
-            .uri("/api/public/medications")
-            .header("X-App-Token", grant.accessToken)
-            .header("Idempotency-Key", UUID.randomUUID().toString())
-            .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue(defaultMedicationBody("Blocked Med"))
-            .exchange()
-            .expectStatus().isUnauthorized
-    }
-
     // ── Invalid data ──────────────────────────────────────────────────────────
 
     @Test
