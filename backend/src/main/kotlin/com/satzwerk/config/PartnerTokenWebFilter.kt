@@ -21,8 +21,8 @@ private const val PARTNER_PROBE_PATH = "/api/partner-grants/me"
 private const val PUBLIC_API_PREFIX = "/api/public/"
 
 /**
- * Authenticates partner-app requests that present an [APP_TOKEN_HEADER] credential,
- * **only for the tightly scoped probe path** [PARTNER_PROBE_PATH].
+ * Authenticates partner-app requests that present an [APP_TOKEN_HEADER] credential on the
+ * exact probe path [PARTNER_PROBE_PATH] and on public API routes under [PUBLIC_API_PREFIX].
  *
  * All grant-management routes remain JWT-session-only — this filter skips them,
  * so presenting a partner token to a management route yields 401 from the security chain.

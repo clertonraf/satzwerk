@@ -2,6 +2,7 @@ package com.satzwerk.sessions
 
 import com.satzwerk.auth.InsufficientScopeException
 import com.satzwerk.auth.TokenScope
+import com.satzwerk.common.NotFoundException
 import com.satzwerk.common.RequestContext
 import com.satzwerk.common.handleErrors
 import com.satzwerk.common.requireScope
@@ -41,8 +42,12 @@ class PublicSessionsRouter {
                     handleErrors(extra = scopeErrors) {
                         requireScope(request, TokenScope.SESSIONS_READ)
                         val ctx = RequestContext(request)
+                        val session = workoutSessionService.getById(ctx.userId(), ctx.pathId("id"))
+                        if (session.completedAt == null) {
+                            throw NotFoundException("Workout session not found")
+                        }
                         ServerResponse.ok().bodyValueAndAwait(
-                            workoutSessionService.getById(ctx.userId(), ctx.pathId("id")),
+                            session,
                         )
                     }
                 }

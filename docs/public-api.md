@@ -355,7 +355,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 **Example 403 body:**
 ```json
-{ "error": "Required scope: exercises:read", "message": "Required scope: exercises:read" }
+{ "error": "Required scope: exercises:read" }
 ```
 
 ---
