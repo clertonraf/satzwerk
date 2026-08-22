@@ -1,7 +1,11 @@
 package com.satzwerk.common
 
+import com.satzwerk.config.AUTHORITY_JWT_SESSION
 import jakarta.validation.Validator
+import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.http.HttpStatus
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
+import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.web.reactive.function.server.ServerRequest
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
@@ -57,6 +61,8 @@ suspend fun handleErrors(
         ServerResponse.status(HttpStatus.NOT_FOUND).bodyValueAndAwait(ErrorResponse("Not found"))
     } catch (e: BadRequestException) {
         ServerResponse.badRequest().bodyValueAndAwait(ErrorResponse(e.message ?: "Bad request"))
+    } catch (_: UnauthorizedException) {
+        ServerResponse.status(HttpStatus.UNAUTHORIZED).bodyValueAndAwait(ErrorResponse("Unauthorized"))
     } catch (e: Throwable) {
         val status =
             extra.entries.firstOrNull { (klass, _) -> klass.isInstance(e) }?.value
@@ -74,3 +80,23 @@ suspend fun handleErrors(
     extra: Map<KClass<out Throwable>, HttpStatus> = emptyMap(),
     block: suspend (RequestContext) -> ServerResponse,
 ): ServerResponse = handleErrors(extra) { block(RequestContext(request)) }
+
+/**
+ * Enforces that the current request was authenticated via a first-party JWT session.
+ * Personal API tokens (and any future partner-app tokens) do not carry [AUTHORITY_JWT_SESSION],
+ * so they are rejected here with 401.
+ *
+ * Call this at the top of any management handler that must not be accessible by automation tokens.
+ * #205 should reuse this guard unchanged.
+ */
+suspend fun requireJwtSession(request: ServerRequest) {
+    val principal = request.principal().awaitSingle()
+    val authorities =
+        (principal as? UsernamePasswordAuthenticationToken)?.authorities ?: emptyList()
+    if (SimpleGrantedAuthority(AUTHORITY_JWT_SESSION) !in authorities) {
+        throw UnauthorizedException()
+    }
+}
+
+/** Thrown when a valid credential is present but is not a first-party JWT session. */
+class UnauthorizedException : RuntimeException("JWT session required")

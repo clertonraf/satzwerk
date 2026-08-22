@@ -34,4 +34,7 @@ export const queryKeys = {
     analytics: (id: string, granularity: string) => ['medication-analytics', id, granularity] as const,
     journal: (from: string, to: string) => ['medication-journal', from, to] as const,
   },
+  tokens: {
+    all: () => ['personal-api-tokens'] as const,
+  },
 } as const
