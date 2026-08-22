@@ -222,35 +222,98 @@ describe('ExerciseSection #183 — pre-fill SetInput with previous set', () => {
   })
 })
 
-describe('ExerciseSection #187 — highlight exceeded reps', () => {
-  it('adds green border when logged reps exceed target', () => {
-    const log = makeSetLog({ reps: 12 }) // exercise.reps = 8
+describe('ExerciseSection #196 — completion-based row coloring', () => {
+  // exercise.sets = 4, so:
+  //   setNumber 1 (< 2 = 4/2) → red
+  //   setNumber 2 (>= 2 but < 4) → amber
+  //   setNumber 4 (>= 4) → green
+  //   setNumber 5 (> 4) → green (over-target)
+
+  it('applies red styling to a row in low completion (set 1 of 4)', () => {
+    const log = makeSetLog({ setNumber: 1 })
     renderSection({ exerciseLogs: [log] })
     const listItem = screen.getByText(/Set 1:/).closest('li')
+    expect(listItem?.className).toMatch(/red/)
+  })
+
+  it('applies amber styling to a row in mid completion (set 2 of 4)', () => {
+    const log = makeSetLog({ setNumber: 2 })
+    renderSection({ exerciseLogs: [log] })
+    const listItem = screen.getByText(/Set 2:/).closest('li')
+    expect(listItem?.className).toMatch(/amber/)
+  })
+
+  it('applies amber styling to a row in mid completion (set 3 of 4)', () => {
+    const log = makeSetLog({ setNumber: 3 })
+    renderSection({ exerciseLogs: [log] })
+    const listItem = screen.getByText(/Set 3:/).closest('li')
+    expect(listItem?.className).toMatch(/amber/)
+  })
+
+  it('applies green styling to a row at full completion (set 4 of 4)', () => {
+    const log = makeSetLog({ setNumber: 4 })
+    renderSection({ exerciseLogs: [log] })
+    const listItem = screen.getByText(/Set 4:/).closest('li')
     expect(listItem?.className).toMatch(/green/)
   })
 
-  it('does not add green border when logged reps equal target', () => {
-    const log = makeSetLog({ reps: 8 })
+  it('applies green styling to an over-target row (set 5 of 4)', () => {
+    const log = makeSetLog({ setNumber: 5 })
     renderSection({ exerciseLogs: [log] })
-    const listItem = screen.getByText(/Set 1:/).closest('li')
-    expect(listItem?.className).not.toMatch(/green/)
+    const listItem = screen.getByText(/Set 5:/).closest('li')
+    expect(listItem?.className).toMatch(/green/)
   })
 
-  it('does not add green border for to-failure exercises', () => {
-    const log = makeSetLog({ reps: 15 })
+  it('applies completion colors the same way for toFailure exercises (set 1 of 4 → red)', () => {
+    const log = makeSetLog({ setNumber: 1 })
     renderSection({
       exercise: { ...makeExercise(), toFailure: true, reps: 0 },
       exerciseLogs: [log],
     })
     const listItem = screen.getByText(/Set 1:/).closest('li')
+    expect(listItem?.className).toMatch(/red/)
+  })
+
+  it('applies completion colors the same way for toFailure exercises (set 4 of 4 → green)', () => {
+    const log = makeSetLog({ setNumber: 4 })
+    renderSection({
+      exercise: { ...makeExercise(), toFailure: true, reps: 0 },
+      exerciseLogs: [log],
+    })
+    const listItem = screen.getByText(/Set 4:/).closest('li')
+    expect(listItem?.className).toMatch(/green/)
+  })
+
+  it('pending rows get the neutral border styling (no completion color)', () => {
+    const log = makePendingSetLog({ setNumber: 4 }) // would be green if not pending
+    renderSection({ exerciseLogs: [log] })
+    const listItem = screen.getByText(/Set 4:/).closest('li')
+    expect(listItem?.className).not.toMatch(/green/)
+    expect(listItem?.className).not.toMatch(/amber/)
+    expect(listItem?.className).not.toMatch(/red/)
+  })
+})
+
+describe('ExerciseSection #187 — reps-exceeded highlight (replaced by completion coloring)', () => {
+  it('set 1 of 4 with reps exceeding target is red (completion-based, not reps-based)', () => {
+    const log = makeSetLog({ reps: 12 }) // exercise.reps = 8, setNumber = 1
+    renderSection({ exerciseLogs: [log] })
+    const listItem = screen.getByText(/Set 1:/).closest('li')
+    expect(listItem?.className).toMatch(/red/)
     expect(listItem?.className).not.toMatch(/green/)
   })
 
-  it('does not add green border for pending (syncing) set logs', () => {
-    const log = makePendingSetLog({ reps: 15 }) // exercise.reps = 8
+  it('set 4 of 4 with reps at target is green (full completion)', () => {
+    const log = makeSetLog({ reps: 8, setNumber: 4 })
     renderSection({ exerciseLogs: [log] })
-    const listItem = screen.getByText(/Set 1:/).closest('li')
+    const listItem = screen.getByText(/Set 4:/).closest('li')
+    expect(listItem?.className).toMatch(/green/)
+  })
+
+  it('does not add green for pending set logs even at full completion', () => {
+    const log = makePendingSetLog({ reps: 15, setNumber: 4 })
+    renderSection({ exerciseLogs: [log] })
+    const listItem = screen.getByText(/Set 4:/).closest('li')
     expect(listItem?.className).not.toMatch(/green/)
   })
 })
