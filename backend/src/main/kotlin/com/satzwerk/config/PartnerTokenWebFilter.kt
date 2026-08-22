@@ -22,8 +22,8 @@ private val PARTNER_ALLOWED_PATH_PREFIXES =
     )
 
 /**
- * Authenticates partner-app requests that present an [APP_TOKEN_HEADER] credential,
- * **only for the tightly scoped probe path** [PARTNER_PROBE_PATH].
+ * Authenticates partner-app requests that present an [APP_TOKEN_HEADER] credential on the
+ * exact probe path `/api/partner-grants/me` and on public API routes under `/api/public/`.
  *
  * All grant-management routes remain JWT-session-only — this filter skips them,
  * so presenting a partner token to a management route yields 401 from the security chain.
@@ -47,7 +47,11 @@ class PartnerTokenWebFilter(
         val path = exchange.request.uri.path
         val rawToken =
             path
-                .takeIf { p -> PARTNER_ALLOWED_PATH_PREFIXES.any { prefix -> p == prefix || p.startsWith(prefix) } }
+                .takeIf { p ->
+                    PARTNER_ALLOWED_PATH_PREFIXES.any { prefix ->
+                        if (prefix.endsWith("/")) p.startsWith(prefix) else p == prefix
+                    }
+                }
                 ?.let { exchange.request.headers.getFirst(APP_TOKEN_HEADER)?.trim() }
                 .orEmpty()
 

@@ -460,7 +460,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
             .exchange()
             .expectStatus().isBadRequest
             .expectBody()
-            .jsonPath("$.message").isEqualTo("Idempotency-Key header required")
+            .jsonPath("$.error").isEqualTo("Idempotency-Key header required")
     }
 
     @Test
