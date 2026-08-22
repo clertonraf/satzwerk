@@ -63,7 +63,7 @@ class PartnerTokenWebFilter(
         }
 
         return mono { partnerAppService.resolveActiveGrant(rawToken) }
-            .switchIfEmpty(unauthorized(exchange).then(Mono.empty()))
+            .switchIfEmpty(Mono.defer { unauthorized(exchange).then(Mono.empty()) })
             .flatMap { grant ->
                 val partnerPrincipal =
                     PartnerPrincipal(
@@ -79,9 +79,7 @@ class PartnerTokenWebFilter(
                         .map { SimpleGrantedAuthority(it) }
                 val authentication =
                     UsernamePasswordAuthenticationToken(
-                        // principal.name == userId UUID string; RequestContext.userId() parses it ✓
                         grant.userId.toString(),
-                        // credentials carry full partner context (appId, grantId, scopes)
                         partnerPrincipal,
                         scopeAuthorities,
                     )

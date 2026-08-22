@@ -43,7 +43,7 @@ class PublicMedicationRouter {
                     val ctx = RequestContext(request)
                     val body = ctx.body<CreateMedicationRequest>()
                     validateOrBadRequest(validator, body) {
-                        partnerWritePolicyService.execute(request, HttpStatus.CREATED) { userId ->
+                        partnerWritePolicyService.execute(request, HttpStatus.CREATED, body) { userId ->
                             medicationService.createMedication(userId, body)
                         }
                     }
@@ -63,7 +63,7 @@ class PublicMedicationRouter {
                     val id = ctx.pathId("id")
                     val body = ctx.body<UpdateMedicationRequest>()
                     validateOrBadRequest(validator, body) {
-                        partnerWritePolicyService.execute(request, HttpStatus.OK) { userId ->
+                        partnerWritePolicyService.execute(request, HttpStatus.OK, body) { userId ->
                             medicationService.updateMedication(userId, id, body)
                         }
                     }
@@ -83,7 +83,7 @@ class PublicMedicationRouter {
                     val medicationId = ctx.pathId("id")
                     val body = ctx.body<LogDoseRequest>()
                     validateOrBadRequest(validator, body) {
-                        partnerWritePolicyService.execute(request, HttpStatus.CREATED) { userId ->
+                        partnerWritePolicyService.execute(request, HttpStatus.CREATED, body) { userId ->
                             medicationService.logDose(userId, medicationId, body)
                         }
                     }

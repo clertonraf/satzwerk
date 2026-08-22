@@ -42,7 +42,7 @@ class PublicMeasurementRouter {
                     val ctx = RequestContext(request)
                     val body = ctx.body<UpsertMeasurementRequest>()
                     validateOrBadRequest(validator, body) {
-                        partnerWritePolicyService.execute(request, HttpStatus.OK) { userId ->
+                        partnerWritePolicyService.execute(request, HttpStatus.OK, body) { userId ->
                             measurementService.upsert(userId, body)
                         }
                     }

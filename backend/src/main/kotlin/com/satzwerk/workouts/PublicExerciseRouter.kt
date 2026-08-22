@@ -39,7 +39,7 @@ class PublicExerciseRouter {
                     val ctx = RequestContext(request)
                     val body = ctx.body<CreateExerciseRequest>()
                     validateOrBadRequest(validator, body) {
-                        partnerWritePolicyService.execute(request, HttpStatus.CREATED) { userId ->
+                        partnerWritePolicyService.execute(request, HttpStatus.CREATED, body) { userId ->
                             exerciseService.create(userId, body)
                         }
                     }
@@ -54,7 +54,7 @@ class PublicExerciseRouter {
                     val exerciseId = ctx.pathId("id")
                     val body = ctx.body<UpdateExerciseRequest>()
                     validateOrBadRequest(validator, body) {
-                        partnerWritePolicyService.execute(request, HttpStatus.OK) { userId ->
+                        partnerWritePolicyService.execute(request, HttpStatus.OK, body) { userId ->
                             exerciseService.update(userId, exerciseId, body)
                         }
                     }

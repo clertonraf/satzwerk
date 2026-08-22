@@ -54,7 +54,7 @@ private fun CoRouterFunctionDsl.publicPlanCrudRoutes(
             val ctx = RequestContext(request)
             val body = ctx.body<CreatePlanRequest>()
             validateOrBadRequest(validator, body) {
-                partnerWritePolicyService.execute(request, HttpStatus.CREATED) { userId ->
+                partnerWritePolicyService.execute(request, HttpStatus.CREATED, body) { userId ->
                     workoutPlanService.create(userId, body)
                 }
             }
@@ -69,7 +69,7 @@ private fun CoRouterFunctionDsl.publicPlanCrudRoutes(
             val planId = ctx.pathId("planId")
             val body = ctx.body<UpdatePlanRequest>()
             validateOrBadRequest(validator, body) {
-                partnerWritePolicyService.execute(request, HttpStatus.OK) { userId ->
+                partnerWritePolicyService.execute(request, HttpStatus.OK, body) { userId ->
                     workoutPlanService.update(userId, planId, body)
                 }
             }
@@ -103,7 +103,7 @@ private fun CoRouterFunctionDsl.publicGroupRoutes(
             val planId = ctx.pathId("planId")
             val body = ctx.body<CreateGroupRequest>()
             validateOrBadRequest(validator, body) {
-                partnerWritePolicyService.execute(request, HttpStatus.CREATED) { userId ->
+                partnerWritePolicyService.execute(request, HttpStatus.CREATED, body) { userId ->
                     workoutGroupService.create(userId, planId, body)
                 }
             }
@@ -119,7 +119,7 @@ private fun CoRouterFunctionDsl.publicGroupRoutes(
             val groupId = ctx.pathId("groupId")
             val body = ctx.body<UpdateGroupRequest>()
             validateOrBadRequest(validator, body) {
-                partnerWritePolicyService.execute(request, HttpStatus.OK) { userId ->
+                partnerWritePolicyService.execute(request, HttpStatus.OK, body) { userId ->
                     workoutGroupService.update(userId, planId, groupId, body)
                 }
             }
@@ -141,7 +141,7 @@ private fun CoRouterFunctionDsl.publicWorkoutExerciseRoutes(
             val groupId = ctx.pathId("groupId")
             val body = ctx.body<CreateWorkoutExerciseRequest>()
             validateOrBadRequest(validator, body) {
-                partnerWritePolicyService.execute(request, HttpStatus.CREATED) { userId ->
+                partnerWritePolicyService.execute(request, HttpStatus.CREATED, body) { userId ->
                     workoutExerciseService.create(userId, planId, groupId, body)
                 }
             }
@@ -158,7 +158,7 @@ private fun CoRouterFunctionDsl.publicWorkoutExerciseRoutes(
             val exerciseId = ctx.pathId("exerciseId")
             val body = ctx.body<UpdateWorkoutExerciseRequest>()
             validateOrBadRequest(validator, body) {
-                partnerWritePolicyService.execute(request, HttpStatus.OK) { userId ->
+                partnerWritePolicyService.execute(request, HttpStatus.OK, body) { userId ->
                     workoutExerciseService.update(userId, planId, groupId, exerciseId, body)
                 }
             }

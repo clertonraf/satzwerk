@@ -153,6 +153,7 @@ class PublicExerciseIntegrationTest : PostgresTestContainer() {
         val app = registerApp(token)
         val grant = grantAccess(token, app.clientId)
         val idempotencyKey = UUID.randomUUID().toString()
+        val requestBody = mapOf("name" to "Replay Bench", "muscleGroup" to "CHEST")
 
         val first =
             client
@@ -161,7 +162,7 @@ class PublicExerciseIntegrationTest : PostgresTestContainer() {
                 .header("X-App-Token", grant.accessToken)
                 .header("Idempotency-Key", idempotencyKey)
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(mapOf("name" to "Replay Bench", "muscleGroup" to "CHEST"))
+                .bodyValue(requestBody)
                 .exchange()
                 .expectStatus().isCreated
                 .returnResult<ExerciseResponse>()
@@ -175,7 +176,7 @@ class PublicExerciseIntegrationTest : PostgresTestContainer() {
                 .header("X-App-Token", grant.accessToken)
                 .header("Idempotency-Key", idempotencyKey)
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(mapOf("name" to "Changed On Replay", "muscleGroup" to "BACK"))
+                .bodyValue(requestBody)
                 .exchange()
                 .expectStatus().isCreated
                 .returnResult<ExerciseResponse>()
@@ -188,7 +189,38 @@ class PublicExerciseIntegrationTest : PostgresTestContainer() {
             val audits = partnerWriteAuditRepository.findAllByGrantId(grant.grantId).toList()
             assertEquals(1, records.size)
             assertEquals(2, audits.size)
+            assertEquals("exercises:write", audits.first().grantedScopes)
         }
+    }
+
+    @Test
+    fun `reusing an Idempotency-Key with a different Exercise payload returns 409`() {
+        val token = registerAndLogin()
+        val app = registerApp(token)
+        val grant = grantAccess(token, app.clientId)
+        val idempotencyKey = UUID.randomUUID().toString()
+
+        client
+            .post()
+            .uri("/api/public/exercises")
+            .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", idempotencyKey)
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("name" to "Replay Bench", "muscleGroup" to "CHEST"))
+            .exchange()
+            .expectStatus().isCreated
+
+        client
+            .post()
+            .uri("/api/public/exercises")
+            .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", idempotencyKey)
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("name" to "Changed On Replay", "muscleGroup" to "BACK"))
+            .exchange()
+            .expectStatus().isEqualTo(409)
+            .expectBody()
+            .jsonPath("$.error").isEqualTo("Idempotency-Key already used with a different payload")
     }
 
     private fun createExercise(

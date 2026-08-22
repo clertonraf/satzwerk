@@ -36,9 +36,8 @@ class SecurityConfig(
             }
             // JWT filter: resolves `Authorization: Bearer <jwt>` → first-party user principal.
             .addFilterAt(jwtAuthenticationWebFilter, SecurityWebFiltersOrder.AUTHENTICATION)
-            // Partner filter: resolves `X-App-Token: <opaque>` → partner principal (app+user bound).
-            // Both run at AUTHENTICATION order; they key on different headers so are mutually
-            // exclusive by design — no ordering conflict arises.
+            // Partner filter: resolves `X-App-Token: <opaque>` → partner principal (app+user bound)
+            // before AUTHORIZATION runs.
             .addFilterBefore(partnerTokenWebFilter, SecurityWebFiltersOrder.AUTHORIZATION)
             .authorizeExchange {
                 it.pathMatchers("/api/auth/**", "/actuator/**").permitAll()

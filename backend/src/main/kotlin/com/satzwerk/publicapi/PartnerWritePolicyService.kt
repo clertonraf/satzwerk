@@ -1,6 +1,11 @@
 package com.satzwerk.publicapi
 
+import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.node.ArrayNode
+import com.fasterxml.jackson.databind.node.DecimalNode
+import com.fasterxml.jackson.databind.node.JsonNodeFactory
+import com.fasterxml.jackson.databind.node.ObjectNode
 import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.UnauthorizedException
@@ -27,14 +32,18 @@ private const val APP_TOKEN_HEADER = "X-App-Token"
 private const val PENDING_RESPONSE_STATUS = -1
 private const val MAX_PENDING_RECORD_POLLS = 40
 private const val PENDING_RECORD_POLL_DELAY_MILLIS = 25L
+private const val EMPTY_REQUEST_FINGERPRINT = ""
+private const val IDEMPOTENCY_PAYLOAD_MISMATCH_MESSAGE = "Idempotency-Key already used with a different payload"
 
 private data class PartnerWriteRequestMetadata(
     val grantId: UUID,
     val appId: UUID,
     val userId: UUID,
+    val grantedScopes: String,
     val requestMethod: String,
     val requestPath: String,
     val idempotencyKey: String,
+    val requestFingerprint: String,
 )
 
 @Table("idempotency_records")
@@ -49,6 +58,8 @@ data class IdempotencyRecord(
     val requestPath: String,
     @Column("idempotency_key")
     val idempotencyKey: String,
+    @Column("request_fingerprint")
+    val requestFingerprint: String,
     @Column("response_status")
     val responseStatus: Int,
     @Column("response_body")
@@ -67,6 +78,8 @@ data class PartnerWriteAuditEntry(
     val appId: UUID,
     @Column("user_id")
     val userId: UUID,
+    @Column("granted_scopes")
+    val grantedScopes: String,
     @Column("request_method")
     val requestMethod: String,
     @Column("request_path")
@@ -87,6 +100,7 @@ interface IdempotencyRecordRepository : CoroutineCrudRepository<IdempotencyRecor
             request_method,
             request_path,
             idempotency_key,
+            request_fingerprint,
             response_status,
             response_body
         )
@@ -95,11 +109,12 @@ interface IdempotencyRecordRepository : CoroutineCrudRepository<IdempotencyRecor
             :requestMethod,
             :requestPath,
             :idempotencyKey,
+            :requestFingerprint,
             -1,
             '__pending__'
         )
         ON CONFLICT (grant_id, request_method, request_path, idempotency_key) DO NOTHING
-        RETURNING id, grant_id, request_method, request_path, idempotency_key, response_status, response_body, created_at
+        RETURNING id, grant_id, request_method, request_path, idempotency_key, request_fingerprint, response_status, response_body, created_at
         """,
     )
     suspend fun claim(
@@ -107,6 +122,7 @@ interface IdempotencyRecordRepository : CoroutineCrudRepository<IdempotencyRecor
         requestMethod: String,
         requestPath: String,
         idempotencyKey: String,
+        requestFingerprint: String,
     ): IdempotencyRecord?
 
     suspend fun findByGrantIdAndRequestMethodAndRequestPathAndIdempotencyKey(
@@ -134,6 +150,7 @@ class PartnerWritePolicyService(
     suspend fun <T : Any> execute(
         request: ServerRequest,
         successStatus: HttpStatus,
+        requestBody: Any? = null,
         block: suspend (UUID) -> T,
     ): ServerResponse {
         val partnerPrincipal = requirePartnerPrincipal(request)
@@ -142,9 +159,11 @@ class PartnerWritePolicyService(
                 grantId = parseUuid(partnerPrincipal.grantId),
                 appId = parseUuid(partnerPrincipal.appId),
                 userId = parseUuid(partnerPrincipal.userId),
+                grantedScopes = partnerPrincipal.grantedScopes,
                 requestMethod = request.method().name(),
                 requestPath = request.path(),
                 idempotencyKey = requireIdempotencyKey(request),
+                requestFingerprint = requestFingerprint(requestBody),
             )
         requireFreshActiveGrant(request, metadata.grantId)
         val claimedRecord =
@@ -153,6 +172,7 @@ class PartnerWritePolicyService(
                 requestMethod = metadata.requestMethod,
                 requestPath = metadata.requestPath,
                 idempotencyKey = metadata.idempotencyKey,
+                requestFingerprint = metadata.requestFingerprint,
             )
         if (claimedRecord == null) {
             val existing = awaitCompletedRecord(metadata)
@@ -168,6 +188,7 @@ class PartnerWritePolicyService(
 
             idempotencyRecordRepository.save(
                 claimedRecord.copy(
+                    requestFingerprint = metadata.requestFingerprint,
                     responseStatus = responseStatus,
                     responseBody = serializedResponse,
                 ),
@@ -190,6 +211,7 @@ class PartnerWritePolicyService(
                 grantId = metadata.grantId,
                 appId = metadata.appId,
                 userId = metadata.userId,
+                grantedScopes = metadata.grantedScopes,
                 requestMethod = metadata.requestMethod,
                 requestPath = metadata.requestPath,
                 idempotencyKey = metadata.idempotencyKey,
@@ -204,6 +226,35 @@ class PartnerWritePolicyService(
             ?.takeIf { it.isNotBlank() }
             ?: throw BadRequestException("$IDEMPOTENCY_HEADER header required")
 
+    private fun requestFingerprint(requestBody: Any?): String =
+        requestBody
+            ?.let { objectMapper.valueToTree<JsonNode>(it) }
+            ?.let(::canonicalizeJson)
+            ?.let(objectMapper::writeValueAsString)
+            ?: EMPTY_REQUEST_FINGERPRINT
+
+    private fun canonicalizeJson(node: JsonNode): JsonNode =
+        when {
+            node.isObject -> {
+                val canonicalObject = ObjectNode(JsonNodeFactory.instance)
+                node.fields().asSequence().sortedBy { it.key }.forEach { (key, value) ->
+                    canonicalObject.set<JsonNode>(key, canonicalizeJson(value))
+                }
+                canonicalObject
+            }
+
+            node.isArray -> {
+                val canonicalArray = ArrayNode(JsonNodeFactory.instance)
+                node.forEach { canonicalArray.add(canonicalizeJson(it)) }
+                canonicalArray
+            }
+
+            node.isBigDecimal || node.isFloatingPointNumber ->
+                DecimalNode.valueOf(node.decimalValue().stripTrailingZeros())
+
+            else -> node.deepCopy<JsonNode>()
+        }
+
     private suspend fun awaitCompletedRecord(metadata: PartnerWriteRequestMetadata): IdempotencyRecord {
         repeat(MAX_PENDING_RECORD_POLLS) {
             val record =
@@ -213,6 +264,9 @@ class PartnerWritePolicyService(
                     requestPath = metadata.requestPath,
                     idempotencyKey = metadata.idempotencyKey,
                 )
+            if (record != null && record.requestFingerprint != metadata.requestFingerprint) {
+                throw ConflictException(IDEMPOTENCY_PAYLOAD_MISMATCH_MESSAGE)
+            }
             if (record != null && record.responseStatus != PENDING_RESPONSE_STATUS) {
                 return record
             }

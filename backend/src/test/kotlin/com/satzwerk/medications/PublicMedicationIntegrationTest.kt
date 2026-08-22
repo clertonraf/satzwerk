@@ -469,6 +469,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
         val app = registerApp(token)
         val grant = grantAccess(token, app.clientId)
         val idempotencyKey = UUID.randomUUID().toString()
+        val requestBody = defaultMedicationBody("Replay Med")
 
         val first =
             client
@@ -477,7 +478,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
                 .header("X-App-Token", grant.accessToken)
                 .header("Idempotency-Key", idempotencyKey)
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(defaultMedicationBody("Replay Med"))
+                .bodyValue(requestBody)
                 .exchange()
                 .expectStatus().isCreated
                 .returnResult<MedicationResponse>()
@@ -491,7 +492,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
                 .header("X-App-Token", grant.accessToken)
                 .header("Idempotency-Key", idempotencyKey)
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(defaultMedicationBody("Different Name"))
+                .bodyValue(requestBody)
                 .exchange()
                 .expectStatus().isCreated
                 .returnResult<MedicationResponse>()
@@ -504,6 +505,7 @@ class PublicMedicationIntegrationTest : PostgresTestContainer() {
             val audits = partnerWriteAuditRepository.findAllByGrantId(grant.grantId).toList()
             assertEquals(1, records.size)
             assertEquals(2, audits.size)
+            assertEquals("medications:write", audits.first().grantedScopes)
         }
     }
 }

@@ -266,7 +266,7 @@ class PublicMeasurementIntegrationTest : PostgresTestContainer() {
             .exchange()
             .expectStatus().isBadRequest
             .expectBody()
-            .jsonPath("$.message").isEqualTo("Idempotency-Key header required")
+            .jsonPath("$.error").isEqualTo("Idempotency-Key header required")
     }
 
     @Test
@@ -275,6 +275,7 @@ class PublicMeasurementIntegrationTest : PostgresTestContainer() {
         val app = registerApp(token)
         val grant = grantAccess(token, app.clientId)
         val idempotencyKey = UUID.randomUUID().toString()
+        val requestBody = mapOf("measurementDate" to today.toString(), "weightKg" to 80.5)
 
         val first =
             client
@@ -283,7 +284,7 @@ class PublicMeasurementIntegrationTest : PostgresTestContainer() {
                 .header("X-App-Token", grant.accessToken)
                 .header("Idempotency-Key", idempotencyKey)
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(mapOf("measurementDate" to today.toString(), "weightKg" to 80.5))
+                .bodyValue(requestBody)
                 .exchange()
                 .expectStatus().isOk
                 .returnResult<MeasurementResponse>()
@@ -297,7 +298,7 @@ class PublicMeasurementIntegrationTest : PostgresTestContainer() {
                 .header("X-App-Token", grant.accessToken)
                 .header("Idempotency-Key", idempotencyKey)
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(mapOf("measurementDate" to today.toString(), "weightKg" to 91.0))
+                .bodyValue(requestBody)
                 .exchange()
                 .expectStatus().isOk
                 .returnResult<MeasurementResponse>()
@@ -310,6 +311,7 @@ class PublicMeasurementIntegrationTest : PostgresTestContainer() {
             val audits = partnerWriteAuditRepository.findAllByGrantId(grant.grantId).toList()
             assertEquals(1, records.size)
             assertEquals(2, audits.size)
+            assertEquals("measurements:write", audits.first().grantedScopes)
         }
     }
 
