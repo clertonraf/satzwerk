@@ -108,6 +108,54 @@ describe('SessionWorkout completion progress', () => {
     expect(screen.getByRole('progressbar')).toBeInTheDocument()
     // caption
     expect(screen.getByText(/12 \/ 15 sets/)).toBeInTheDocument()
+    // percentage label: 12/15 = 80%
+    expect(screen.getByText(/80%/)).toBeInTheDocument()
+  })
+
+  it('shows 0% when no sets have been logged', () => {
+    render(
+      <SessionWorkout
+        {...defaultProps}
+        session={makeSession(0)}
+        currentGroupEntry={makeGroupEntry([5, 5, 5])}
+      />
+    )
+
+    expect(screen.getByRole('progressbar')).toBeInTheDocument()
+    expect(screen.getByText(/0%/)).toBeInTheDocument()
+  })
+
+  it('includes pending SetLogs in the displayed percentage', () => {
+    const pending = [
+      { id: 'pending-1', exerciseId: 'exercise-0', setNumber: 1, weight: 80, reps: 5, loggedAt: '2026-01-01T00:00:00Z', pending: true as const },
+      { id: 'pending-2', exerciseId: 'exercise-0', setNumber: 2, weight: 80, reps: 5, loggedAt: '2026-01-01T00:00:00Z', pending: true as const },
+    ]
+    render(
+      <SessionWorkout
+        {...defaultProps}
+        session={makeSession(0)}
+        pendingSetLogs={pending}
+        currentGroupEntry={makeGroupEntry([5, 5, 5])}
+      />
+    )
+
+    // 2 pending / 15 target = 13%
+    expect(screen.getByText(/13%/)).toBeInTheDocument()
+    expect(screen.getByText(/2 \/ 15 sets/)).toBeInTheDocument()
+  })
+
+  it('renders over-target percentage label without hiding the full bar', () => {
+    render(
+      <SessionWorkout
+        {...defaultProps}
+        session={makeSession(20)}
+        currentGroupEntry={makeGroupEntry([5, 5, 5])}
+      />
+    )
+
+    // 20/15 = 133%
+    expect(screen.getByText(/133%/)).toBeInTheDocument()
+    expect(screen.getByRole('progressbar')).toBeInTheDocument()
   })
 
   it('hides progress bar when totalTargetSets is 0', () => {
