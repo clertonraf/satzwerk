@@ -1,0 +1,436 @@
+package com.satzwerk.workouts
+
+import com.satzwerk.PostgresTestContainer
+import com.satzwerk.auth.AuthResponse
+import com.satzwerk.partners.AppGrantResponse
+import com.satzwerk.partners.PartnerAppRegistrationResponse
+import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.http.MediaType
+import org.springframework.test.context.ActiveProfiles
+import org.springframework.test.web.reactive.server.WebTestClient
+import org.springframework.test.web.reactive.server.returnResult
+import java.util.UUID
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("test")
+class PublicWorkoutPlanIntegrationTest : PostgresTestContainer() {
+    @Autowired
+    lateinit var client: WebTestClient
+
+    @Test
+    fun `partner app with plans write scope can create a WorkoutPlan structure`() {
+        val token = registerAndLogin()
+        val exercise = createExercise(token, "Bench Press", "CHEST")
+        val app = registerApp(token)
+        val grant = grantAccess(token, app.clientId)
+
+        val plan = createPublicPlan(grant, "Partner Plan")
+        val group = createPublicGroup(grant, plan.id, "Treino A")
+        val workoutExercise = createPublicWorkoutExercise(grant, plan.id, group.id, exercise.id)
+
+        client
+            .get()
+            .uri("/api/plans/${plan.id}")
+            .header("Authorization", "Bearer $token")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.name").isEqualTo("Partner Plan")
+            .jsonPath("$.groups[0].title").isEqualTo("Treino A")
+            .jsonPath("$.groups[0].exercises[0].id").isEqualTo(workoutExercise.id.toString())
+            .jsonPath("$.groups[0].exercises[0].exerciseId").isEqualTo(exercise.id.toString())
+    }
+
+    @Test
+    fun `partner app with plans write scope can update a WorkoutPlan structure`() {
+        val token = registerAndLogin()
+        val exercise = createExercise(token, "Bench Press", "CHEST")
+        val app = registerApp(token)
+        val grant = grantAccess(token, app.clientId)
+        val plan = createPublicPlan(grant, "Partner Plan")
+        val group = createPublicGroup(grant, plan.id, "Treino A")
+        val workoutExercise = createPublicWorkoutExercise(grant, plan.id, group.id, exercise.id)
+
+        updatePublicPlan(grant, plan.id, "Partner Plan Updated")
+        updatePublicGroup(grant, plan.id, group.id, "Treino A Updated")
+        updatePublicWorkoutExercise(
+            grant,
+            plan.id,
+            group.id,
+            workoutExercise.id,
+            WorkoutExerciseUpdate(sets = 5, reps = 10),
+        )
+
+        client
+            .get()
+            .uri("/api/plans/${plan.id}")
+            .header("Authorization", "Bearer $token")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.name").isEqualTo("Partner Plan Updated")
+            .jsonPath("$.groups[0].title").isEqualTo("Treino A Updated")
+            .jsonPath("$.groups[0].exercises[0].sets").isEqualTo(5)
+            .jsonPath("$.groups[0].exercises[0].reps").isEqualTo(10)
+    }
+
+    @Test
+    fun `public activation keeps only one WorkoutPlan active`() {
+        val token = registerAndLogin()
+        val app = registerApp(token)
+        val grant = grantAccess(token, app.clientId)
+        val planA = createPlan(token, "Plan A")
+        val planB = createPlan(token, "Plan B")
+
+        client
+            .post()
+            .uri("/api/public/plans/$planA/activate")
+            .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
+            .exchange()
+            .expectStatus().isOk
+
+        client
+            .post()
+            .uri("/api/public/plans/$planB/activate")
+            .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
+            .exchange()
+            .expectStatus().isOk
+
+        client
+            .get()
+            .uri("/api/plans")
+            .header("Authorization", "Bearer $token")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$[?(@.id == '$planA')].isActive").isEqualTo(listOf(false))
+            .jsonPath("$[?(@.id == '$planB')].isActive").isEqualTo(listOf(true))
+    }
+
+    @Test
+    fun `partner app without plans write scope is rejected with 403 on WorkoutPlan create`() {
+        val token = registerAndLogin()
+        val app = registerApp(token, scopes = "exercises:write")
+        val grant = grantAccess(token, app.clientId, scopes = "exercises:write")
+
+        client
+            .post()
+            .uri("/api/public/plans")
+            .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("name" to "Blocked Plan"))
+            .exchange()
+            .expectStatus().isForbidden
+            .expectBody()
+            .jsonPath("$.error").isEqualTo("Required scope: plans:write")
+    }
+
+    @Test
+    fun `partner app cannot update a WorkoutPlan owned by a different user`() {
+        val tokenA = registerAndLogin(uniqueSuffix("plan-own-a"))
+        val tokenB = registerAndLogin(uniqueSuffix("plan-own-b"))
+        val planId = createPlan(tokenA, "Owner Plan")
+        val appB = registerApp(tokenB)
+        val grantB = grantAccess(tokenB, appB.clientId)
+
+        client
+            .put()
+            .uri("/api/public/plans/$planId")
+            .header("X-App-Token", grantB.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("name" to "Hijacked Plan"))
+            .exchange()
+            .expectStatus().isForbidden
+    }
+
+    @Test
+    fun `partner app cannot add a WorkoutExercise using an Exercise owned by a different user`() {
+        val tokenA = registerAndLogin(uniqueSuffix("plan-exercise-own-a"))
+        val tokenB = registerAndLogin(uniqueSuffix("plan-exercise-own-b"))
+        val foreignExercise = createExercise(tokenA, "Foreign Bench", "CHEST")
+        val planId = createPlan(tokenB, "Receiver Plan")
+        val groupId = createGroup(tokenB, planId, "Treino B")
+        val appB = registerApp(tokenB)
+        val grantB = grantAccess(tokenB, appB.clientId)
+
+        client
+            .post()
+            .uri("/api/public/plans/$planId/groups/$groupId/exercises")
+            .header("X-App-Token", grantB.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "exerciseId" to foreignExercise.id,
+                    "sets" to 4,
+                    "reps" to 8,
+                ),
+            ).exchange()
+            .expectStatus().isForbidden
+    }
+
+    @Test
+    fun `public WorkoutPlan create with invalid data returns 400`() {
+        val token = registerAndLogin()
+        val app = registerApp(token)
+        val grant = grantAccess(token, app.clientId)
+
+        client
+            .post()
+            .uri("/api/public/plans")
+            .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("name" to ""))
+            .exchange()
+            .expectStatus().isBadRequest
+            .expectBody()
+            .jsonPath("$.errors.name").exists()
+    }
+
+    private fun createExercise(
+        token: String,
+        name: String,
+        muscleGroup: String,
+    ): ExerciseResponse =
+        client
+            .post()
+            .uri("/api/exercises")
+            .header("Authorization", "Bearer $token")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "name" to name,
+                    "muscleGroup" to muscleGroup,
+                ),
+            ).exchange()
+            .expectStatus().isCreated
+            .returnResult<ExerciseResponse>()
+            .responseBody
+            .blockFirst()!!
+
+    private fun createPublicPlan(
+        grant: AppGrantResponse,
+        name: String,
+    ): WorkoutPlanResponse =
+        client
+            .post()
+            .uri("/api/public/plans")
+            .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("name" to name))
+            .exchange()
+            .expectStatus().isCreated
+            .returnResult<WorkoutPlanResponse>()
+            .responseBody
+            .blockFirst()!!
+
+    private fun createPublicGroup(
+        grant: AppGrantResponse,
+        planId: UUID,
+        title: String,
+    ): WorkoutGroupResponse =
+        client
+            .post()
+            .uri("/api/public/plans/$planId/groups")
+            .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("title" to title, "orderIndex" to 0))
+            .exchange()
+            .expectStatus().isCreated
+            .returnResult<WorkoutGroupResponse>()
+            .responseBody
+            .blockFirst()!!
+
+    private fun createPublicWorkoutExercise(
+        grant: AppGrantResponse,
+        planId: UUID,
+        groupId: UUID,
+        exerciseId: UUID,
+    ): WorkoutExerciseResponse =
+        client
+            .post()
+            .uri("/api/public/plans/$planId/groups/$groupId/exercises")
+            .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "exerciseId" to exerciseId,
+                    "sets" to 4,
+                    "reps" to 8,
+                    "orderIndex" to 0,
+                ),
+            ).exchange()
+            .expectStatus().isCreated
+            .returnResult<WorkoutExerciseResponse>()
+            .responseBody
+            .blockFirst()!!
+
+    private fun updatePublicPlan(
+        grant: AppGrantResponse,
+        planId: UUID,
+        name: String,
+    ) {
+        client
+            .put()
+            .uri("/api/public/plans/$planId")
+            .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("name" to name))
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.name").isEqualTo(name)
+    }
+
+    private fun updatePublicGroup(
+        grant: AppGrantResponse,
+        planId: UUID,
+        groupId: UUID,
+        title: String,
+    ) {
+        client
+            .put()
+            .uri("/api/public/plans/$planId/groups/$groupId")
+            .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("title" to title))
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.title").isEqualTo(title)
+    }
+
+    private fun updatePublicWorkoutExercise(
+        grant: AppGrantResponse,
+        planId: UUID,
+        groupId: UUID,
+        workoutExerciseId: UUID,
+        update: WorkoutExerciseUpdate,
+    ) {
+        client
+            .put()
+            .uri("/api/public/plans/$planId/groups/$groupId/exercises/$workoutExerciseId")
+            .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("sets" to update.sets, "reps" to update.reps))
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.sets").isEqualTo(update.sets)
+            .jsonPath("$.reps").isEqualTo(update.reps)
+    }
+
+    private fun createPlan(
+        token: String,
+        name: String,
+    ): UUID =
+        client
+            .post()
+            .uri("/api/plans")
+            .header("Authorization", "Bearer $token")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("name" to name))
+            .exchange()
+            .expectStatus().isCreated
+            .returnResult<WorkoutPlanResponse>()
+            .responseBody
+            .blockFirst()!!
+            .id
+
+    private fun createGroup(
+        token: String,
+        planId: UUID,
+        title: String,
+    ): UUID =
+        client
+            .post()
+            .uri("/api/plans/$planId/groups")
+            .header("Authorization", "Bearer $token")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("title" to title))
+            .exchange()
+            .expectStatus().isCreated
+            .returnResult<WorkoutGroupResponse>()
+            .responseBody
+            .blockFirst()!!
+            .id
+
+    private fun registerAndLogin(suffix: String = UUID.randomUUID().toString()): String {
+        val auth =
+            client
+                .post()
+                .uri("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(
+                    mapOf(
+                        "email" to "pub-plan-$suffix@example.com",
+                        "password" to "password123",
+                        "displayName" to "Public Plan Tester",
+                    ),
+                ).exchange()
+                .expectStatus().isCreated
+                .returnResult<AuthResponse>()
+                .responseBody
+                .blockFirst()!!
+        return auth.accessToken
+    }
+
+    private fun uniqueSuffix(prefix: String): String = "$prefix-${UUID.randomUUID().toString().take(8)}"
+
+    private data class WorkoutExerciseUpdate(
+        val sets: Int,
+        val reps: Int,
+    )
+
+    private fun registerApp(
+        token: String,
+        scopes: String = "plans:write",
+    ): PartnerAppRegistrationResponse =
+        client
+            .post()
+            .uri("/api/partner-apps")
+            .contentType(MediaType.APPLICATION_JSON)
+            .header("Authorization", "Bearer $token")
+            .bodyValue(
+                mapOf(
+                    "name" to "Plan App ${UUID.randomUUID()}",
+                    "description" to "Integration test WorkoutPlan partner app",
+                    "redirectUri" to "https://example.com/callback",
+                    "scopes" to scopes,
+                ),
+            ).exchange()
+            .expectStatus().isCreated
+            .returnResult<PartnerAppRegistrationResponse>()
+            .responseBody
+            .blockFirst()!!
+
+    private fun grantAccess(
+        token: String,
+        clientId: String,
+        scopes: String = "plans:write",
+    ): AppGrantResponse =
+        client
+            .post()
+            .uri("/api/partner-grants")
+            .contentType(MediaType.APPLICATION_JSON)
+            .header("Authorization", "Bearer $token")
+            .bodyValue(mapOf("clientId" to clientId, "grantedScopes" to scopes))
+            .exchange()
+            .expectStatus().isCreated
+            .returnResult<AppGrantResponse>()
+            .responseBody
+            .blockFirst()!!
+}

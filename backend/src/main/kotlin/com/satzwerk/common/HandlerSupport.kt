@@ -1,6 +1,8 @@
 package com.satzwerk.common
 
+import com.satzwerk.auth.InsufficientScopeException
 import com.satzwerk.config.AUTHORITY_JWT_SESSION
+import com.satzwerk.partners.PartnerPrincipal
 import jakarta.validation.Validator
 import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.http.HttpStatus
@@ -61,10 +63,8 @@ suspend fun handleErrors(
         ServerResponse.status(HttpStatus.NOT_FOUND).bodyValueAndAwait(ErrorResponse("Not found"))
     } catch (e: BadRequestException) {
         ServerResponse.badRequest().bodyValueAndAwait(ErrorResponse(e.message ?: "Bad request"))
-    } catch (e: UnauthorizedException) {
-        ServerResponse.status(HttpStatus.UNAUTHORIZED).bodyValueAndAwait(
-            ErrorResponse(e.message ?: "Unauthorized"),
-        )
+    } catch (_: UnauthorizedException) {
+        ServerResponse.status(HttpStatus.UNAUTHORIZED).bodyValueAndAwait(ErrorResponse("Unauthorized"))
     } catch (e: Throwable) {
         val status =
             extra.entries.firstOrNull { (klass, _) -> klass.isInstance(e) }?.value
@@ -102,3 +102,30 @@ suspend fun requireJwtSession(request: ServerRequest) {
 
 /** Thrown when a valid credential is present but is not a first-party JWT session. */
 class UnauthorizedException : RuntimeException("JWT session required")
+
+/**
+ * Checks that the resolved principal holds the required scope authority.
+ * Works for both personal-token and partner-app principals — both encode scopes
+ * as [SimpleGrantedAuthority] entries on the [UsernamePasswordAuthenticationToken].
+ *
+ * Throws [InsufficientScopeException] (→ 403) when the scope is absent.
+ */
+suspend fun requireScope(
+    request: ServerRequest,
+    scope: String,
+) {
+    val authentication = request.principal().awaitSingle()
+    val authorities =
+        (authentication as? UsernamePasswordAuthenticationToken)
+            ?.authorities ?: emptyList()
+    if (SimpleGrantedAuthority(scope) !in authorities) {
+        throw InsufficientScopeException(scope)
+    }
+}
+
+suspend fun requirePartnerPrincipal(request: ServerRequest): PartnerPrincipal {
+    val authentication =
+        request.principal().awaitSingle() as? UsernamePasswordAuthenticationToken
+            ?: throw UnauthorizedException()
+    return authentication.credentials as? PartnerPrincipal ?: throw UnauthorizedException()
+}
