@@ -78,18 +78,36 @@ General rules:
 - External clients may be the source of truth for user-authored content they create through the public API, but only
   through the allowed commands below.
 - Public write endpoints must fail with explicit `4xx` errors when a request would violate an invariant, ownership rule,
-  or validation rule.
+  validation rule, or concurrency rule.
+
+Conflict policy:
+
+- Public writes use explicit command semantics, not blind row replacement.
+- Replaying the same command with the same idempotency key returns the original successful response.
+- Reusing the same idempotency key with a different payload fails with `409 Conflict`.
+- For commands that target mutable user-authored resources without a separate version field (**Exercise**,
+  **WorkoutPlan**, **WorkoutGroup**, **WorkoutExercise**, **Medication**, **MedicationLog**, **BodyMeasurement**),
+  Satzwerk currently applies last-write-wins semantics after re-evaluating authorization, validation, and invariant
+  rules on each request.
+- For commands that would violate singleton invariants under concurrency (for example, activating a **WorkoutPlan** or
+  starting a **WorkoutSession**), Satzwerk must enforce the invariant atomically at the database boundary and surface a
+  `409 Conflict` when a concurrent writer wins first.
 
 Resource-specific rules:
 
 - **Exercise** — partner apps may create and update only the consenting user's **Exercise** records. There is no shared
   exercise catalog.
 - **WorkoutPlan** — partner apps may create and update plan structures. Any public activation command must preserve the
-  rule that activating one **WorkoutPlan** deactivates all others for that user.
+  rule that activating one **WorkoutPlan** deactivates all others for that user. The single-active-plan rule must be
+  enforced atomically (not just by read-then-write logic), and conflicting concurrent activations must fail with
+  `409 Conflict`.
 - **WorkoutSession** — partner apps may start, mutate, and complete **WorkoutSession** records only through constrained
   workflows. Starting a new one must fail if the user already has an open **WorkoutSession**.
 - **SetLog** — partner apps may append or update **SetLog** records only inside an owned **WorkoutSession**. They must
   not create gaps, duplicate `setNumber` values for the same exercise in the same session, or break session ownership.
+  The referenced **Exercise** must also belong to the acting user and, for session-bound writes, must be one of the
+  **WorkoutExercise** records in the session's **WorkoutGroup**. Reusing the first-party service layer is acceptable
+  only if these checks still run explicitly for public writes.
 - **BodyMeasurement** — public writes preserve the current upsert-by-`measurementDate` behavior. When a measurement for
   the same date already exists, null fields in the request preserve the existing values instead of clearing them.
 - **Medication** — partner apps may create and update **Medication** records subject to the existing per-user
