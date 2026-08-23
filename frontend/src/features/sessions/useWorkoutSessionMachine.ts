@@ -1,14 +1,16 @@
 import axios from 'axios'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useReducer } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toKilograms } from '@/features/sessions/sessionHelpers'
 import { useSessionTransport } from '@/features/sessions/useSessionTransport'
+import {
+  createInitialWorkoutSessionMachineState,
+  workoutSessionMachineReducer,
+} from '@/features/sessions/workoutSessionMachineReducer'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { queryKeys } from '@/services/queryKeys'
 import type { AddSetLogRequest, PendingSetLog, UpdateSetLogRequest, WorkoutSession } from '@/services/sessionService'
 import { sessionService } from '@/services/sessionService'
-
-export type SessionPhase = 'idle' | 'conflict' | 'open' | 'completing'
 
 export type SessionEvent =
   | { type: 'START'; workoutGroupId: string }
@@ -31,16 +33,11 @@ export function useWorkoutSessionMachine({
   const queryClient = useQueryClient()
   const isOnline = useOnlineStatus()
   const { transport, isAddPending, isUpdatePending, isDeletePending } = useSessionTransport()
-
-  // machineOverride captures the two phases that can't be derived from query data.
-  // null means phase is derived from the open-session query result.
-  const [machineOverride, setMachineOverride] = useState<'conflict' | 'completing' | null>(null)
-  const [conflictSession, setConflictSession] = useState<WorkoutSession | null>(null)
-  const [pendingGroupId, setPendingGroupId] = useState<string | null>(null)
-  const [stalePlanError, setStalePlanError] = useState<string | null>(null)
-  const [pendingSetLogs, setPendingSetLogs] = useState<PendingSetLog[]>([])
-  const prevSessionIdRef = useRef<string | undefined>(undefined)
-  const prevServerSetCountRef = useRef(0)
+  const [machineState, machineDispatch] = useReducer(
+    workoutSessionMachineReducer,
+    undefined,
+    createInitialWorkoutSessionMachineState,
+  )
 
   const openSessionQuery = useQuery<WorkoutSession | null>({
     queryKey: queryKeys.sessions.open(),
@@ -58,30 +55,15 @@ export function useWorkoutSessionMachine({
 
   const session = openSessionQuery.data ?? null
 
-  // Reconcile pending logs as the server confirms them after queue flush.
-  // On session change, reset all pending. Within the same session, remove
-  // confirmed logs incrementally to handle partial flushes correctly.
   useEffect(() => {
-    const currentId = session?.id
-    const serverCount = session?.setCount ?? 0
-
-    if (prevSessionIdRef.current !== currentId) {
-      prevSessionIdRef.current = currentId
-      prevServerSetCountRef.current = serverCount
-      setPendingSetLogs([])
-      return
-    }
-
-    const delta = serverCount - prevServerSetCountRef.current
-    if (delta > 0) {
-      setPendingSetLogs((prev) => prev.slice(delta))
-    }
-    prevServerSetCountRef.current = serverCount
+    machineDispatch({
+      type: 'session-synced',
+      sessionId: session?.id ?? null,
+      serverSetCount: session?.setCount ?? 0,
+    })
   }, [session?.id, session?.setCount])
 
-  // Derive phase from query data so background refetches stay safe.
-  // machineOverride takes precedence when the machine is in conflict or completing.
-  const phase: SessionPhase = machineOverride ?? (session ? 'open' : 'idle')
+  const { phase, conflictSession, pendingGroupId, stalePlanError, pendingSetLogs } = machineState
 
   const startMutation = useMutation({
     mutationFn: (workoutGroupId: string) => sessionService.start(workoutGroupId),
@@ -97,156 +79,158 @@ export function useWorkoutSessionMachine({
 
   // declared as plain function (not useCallback) to avoid instability from transport dep
   async function dispatch(event: SessionEvent) {
-      switch (event.type) {
-        case 'START': {
-          if (!isOnline) return
-          setStalePlanError(null)
-          try {
-            const started = await startMutation.mutateAsync(event.workoutGroupId)
-            queryClient.setQueryData(queryKeys.sessions.open(), started)
-            setPendingGroupId(null)
-            setConflictSession(null)
-            setMachineOverride(null)
-          } catch (error) {
-            if (axios.isAxiosError(error) && error.response?.status === 409) {
-              const openSession = await sessionService.getOpen()
-              queryClient.setQueryData(queryKeys.sessions.open(), openSession)
-              setPendingGroupId(event.workoutGroupId)
-              setConflictSession(openSession)
-              setMachineOverride('conflict')
-              return
-            }
-            if (axios.isAxiosError(error) && error.response?.status === 400) {
-              setStalePlanError('Your active plan changed. Please select a group again.')
-              await queryClient.invalidateQueries({ queryKey: queryKeys.sessions.startOptions() })
-              return
-            }
-            throw error
-          }
-          break
-        }
-
-        case 'RESUME': {
-          // Keep the existing open session; just clear conflict state.
-          if (!conflictSession) return
-          setConflictSession(null)
-          setPendingGroupId(null)
-          setMachineOverride(null)
-          break
-        }
-
-        case 'DISCARD': {
-          if (!conflictSession) return
-          const nextGroupId = pendingGroupId
-          await discardMutation.mutateAsync(conflictSession.id)
-          queryClient.setQueryData(queryKeys.sessions.open(), null)
-          setConflictSession(null)
-          setPendingGroupId(null)
-          setMachineOverride(null)
-          if (nextGroupId) {
-            await dispatch({ type: 'START', workoutGroupId: nextGroupId })
-          }
-          break
-        }
-
-        case 'COMPLETE': {
-          if (!session) return
-          setMachineOverride('completing')
-          const completed = await completeMutation.mutateAsync(session.id)
-          queryClient.setQueryData(queryKeys.sessions.open(), null)
-          queryClient.setQueryData<WorkoutSession[]>(queryKeys.sessions.history(), (current = []) => [
-            completed,
-            ...current,
-          ])
-          setMachineOverride(null)
-          onComplete()
-          break
-        }
-
-        case 'FORFEIT': {
-          if (!session) return
-          await discardMutation.mutateAsync(session.id)
-          queryClient.setQueryData(queryKeys.sessions.open(), null)
-          setMachineOverride(null)
-          onForfeit?.()
-          break
-        }
-
-        case 'LOG_SET': {
-          if (!session) return
-          const payload: AddSetLogRequest = {
-            exerciseId: event.exerciseId,
-            setNumber: event.setNumber,
-            weight: toKilograms(event.weight, event.unit),
-            reps: event.reps,
-          }
-          const pendingLog: PendingSetLog = {
-            id: crypto.randomUUID(),
-            exerciseId: event.exerciseId,
-            setNumber: event.setNumber,
-            weight: toKilograms(event.weight, event.unit),
-            reps: event.reps,
-            loggedAt: new Date().toISOString(),
-            pending: true,
-          }
-          setPendingSetLogs((prev) => [...prev, pendingLog])
-          const logged = await transport.addSetLog(session.id, payload)
-          queryClient.setQueryData<WorkoutSession>(queryKeys.sessions.open(), (current) => {
-            if (!current) return current
-            const newLogs = [...current.setLogs, logged]
-            return { ...current, setLogs: newLogs, setCount: newLogs.length }
+    switch (event.type) {
+      case 'START': {
+        if (!isOnline) return
+        machineDispatch({ type: 'start-requested' })
+        try {
+          const started = await startMutation.mutateAsync(event.workoutGroupId)
+          queryClient.setQueryData(queryKeys.sessions.open(), started)
+          machineDispatch({
+            type: 'start-succeeded',
+            sessionId: started.id,
+            serverSetCount: started.setCount,
           })
-          break
-        }
-
-        case 'UPDATE_SET': {
-          if (!session) return
-          const payload: UpdateSetLogRequest = {
-            weight: toKilograms(event.weight, event.unit),
-            reps: event.reps,
+        } catch (error) {
+          if (axios.isAxiosError(error) && error.response?.status === 409) {
+            const openSession = await sessionService.getOpen()
+            queryClient.setQueryData(queryKeys.sessions.open(), openSession)
+            machineDispatch({
+              type: 'start-conflicted',
+              workoutGroupId: event.workoutGroupId,
+              conflictSession: openSession,
+            })
+            return
           }
-          const updated = await transport.updateSetLog(session.id, event.setLogId, payload)
-          queryClient.setQueryData<WorkoutSession>(queryKeys.sessions.open(), (current) => {
-            if (!current) return current
-            return {
-              ...current,
-              setLogs: current.setLogs.map((l) =>
-                l.id === event.setLogId ? { ...l, weight: updated.weight, reps: updated.reps } : l,
-              ),
-            }
-          })
-          break
-        }
-
-        case 'DELETE_SET': {
-          if (!session) return
-          const sessionId = session.id
-          const current = queryClient.getQueryData<WorkoutSession>(queryKeys.sessions.open())
-          if (!current) return
-          const remaining = current.setLogs.filter((l) => l.id !== event.setLogId)
-          queryClient.setQueryData(queryKeys.sessions.open(), {
-            ...current,
-            setLogs: remaining,
-            setCount: remaining.length,
-          })
-          try {
-            await transport.deleteSetLog(sessionId, event.setLogId)
-          } catch (error) {
-            queryClient.setQueryData(queryKeys.sessions.open(), current)
-            throw error
+          if (axios.isAxiosError(error) && error.response?.status === 400) {
+            machineDispatch({
+              type: 'start-rejected-stale-plan',
+              message: 'Your active plan changed. Please select a group again.',
+            })
+            await queryClient.invalidateQueries({ queryKey: queryKeys.sessions.startOptions() })
+            return
           }
-          if (isOnline) {
-            void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.open() })
-            void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.referenceWeights(sessionId) })
-          }
-          break
+          throw error
         }
-
-        case 'DISMISS_STALE_PLAN': {
-          setStalePlanError(null)
-          break
-        }
+        break
       }
+
+      case 'RESUME': {
+        if (!conflictSession) return
+        machineDispatch({ type: 'resume-conflict' })
+        break
+      }
+
+      case 'DISCARD': {
+        if (!conflictSession) return
+        const nextGroupId = pendingGroupId
+        await discardMutation.mutateAsync(conflictSession.id)
+        queryClient.setQueryData(queryKeys.sessions.open(), null)
+        machineDispatch({ type: 'conflict-discarded' })
+        if (nextGroupId) {
+          await dispatch({ type: 'START', workoutGroupId: nextGroupId })
+        }
+        break
+      }
+
+      case 'COMPLETE': {
+        if (!session) return
+        machineDispatch({ type: 'completion-started' })
+        const completed = await completeMutation.mutateAsync(session.id)
+        queryClient.setQueryData(queryKeys.sessions.open(), null)
+        queryClient.setQueryData<WorkoutSession[]>(queryKeys.sessions.history(), (current = []) => [
+          completed,
+          ...current,
+        ])
+        machineDispatch({ type: 'completion-finished' })
+        onComplete()
+        break
+      }
+
+      case 'FORFEIT': {
+        if (!session) return
+        await discardMutation.mutateAsync(session.id)
+        queryClient.setQueryData(queryKeys.sessions.open(), null)
+        machineDispatch({ type: 'forfeit-finished' })
+        onForfeit?.()
+        break
+      }
+
+      case 'LOG_SET': {
+        if (!session) return
+        const payload: AddSetLogRequest = {
+          exerciseId: event.exerciseId,
+          setNumber: event.setNumber,
+          weight: toKilograms(event.weight, event.unit),
+          reps: event.reps,
+        }
+        const pendingLog: PendingSetLog = {
+          id: crypto.randomUUID(),
+          exerciseId: event.exerciseId,
+          setNumber: event.setNumber,
+          weight: toKilograms(event.weight, event.unit),
+          reps: event.reps,
+          loggedAt: new Date().toISOString(),
+          pending: true,
+        }
+        machineDispatch({ type: 'pending-set-log-recorded', pendingSetLog: pendingLog })
+        const logged = await transport.addSetLog(session.id, payload)
+        queryClient.setQueryData<WorkoutSession>(queryKeys.sessions.open(), (current) => {
+          if (!current) return current
+          const newLogs = [...current.setLogs, logged]
+          return { ...current, setLogs: newLogs, setCount: newLogs.length }
+        })
+        break
+      }
+
+      case 'UPDATE_SET': {
+        if (!session) return
+        const payload: UpdateSetLogRequest = {
+          weight: toKilograms(event.weight, event.unit),
+          reps: event.reps,
+        }
+        const updated = await transport.updateSetLog(session.id, event.setLogId, payload)
+        queryClient.setQueryData<WorkoutSession>(queryKeys.sessions.open(), (current) => {
+          if (!current) return current
+          return {
+            ...current,
+            setLogs: current.setLogs.map((l) =>
+              l.id === event.setLogId ? { ...l, weight: updated.weight, reps: updated.reps } : l,
+            ),
+          }
+        })
+        break
+      }
+
+      case 'DELETE_SET': {
+        if (!session) return
+        const sessionId = session.id
+        const current = queryClient.getQueryData<WorkoutSession>(queryKeys.sessions.open())
+        if (!current) return
+        const remaining = current.setLogs.filter((l) => l.id !== event.setLogId)
+        queryClient.setQueryData(queryKeys.sessions.open(), {
+          ...current,
+          setLogs: remaining,
+          setCount: remaining.length,
+        })
+        try {
+          await transport.deleteSetLog(sessionId, event.setLogId)
+        } catch (error) {
+          queryClient.setQueryData(queryKeys.sessions.open(), current)
+          throw error
+        }
+        if (isOnline) {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.open() })
+          void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.referenceWeights(sessionId) })
+        }
+        break
+      }
+
+      case 'DISMISS_STALE_PLAN': {
+        machineDispatch({ type: 'stale-plan-dismissed' })
+        break
+      }
+    }
   }
 
   return {
