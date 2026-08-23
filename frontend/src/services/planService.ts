@@ -31,6 +31,10 @@ export interface WorkoutPlanDetail extends WorkoutPlan {
   groups: WorkoutGroupDetail[]
 }
 
+export interface WorkoutPlanStructure {
+  groups: WorkoutGroupDetail[]
+}
+
 export interface CreateWorkoutExerciseRequest {
   exerciseId: string
   sets: number
@@ -40,9 +44,28 @@ export interface CreateWorkoutExerciseRequest {
 
 export type UpdateWorkoutExerciseRequest = Partial<CreateWorkoutExerciseRequest>
 
+function toWorkoutPlanMetadata(plan: WorkoutPlanDetail): WorkoutPlan {
+  return {
+    id: plan.id,
+    name: plan.name,
+    source: plan.source,
+    isActive: plan.isActive,
+    createdAt: plan.createdAt,
+    updatedAt: plan.updatedAt,
+  }
+}
+
+function toWorkoutPlanStructure(plan: WorkoutPlanDetail): WorkoutPlanStructure {
+  return {
+    groups: plan.groups,
+  }
+}
+
 export const planService = {
   list: () => http.get<WorkoutPlan[]>('/plans'),
   get: (id: string) => http.get<WorkoutPlanDetail>(`/plans/${id}`),
+  getMetadata: async (id: string) => toWorkoutPlanMetadata(await http.get<WorkoutPlanDetail>(`/plans/${id}`)),
+  getStructure: async (id: string) => toWorkoutPlanStructure(await http.get<WorkoutPlanDetail>(`/plans/${id}`)),
   create: (name: string) => http.post<WorkoutPlan>('/plans', { name }),
   update: (id: string, name: string) => http.patch<WorkoutPlan>(`/plans/${id}`, { name }),
   delete: (id: string) => http.delete(`/plans/${id}`),
