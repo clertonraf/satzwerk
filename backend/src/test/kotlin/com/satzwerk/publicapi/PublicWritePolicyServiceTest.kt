@@ -282,10 +282,13 @@ class PublicWritePolicyServiceTest {
         }
 
     @Test
-    fun `execute rejects replay when a completed legacy record has a blank fingerprint`(): Unit =
+    fun `execute rejects replay when a completed legacy record has a sentinel fingerprint`(): Unit =
         runBlocking {
             val completedRecord =
-                pendingRecord(id = UUID.randomUUID(), requestFingerprint = "").copy(
+                pendingRecord(
+                    id = UUID.randomUUID(),
+                    requestFingerprint = "__legacy_no_fingerprint__",
+                ).copy(
                     responseStatus = HttpStatus.CREATED.value(),
                     responseBody = """{"name":"Bench Press"}""",
                 )

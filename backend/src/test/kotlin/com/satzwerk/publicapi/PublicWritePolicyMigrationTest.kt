@@ -264,7 +264,12 @@ class PublicWritePolicyMigrationTest : PostgresTestContainer() {
                         }.toMap()
 
                     assertEquals(
-                        listOf("PARTNER_APP", grantId.toString(), "", "201"),
+                        listOf(
+                            "PARTNER_APP",
+                            grantId.toString(),
+                            "__legacy_no_fingerprint__",
+                            "201",
+                        ),
                         records[completedRecordId],
                     )
                     assertEquals(

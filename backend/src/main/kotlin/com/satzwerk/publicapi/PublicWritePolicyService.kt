@@ -28,6 +28,7 @@ private const val IDEMPOTENCY_HEADER = "Idempotency-Key"
 private const val PENDING_RESPONSE_STATUS = -1
 private const val MAX_PENDING_RECORD_POLLS = 40
 private const val PENDING_RECORD_POLL_DELAY_MILLIS = 25L
+private const val LEGACY_NO_FINGERPRINT_SENTINEL = "__legacy_no_fingerprint__"
 private const val IDEMPOTENCY_PAYLOAD_MISMATCH_MESSAGE =
     "Idempotency-Key already used with a different payload"
 
@@ -331,6 +332,9 @@ class PublicWritePolicyService(
             if (record != null) {
                 val pendingWithoutFingerprint =
                     record.responseStatus == PENDING_RESPONSE_STATUS && record.requestFingerprint.isBlank()
+                if (record.hasUnverifiableLegacyFingerprint()) {
+                    throw ConflictException(IDEMPOTENCY_PAYLOAD_MISMATCH_MESSAGE)
+                }
                 if (!pendingWithoutFingerprint && record.requestFingerprint != metadata.requestFingerprint) {
                     throw ConflictException(IDEMPOTENCY_PAYLOAD_MISMATCH_MESSAGE)
                 }
@@ -343,6 +347,10 @@ class PublicWritePolicyService(
         throw ConflictException("Idempotent request is still in progress")
     }
 }
+
+private fun PublicWriteIdempotencyRecord.hasUnverifiableLegacyFingerprint(): Boolean =
+    responseStatus != PENDING_RESPONSE_STATUS &&
+        (requestFingerprint == LEGACY_NO_FINGERPRINT_SENTINEL || requestFingerprint.isBlank())
 
 private fun requireIdempotencyKey(request: ServerRequest): String =
     request.headers().firstHeader(IDEMPOTENCY_HEADER)

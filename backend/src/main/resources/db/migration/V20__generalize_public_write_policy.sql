@@ -14,6 +14,11 @@ WHERE principal_type IS NULL;
 ALTER TABLE public_write_idempotency_records
     ALTER COLUMN principal_type SET NOT NULL;
 
+UPDATE public_write_idempotency_records
+SET request_fingerprint = '__legacy_no_fingerprint__'
+WHERE response_status <> -1
+  AND request_fingerprint = '';
+
 ALTER TABLE public_write_idempotency_records
     DROP CONSTRAINT idempotency_records_grant_id_fkey;
 
