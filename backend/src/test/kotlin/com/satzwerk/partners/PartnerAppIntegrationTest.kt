@@ -266,6 +266,28 @@ class PartnerAppIntegrationTest : PostgresTestContainer() {
             .expectStatus().isForbidden
     }
 
+    @Test
+    fun `revoke by wrong user still returns 403 after the grant was already revoked`() {
+        val tokenA = registerAndLogin("revoked-owner")
+        val tokenB = registerAndLogin("revoked-foreign")
+        val app = registerApp(tokenA)
+        val grant = grantAccess(tokenA, app.clientId)
+
+        client
+            .delete()
+            .uri("/api/partner-grants/${grant.grantId}")
+            .header("Authorization", "Bearer $tokenA")
+            .exchange()
+            .expectStatus().isNoContent
+
+        client
+            .delete()
+            .uri("/api/partner-grants/${grant.grantId}")
+            .header("Authorization", "Bearer $tokenB")
+            .exchange()
+            .expectStatus().isForbidden
+    }
+
     // ── Credential binding: probe route (GET /api/partner-grants/me) ──────────
 
     @Test

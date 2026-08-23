@@ -3,8 +3,9 @@ package com.satzwerk.partners
 import com.satzwerk.auth.TokenSecretService
 import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ConflictException
-import com.satzwerk.common.ForbiddenException
 import com.satzwerk.common.NotFoundException
+import com.satzwerk.common.Owned
+import com.satzwerk.common.assertOwner
 import com.satzwerk.publicapi.validateDeclaredPublicScopes
 import com.satzwerk.publicapi.validateGrantedPublicScopes
 import kotlinx.coroutines.flow.map
@@ -129,9 +130,9 @@ class PartnerAppService(
         val grant =
             appGrantRepository.findById(grantId)
                 ?: throw NotFoundException("Grant not found")
-        requireGrantOwnership(grant, userId)
+        val ownedGrant = requireGrantOwnership(grant, userId)
         appGrantRepository.save(
-            grant.copy(
+            ownedGrant.copy(
                 revokedAt = Instant.now(),
                 revokedBy = "user",
             ),
@@ -198,7 +199,8 @@ private const val SECRET_BYTES = 32
 internal fun requireGrantOwnership(
     grant: AppGrant,
     userId: UUID,
-) {
-    if (grant.userId != userId) throw ForbiddenException("Grant does not belong to this user")
-    if (grant.revokedAt != null) throw BadRequestException("Grant already revoked")
+): AppGrant {
+    val ownedGrant = Owned(grant, grant.userId).assertOwner(userId, "Grant").value
+    if (ownedGrant.revokedAt != null) throw BadRequestException("Grant already revoked")
+    return ownedGrant
 }

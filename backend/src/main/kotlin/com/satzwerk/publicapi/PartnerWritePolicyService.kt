@@ -8,10 +8,13 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ConflictException
+import com.satzwerk.common.ForbiddenException
 import com.satzwerk.common.UnauthorizedException
 import com.satzwerk.common.parseUuid
 import com.satzwerk.common.requirePartnerPrincipal
+import com.satzwerk.partners.AppGrant
 import com.satzwerk.partners.PartnerAppService
+import com.satzwerk.partners.requireGrantOwnership
 import kotlinx.coroutines.delay
 import org.springframework.data.annotation.Id
 import org.springframework.data.r2dbc.repository.Query
@@ -165,7 +168,7 @@ class PartnerWritePolicyService(
                 idempotencyKey = requireIdempotencyKey(request),
                 requestFingerprint = requestFingerprint(requestBody),
             )
-        requireFreshActiveGrant(request, metadata.grantId)
+        requireFreshActiveGrant(request, metadata.grantId, metadata.userId)
         val claimedRecord =
             idempotencyRecordRepository.claim(
                 grantId = metadata.grantId,
@@ -278,17 +281,31 @@ class PartnerWritePolicyService(
     private suspend fun requireFreshActiveGrant(
         request: ServerRequest,
         expectedGrantId: UUID,
+        userId: UUID,
     ) {
-        val appToken =
-            request.headers().firstHeader(APP_TOKEN_HEADER)
-                ?.trim()
-                .orEmpty()
-        if (appToken.isBlank()) {
-            throw UnauthorizedException()
-        }
-        val activeGrantId = partnerAppService.resolveActiveGrant(appToken)?.id
-        if (activeGrantId == null || activeGrantId != expectedGrantId) {
+        val activeGrant =
+            partnerAppService.resolveActiveGrant(requireAppToken(request))
+                ?.let { grant ->
+                    requireOwnedGrant(grant, userId)
+                }
+        if (activeGrant?.id != expectedGrantId) {
             throw UnauthorizedException()
         }
     }
+
+    private fun requireAppToken(request: ServerRequest): String =
+        request.headers().firstHeader(APP_TOKEN_HEADER)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: throw UnauthorizedException()
+
+    private fun requireOwnedGrant(
+        grant: AppGrant,
+        userId: UUID,
+    ): AppGrant =
+        try {
+            requireGrantOwnership(grant, userId)
+        } catch (_: ForbiddenException) {
+            throw UnauthorizedException()
+        }
 }

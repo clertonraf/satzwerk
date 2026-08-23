@@ -2,6 +2,7 @@ package com.satzwerk.publicapi
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.satzwerk.common.ConflictException
+import com.satzwerk.common.UnauthorizedException
 import com.satzwerk.partners.AppGrant
 import com.satzwerk.partners.PartnerAppService
 import com.satzwerk.partners.PartnerPrincipal
@@ -166,6 +167,39 @@ class PartnerWritePolicyServiceTest {
             verify(partnerWriteAuditRepository, never()).save(any())
         }
 
+    @Test
+    fun `execute rejects an app token whose resolved grant belongs to another user`(): Unit =
+        runBlocking {
+            val claimedRecord = pendingRecord(id = UUID.randomUUID())
+            val idempotencyRecordRepository =
+                mock<IdempotencyRecordRepository> {
+                    onBlocking { claim(any(), any(), any(), any(), any()) } doReturn claimedRecord
+                }
+            val partnerWriteAuditRepository = mock<PartnerWriteAuditRepository>()
+            val partnerAppService =
+                mock<PartnerAppService> {
+                    onBlocking { resolveActiveGrant(APP_TOKEN) } doReturn activeGrant(userId = UUID.randomUUID())
+                }
+            val service =
+                PartnerWritePolicyService(
+                    idempotencyRecordRepository = idempotencyRecordRepository,
+                    partnerWriteAuditRepository = partnerWriteAuditRepository,
+                    objectMapper = jacksonObjectMapper(),
+                    partnerAppService = partnerAppService,
+                )
+
+            org.junit.jupiter.api.assertThrows<UnauthorizedException> {
+                runBlocking {
+                    service.execute(request(), HttpStatus.CREATED, ExampleRequest(name = "Bench Press")) {
+                        ExampleResponse(name = "Should not run")
+                    }
+                }
+            }
+
+            verify(idempotencyRecordRepository, never()).save(any())
+            verify(partnerWriteAuditRepository, never()).save(any())
+        }
+
     private fun request(): ServerRequest {
         val headers =
             mock<ServerRequest.Headers> {
@@ -192,11 +226,11 @@ class PartnerWritePolicyServiceTest {
         }
     }
 
-    private fun activeGrant() =
+    private fun activeGrant(userId: UUID = USER_ID) =
         AppGrant(
             id = GRANT_ID,
             appId = APP_ID,
-            userId = USER_ID,
+            userId = userId,
             grantedScopes = "exercises:write",
             accessTokenHash = "hashed-token",
         )
