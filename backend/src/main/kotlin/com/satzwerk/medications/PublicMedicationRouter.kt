@@ -3,10 +3,10 @@ package com.satzwerk.medications
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.body
 import com.satzwerk.common.validateOrBadRequest
-import com.satzwerk.publicapi.PartnerWritePolicyService
-import com.satzwerk.publicapi.PartnerWritePrincipalValidationService
-import com.satzwerk.publicapi.PartnerWriteRequestFingerprintCodec
 import com.satzwerk.publicapi.PublicScope
+import com.satzwerk.publicapi.PublicWritePolicyService
+import com.satzwerk.publicapi.PublicWritePrincipalValidationService
+import com.satzwerk.publicapi.PublicWriteRequestFingerprintCodec
 import com.satzwerk.publicapi.handlePublicScope
 import jakarta.validation.Validator
 import org.springframework.context.annotation.Bean
@@ -25,8 +25,8 @@ class PublicMedicationRouter {
     @Bean
     fun publicMedicationRoutes(
         medicationService: MedicationService,
-        partnerWritePolicyService: PartnerWritePolicyService,
-        partnerWritePrincipalValidationService: PartnerWritePrincipalValidationService,
+        publicWritePolicyService: PublicWritePolicyService,
+        publicWritePrincipalValidationService: PublicWritePrincipalValidationService,
         validator: Validator,
     ) = coRouter {
         "/api/public/medications".nest {
@@ -38,14 +38,14 @@ class PublicMedicationRouter {
              */
             POST("") { request ->
                 handlePublicScope(request, PublicScope.MEDICATIONS_WRITE, extra = publicMedicationWriteErrors) { ctx ->
-                    val partnerPrincipal = partnerWritePrincipalValidationService.requireValidPrincipal(ctx)
+                    val publicWritePrincipal = publicWritePrincipalValidationService.requireValidPrincipal(ctx)
                     val body = ctx.body<CreateMedicationRequest>()
                     validateOrBadRequest(validator, body) {
-                        partnerWritePolicyService.execute(
-                            partnerPrincipal,
+                        publicWritePolicyService.execute(
+                            publicWritePrincipal,
                             request,
                             HttpStatus.CREATED,
-                            PartnerWriteRequestFingerprintCodec.body(body),
+                            PublicWriteRequestFingerprintCodec.body(body),
                         ) { userId ->
                             medicationService.createMedication(userId, body)
                         }
@@ -61,15 +61,15 @@ class PublicMedicationRouter {
              */
             PUT("/{id}") { request ->
                 handlePublicScope(request, PublicScope.MEDICATIONS_WRITE, extra = publicMedicationWriteErrors) { ctx ->
-                    val partnerPrincipal = partnerWritePrincipalValidationService.requireValidPrincipal(ctx)
+                    val publicWritePrincipal = publicWritePrincipalValidationService.requireValidPrincipal(ctx)
                     val id = ctx.pathId("id")
                     val body = ctx.body<UpdateMedicationRequest>()
                     validateOrBadRequest(validator, body) {
-                        partnerWritePolicyService.execute(
-                            partnerPrincipal,
+                        publicWritePolicyService.execute(
+                            publicWritePrincipal,
                             request,
                             HttpStatus.OK,
-                            PartnerWriteRequestFingerprintCodec.body(body),
+                            PublicWriteRequestFingerprintCodec.body(body),
                         ) { userId ->
                             medicationService.updateMedication(userId, id, body)
                         }
@@ -85,15 +85,15 @@ class PublicMedicationRouter {
              */
             POST("/{id}/logs") { request ->
                 handlePublicScope(request, PublicScope.MEDICATIONS_WRITE, extra = publicMedicationWriteErrors) { ctx ->
-                    val partnerPrincipal = partnerWritePrincipalValidationService.requireValidPrincipal(ctx)
+                    val publicWritePrincipal = publicWritePrincipalValidationService.requireValidPrincipal(ctx)
                     val medicationId = ctx.pathId("id")
                     val body = ctx.body<LogDoseRequest>()
                     validateOrBadRequest(validator, body) {
-                        partnerWritePolicyService.execute(
-                            partnerPrincipal,
+                        publicWritePolicyService.execute(
+                            publicWritePrincipal,
                             request,
                             HttpStatus.CREATED,
-                            PartnerWriteRequestFingerprintCodec.body(body),
+                            PublicWriteRequestFingerprintCodec.body(body),
                         ) { userId ->
                             medicationService.logDose(userId, medicationId, body)
                         }

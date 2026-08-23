@@ -171,6 +171,28 @@ class PersonalApiTokenIntegrationTest : PostgresTestContainer() {
     }
 
     @Test
+    fun `valid token with exercises write can create Exercise via public route`() {
+        val jwt = registerAndGetJwt("pat-public-exercise-write@test.com")
+        val created = createToken(jwt, "Exercise Writer", listOf(PublicScope.EXERCISES_WRITE))
+
+        client.post().uri("/api/public/exercises")
+            .header("Authorization", "Bearer ${created.token}")
+            .header("Idempotency-Key", "pat-public-exercise-create")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "name" to "PAT Bench Press",
+                    "muscleGroup" to "CHEST",
+                ),
+            ).exchange()
+            .expectStatus().isCreated
+            .expectBody()
+            .jsonPath("$.id").isNotEmpty
+            .jsonPath("$.name").isEqualTo("PAT Bench Press")
+            .jsonPath("$.muscleGroup").isEqualTo("CHEST")
+    }
+
+    @Test
     fun `PAT cannot be used to manage tokens - JWT required`() {
         val jwt = registerAndGetJwt("pat-meta@test.com")
         val created = createToken(jwt, "Meta Token", listOf(PublicScope.ANALYTICS_READ))
