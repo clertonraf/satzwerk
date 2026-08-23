@@ -22,7 +22,7 @@ import java.util.UUID
 
 class PublicWritePrincipalValidationServiceTest {
     @Test
-    fun `requireValidPrincipal returns a public-write principal for a personal api token without revalidating partner state`(): Unit =
+    fun `requireValidPrincipal returns a personal token principal without partner revalidation`(): Unit =
         runBlocking {
             val partnerAppService = mock<com.satzwerk.partners.PartnerAppService>()
             val validatedService = PublicWritePrincipalValidationService(partnerAppService)
@@ -75,6 +75,42 @@ class PublicWritePrincipalValidationServiceTest {
                 actual,
             )
         }
+
+    @Test
+    fun `requireValidPrincipal rejects partner principals when the active grant was revoked`() {
+        val validatedService =
+            PublicWritePrincipalValidationService(
+                mock {
+                    onBlocking { resolveActiveGrant(APP_TOKEN) } doReturn null
+                },
+            )
+
+        assertThrows<UnauthorizedException> {
+            runBlocking { validatedService.requireValidPrincipal(RequestContext(partnerAppRequest())) }
+        }
+    }
+
+    @Test
+    fun `requireValidPrincipal rejects partner principals when the active grant no longer matches`() {
+        val mismatchedGrant =
+            AppGrant(
+                id = OTHER_GRANT_ID,
+                appId = APP_ID,
+                userId = USER_ID,
+                grantedScopes = "exercises:write",
+                accessTokenHash = "hash",
+            )
+        val validatedService =
+            PublicWritePrincipalValidationService(
+                mock {
+                    onBlocking { resolveActiveGrant(APP_TOKEN) } doReturn mismatchedGrant
+                },
+            )
+
+        assertThrows<UnauthorizedException> {
+            runBlocking { validatedService.requireValidPrincipal(RequestContext(partnerAppRequest())) }
+        }
+    }
 
     @Test
     fun `requireValidPrincipal rejects jwt session principals`() {
@@ -148,6 +184,7 @@ class PublicWritePrincipalValidationServiceTest {
         private val TOKEN_ID: UUID = UUID.randomUUID()
         private val APP_ID: UUID = UUID.randomUUID()
         private val GRANT_ID: UUID = UUID.randomUUID()
+        private val OTHER_GRANT_ID: UUID = UUID.randomUUID()
         private const val APP_TOKEN = "app-token"
     }
 }

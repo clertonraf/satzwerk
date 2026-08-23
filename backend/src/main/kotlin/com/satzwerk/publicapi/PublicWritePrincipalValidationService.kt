@@ -4,6 +4,7 @@ import com.satzwerk.common.PartnerAppRequestPrincipal
 import com.satzwerk.common.PersonalApiTokenRequestPrincipal
 import com.satzwerk.common.RequestContext
 import com.satzwerk.common.UnauthorizedException
+import com.satzwerk.partners.AppGrant
 import com.satzwerk.partners.PartnerAppService
 import org.springframework.stereotype.Service
 
@@ -35,20 +36,9 @@ class PublicWritePrincipalValidationService(
         ctx: RequestContext,
         partnerPrincipal: PartnerAppRequestPrincipal,
     ) {
-        val appToken = ctx.header(APP_TOKEN_HEADER)?.trim().orEmpty()
-        if (appToken.isBlank()) {
-            throw UnauthorizedException()
-        }
-
-        val activeGrant = partnerAppService.resolveActiveGrant(appToken) ?: throw UnauthorizedException()
-        val activeGrantId = activeGrant.id ?: throw UnauthorizedException()
-        if (
-            activeGrantId != partnerPrincipal.grantId ||
-            activeGrant.appId != partnerPrincipal.appId ||
-            activeGrant.userId != partnerPrincipal.userId
-        ) {
-            throw UnauthorizedException()
-        }
+        val appToken = requireAppToken(ctx)
+        val activeGrant = requireActiveGrant(partnerAppService, appToken)
+        requireMatchingGrant(activeGrant, partnerPrincipal)
     }
 }
 
@@ -61,3 +51,25 @@ private fun PartnerAppRequestPrincipal.toPublicWritePrincipal(): PublicWritePrin
         appId = appId,
         grantId = grantId,
     )
+
+private fun requireAppToken(ctx: RequestContext): String =
+    ctx.header(APP_TOKEN_HEADER)?.trim()?.takeIf { it.isNotBlank() } ?: throw UnauthorizedException()
+
+private suspend fun requireActiveGrant(
+    partnerAppService: PartnerAppService,
+    appToken: String,
+): AppGrant = partnerAppService.resolveActiveGrant(appToken) ?: throw UnauthorizedException()
+
+private fun requireMatchingGrant(
+    activeGrant: AppGrant,
+    partnerPrincipal: PartnerAppRequestPrincipal,
+) {
+    val activeGrantId = activeGrant.id ?: throw UnauthorizedException()
+    if (
+        activeGrantId != partnerPrincipal.grantId ||
+        activeGrant.appId != partnerPrincipal.appId ||
+        activeGrant.userId != partnerPrincipal.userId
+    ) {
+        throw UnauthorizedException()
+    }
+}
