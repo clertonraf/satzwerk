@@ -21,7 +21,10 @@ internal fun toWorkoutExerciseResponses(
     exerciseNamesById: Map<UUID, String>,
 ): List<WorkoutExerciseResponse> {
     return workoutExercises.map { workoutExercise ->
-        workoutExercise.toResponse(exerciseNamesById.requireExerciseName(workoutExercise.exerciseId))
+        WorkoutExerciseResponse.from(
+            workoutExercise,
+            exerciseNamesById.requireExerciseName(workoutExercise.exerciseId),
+        )
     }
 }
 

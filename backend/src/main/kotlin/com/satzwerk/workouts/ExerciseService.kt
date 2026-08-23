@@ -27,7 +27,7 @@ class ExerciseService(
                 ),
             )
 
-        return exercise.toResponse()
+        return ExerciseResponse.from(exercise)
     }
 
     suspend fun list(
@@ -41,12 +41,12 @@ class ExerciseService(
                 exerciseRepository.findAllByUserIdAndMuscleGroup(userId, muscleGroup)
             }
         ).sortedBy { it.name }
-            .map(Exercise::toResponse)
+            .map(ExerciseResponse::from)
 
     suspend fun getOwned(
         userId: UUID,
         exerciseId: UUID,
-    ): ExerciseResponse = getRequiredExercise(userId, exerciseId).toResponse()
+    ): ExerciseResponse = ExerciseResponse.from(getRequiredExercise(userId, exerciseId))
 
     suspend fun update(
         userId: UUID,
@@ -66,7 +66,7 @@ class ExerciseService(
                 ),
             )
 
-        return updated.toResponse()
+        return ExerciseResponse.from(updated)
     }
 
     suspend fun delete(

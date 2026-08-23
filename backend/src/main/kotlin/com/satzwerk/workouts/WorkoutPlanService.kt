@@ -27,12 +27,12 @@ class WorkoutPlanService(
                     userId = userId,
                     name = request.name,
                 ),
-            ).toResponse()
+            ).let(WorkoutPlanResponse::from)
 
     suspend fun list(userId: UUID): List<WorkoutPlanResponse> =
         workoutPlanRepository.findAllByUserId(userId)
             .sortedBy(WorkoutPlan::createdAt)
-            .map(WorkoutPlan::toResponse)
+            .map(WorkoutPlanResponse::from)
 
     suspend fun getDetail(
         userId: UUID,
@@ -60,7 +60,7 @@ class WorkoutPlanService(
                 .groupBy { it.workoutGroupId }
                 .mapValues { (_, exercises) -> toWorkoutExerciseResponses(exercises, exerciseNamesById) }
 
-        return plan.toDetailResponse(groups, exercisesByGroup)
+        return WorkoutPlanDetailResponse.from(plan, groups, exercisesByGroup)
     }
 
     suspend fun getActiveDetail(userId: UUID): WorkoutPlanDetailResponse {
@@ -87,7 +87,7 @@ class WorkoutPlanService(
                 ),
             )
 
-        return updated.toResponse()
+        return WorkoutPlanResponse.from(updated)
     }
 
     suspend fun delete(

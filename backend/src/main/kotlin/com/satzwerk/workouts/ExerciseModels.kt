@@ -31,4 +31,18 @@ data class ExerciseResponse(
     val equipment: String?,
     val createdAt: Instant,
     val updatedAt: Instant,
-)
+) {
+    companion object {
+        internal fun from(exercise: Exercise): ExerciseResponse =
+            ExerciseResponse(
+                id = requireNotNull(exercise.id),
+                name = exercise.name,
+                muscleGroup = exercise.muscleGroup,
+                description = exercise.description,
+                videoUrl = exercise.videoUrl,
+                equipment = exercise.equipment,
+                createdAt = exercise.createdAt,
+                updatedAt = exercise.updatedAt,
+            )
+    }
+}
