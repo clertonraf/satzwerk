@@ -220,7 +220,7 @@ describe('AppShell', () => {
     expect(mobileNav).toHaveTextContent('Settings')
   })
 
-  it('mobile bottom navigation renders all four navigation items (Dashboard, Workouts, Health, Settings)', () => {
+  it('mobile bottom navigation renders all five navigation items (Dashboard, Workouts, Analytics, Health, Settings)', () => {
     render(
       <MemoryRouter>
         <AppShell>
@@ -231,12 +231,13 @@ describe('AppShell', () => {
     const mobileNav = screen.getByRole('navigation', { name: /main navigation/i })
     expect(mobileNav).toHaveTextContent('Dashboard')
     expect(mobileNav).toHaveTextContent('Workouts')
+    expect(mobileNav).toHaveTextContent('Analytics')
     expect(mobileNav).toHaveTextContent('Health')
     expect(mobileNav).toHaveTextContent('Settings')
-    // Exactly four links — catches future navigationItems drift
-    expect(mobileNav.querySelectorAll('a')).toHaveLength(4)
+    // Exactly five links — catches future navigationItems drift
+    expect(mobileNav.querySelectorAll('a')).toHaveLength(5)
     const mobileIcons = mobileNav.querySelectorAll('svg')
-    expect(mobileIcons).toHaveLength(4)
+    expect(mobileIcons).toHaveLength(5)
     mobileIcons.forEach((icon) => {
       expect(icon.className.baseVal || icon.getAttribute('class') || '').toContain('size-5')
     })

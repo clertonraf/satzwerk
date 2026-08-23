@@ -22,6 +22,7 @@ export const queryKeys = {
     personalRecords: (limit?: number) => ['personal-records', limit] as const,
     topExercises: (limit?: number) => ['top-exercises', limit] as const,
     leastExercises: (limit?: number) => ['least-exercises', limit] as const,
+    exerciseProgress: (exerciseId: string) => ['exercise-progress', exerciseId] as const,
   },
   measurements: {
     all: () => ['measurements'] as const,

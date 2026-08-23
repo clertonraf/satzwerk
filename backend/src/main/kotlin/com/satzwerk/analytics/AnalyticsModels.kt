@@ -51,6 +51,28 @@ data class TopExercise(
     val setCount: Int,
 )
 
+data class ExerciseProgressPoint(
+    val sessionId: UUID,
+    val sessionDate: LocalDate,
+    val topSetWeightKg: BigDecimal,
+    val topSetReps: Int,
+    val estimatedOneRepMaxKg: BigDecimal?,
+)
+
+data class ExerciseProgressSessionSummary(
+    val sessionId: UUID,
+    val sessionDate: LocalDate,
+    val workoutGroupTitle: String,
+    val topSetLabel: String,
+)
+
+data class ExerciseProgressResponse(
+    val exerciseId: UUID,
+    val exerciseName: String,
+    val points: List<ExerciseProgressPoint>,
+    val recentSessions: List<ExerciseProgressSessionSummary>,
+)
+
 fun intensityTier(count: Int): Int =
     when {
         count == NO_INTENSITY -> NO_INTENSITY
