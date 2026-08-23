@@ -105,10 +105,23 @@ class WorkoutPlanService(
     suspend fun getRequiredPlan(
         userId: UUID,
         planId: UUID,
-    ): WorkoutPlan = fetchPlanAsOwned(planId).assertOwner(userId, "Workout plan").value
+    ): WorkoutPlan = fetchPlanAsOwned(planId, workoutPlanRepository).assertOwner(userId, "Workout plan").value
 
-    private suspend fun fetchPlanAsOwned(planId: UUID): Owned<WorkoutPlan> {
-        val plan = workoutPlanRepository.findById(planId) ?: throw NotFoundException("Workout plan not found")
-        return Owned(plan, plan.userId)
+    suspend fun getRequiredGroup(
+        userId: UUID,
+        planId: UUID,
+        groupId: UUID,
+    ): WorkoutGroup {
+        getRequiredPlan(userId, planId)
+        return workoutGroupRepository.findByIdAndWorkoutPlanId(groupId, planId)
+            ?: throw NotFoundException("Workout group not found")
     }
+}
+
+private suspend fun fetchPlanAsOwned(
+    planId: UUID,
+    workoutPlanRepository: WorkoutPlanRepository,
+): Owned<WorkoutPlan> {
+    val plan = workoutPlanRepository.findById(planId) ?: throw NotFoundException("Workout plan not found")
+    return Owned(plan, plan.userId)
 }

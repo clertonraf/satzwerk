@@ -10,7 +10,7 @@ import java.util.UUID
 
 @Service
 class WorkoutExerciseService(
-    private val workoutGroupService: WorkoutGroupService,
+    private val workoutPlanService: WorkoutPlanService,
     private val workoutExerciseRepository: WorkoutExerciseRepository,
     private val exerciseRepository: ExerciseRepository,
 ) {
@@ -20,7 +20,7 @@ class WorkoutExerciseService(
         groupId: UUID,
         request: CreateWorkoutExerciseRequest,
     ): WorkoutExerciseResponse {
-        workoutGroupService.getRequiredGroup(userId, planId, groupId)
+        workoutPlanService.getRequiredGroup(userId, planId, groupId)
         val exercise = exerciseRepository.findById(request.exerciseId) ?: throw NotFoundException("Exercise not found")
         Owned(exercise, exercise.userId).assertOwner(userId, "Exercise")
 
@@ -44,7 +44,7 @@ class WorkoutExerciseService(
         exerciseId: UUID,
         request: UpdateWorkoutExerciseRequest,
     ): WorkoutExerciseResponse {
-        workoutGroupService.getRequiredGroup(userId, planId, groupId)
+        workoutPlanService.getRequiredGroup(userId, planId, groupId)
         val existing = getRequiredWorkoutExercise(groupId, exerciseId)
         val exercise = exerciseRepository.findById(existing.exerciseId) ?: throw NotFoundException("Exercise not found")
         return workoutExerciseRepository
@@ -65,7 +65,7 @@ class WorkoutExerciseService(
         groupId: UUID,
         exerciseId: UUID,
     ) {
-        workoutGroupService.getRequiredGroup(userId, planId, groupId)
+        workoutPlanService.getRequiredGroup(userId, planId, groupId)
         val workoutExercise = getRequiredWorkoutExercise(groupId, exerciseId)
         workoutExerciseRepository.deleteById(requireNotNull(workoutExercise.id))
     }
@@ -78,7 +78,7 @@ class WorkoutExerciseService(
         exerciseId: UUID,
         direction: ReorderDirection,
     ): List<WorkoutExerciseResponse> {
-        workoutGroupService.getRequiredGroup(userId, planId, groupId)
+        workoutPlanService.getRequiredGroup(userId, planId, groupId)
         val exercises = workoutExerciseRepository.findAllByWorkoutGroupIdOrderByOrderIndex(groupId)
         val targetIndex = exercises.indexOfFirst { it.id == exerciseId }
         if (targetIndex == -1) {
