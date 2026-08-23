@@ -137,6 +137,7 @@ describe('createQueuedSetLogTransport', () => {
       type: 'add-set',
       sessionId: 'session-1',
       data: addSetLogRequest,
+      clientSetLogId: queued.id,
     })
     expect(queued).toMatchObject({
       ...addSetLogRequest,
@@ -232,6 +233,7 @@ describe('useSessionTransport', () => {
       type: 'add-set',
       sessionId: 'session-1',
       data: addSetLogRequest,
+      clientSetLogId: (queued as { id: string }).id,
     })
     expect(sessionService.addSetLog).not.toHaveBeenCalled()
     expect(queued).toMatchObject({

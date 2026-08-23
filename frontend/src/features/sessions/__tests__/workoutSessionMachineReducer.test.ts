@@ -104,7 +104,7 @@ describe('workoutSessionMachineReducer', () => {
     expect(dismissedState.stalePlanError).toBeNull()
   })
 
-  it('reconciles pending set logs against server set-count confirmations', () => {
+  it('reconciles pending set logs against explicit sync confirmations', () => {
     const initialState = workoutSessionMachineReducer(createInitialWorkoutSessionMachineState(), {
       type: 'session-synced',
       sessionId: 'session-1',
@@ -120,9 +120,8 @@ describe('workoutSessionMachineReducer', () => {
     })
 
     const reconciledState = workoutSessionMachineReducer(morePendingLogs, {
-      type: 'session-synced',
-      sessionId: 'session-1',
-      serverSetCount: 1,
+      type: 'pending-set-logs-confirmed',
+      pendingSetLogIds: [makePendingSetLog({ setNumber: 1 }).id],
     })
 
     expect(reconciledState.pendingSetLogs).toEqual([makePendingSetLog({ id: 'queued-2', setNumber: 2 })])

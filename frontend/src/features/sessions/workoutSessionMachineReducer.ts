@@ -24,6 +24,7 @@ export type WorkoutSessionMachineAction =
   | { type: 'completion-finished' }
   | { type: 'forfeit-finished' }
   | { type: 'pending-set-log-recorded'; pendingSetLog: PendingSetLog }
+  | { type: 'pending-set-logs-confirmed'; pendingSetLogIds: string[] }
   | { type: 'stale-plan-dismissed' }
 
 function derivePhaseFromSessionId(sessionId: string | null): SessionPhase {
@@ -49,7 +50,6 @@ export function workoutSessionMachineReducer(
   switch (action.type) {
     case 'session-synced': {
       const isSessionChanged = state.trackedSessionId !== action.sessionId
-      const serverCountDelta = action.serverSetCount - state.trackedServerSetCount
 
       return {
         ...state,
@@ -57,11 +57,7 @@ export function workoutSessionMachineReducer(
           state.phase === 'conflict' || state.phase === 'completing'
             ? state.phase
             : derivePhaseFromSessionId(action.sessionId),
-        pendingSetLogs: isSessionChanged
-          ? []
-          : serverCountDelta > 0
-            ? state.pendingSetLogs.slice(serverCountDelta)
-            : state.pendingSetLogs,
+        pendingSetLogs: isSessionChanged ? [] : state.pendingSetLogs,
         trackedSessionId: action.sessionId,
         trackedServerSetCount: action.serverSetCount,
       }
@@ -133,6 +129,19 @@ export function workoutSessionMachineReducer(
         ...state,
         pendingSetLogs: [...state.pendingSetLogs, action.pendingSetLog],
       }
+
+    case 'pending-set-logs-confirmed': {
+      if (action.pendingSetLogIds.length === 0) {
+        return state
+      }
+
+      const confirmedIds = new Set(action.pendingSetLogIds)
+
+      return {
+        ...state,
+        pendingSetLogs: state.pendingSetLogs.filter((pendingSetLog) => !confirmedIds.has(pendingSetLog.id)),
+      }
+    }
 
     case 'stale-plan-dismissed':
       return {

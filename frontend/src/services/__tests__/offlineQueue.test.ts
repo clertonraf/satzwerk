@@ -150,10 +150,10 @@ describe('offlineQueue.flush', () => {
 
   it('returns zero counts when queue is empty', async () => {
     const result = await offlineQueue.flush()
-    expect(result).toEqual({ succeeded: 0, failed: 0 })
+    expect(result).toEqual({ succeeded: [], failed: [] })
   })
 
-  it('returns succeeded count for successful ops', async () => {
+  it('returns success receipts for successful ops', async () => {
     vi.spyOn(sessionServiceModule.sessionService, 'addSetLog').mockResolvedValue({
       id: 'log-1',
       exerciseId: 'e1',
@@ -170,10 +170,28 @@ describe('offlineQueue.flush', () => {
     })
 
     const result = await offlineQueue.flush()
-    expect(result).toEqual({ succeeded: 1, failed: 0 })
+    expect(result).toEqual({
+      succeeded: [
+        expect.objectContaining({
+          type: 'add-set',
+          sessionId: 's1',
+          clientSetLogId: null,
+          data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5 },
+          serverSetLog: {
+            id: 'log-1',
+            exerciseId: 'e1',
+            setNumber: 1,
+            weight: 80,
+            reps: 5,
+            loggedAt: '2026-01-01T00:00:00Z',
+          },
+        }),
+      ],
+      failed: [],
+    })
   })
 
-  it('increments retryCount and returns failed count for failed ops', async () => {
+  it('increments retryCount and returns failed receipts for failed ops', async () => {
     vi.spyOn(sessionServiceModule.sessionService, 'addSetLog').mockRejectedValue(new Error('Network error'))
 
     await offlineQueue.enqueue({
@@ -183,14 +201,25 @@ describe('offlineQueue.flush', () => {
     })
 
     const result = await offlineQueue.flush()
-    expect(result).toEqual({ succeeded: 0, failed: 1 })
+    expect(result).toEqual({
+      succeeded: [],
+      failed: [
+        expect.objectContaining({
+          type: 'add-set',
+          sessionId: 's1',
+          clientSetLogId: null,
+          data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5 },
+          exhausted: false,
+        }),
+      ],
+    })
 
     const ops = await offlineQueue.getAll()
     expect(ops).toHaveLength(1)
     expect(ops[0].retryCount).toBe(1)
   })
 
-  it('deletes ops that have reached MAX_RETRIES and counts them as failed', async () => {
+  it('deletes ops that have reached MAX_RETRIES and returns exhausted failure receipts', async () => {
     vi.spyOn(sessionServiceModule.sessionService, 'addSetLog').mockRejectedValue(new Error('Network error'))
 
     // Insert an op that is already at the retry cap (retryCount >= 3).
@@ -205,7 +234,18 @@ describe('offlineQueue.flush', () => {
     const result = await offlineQueue.flush()
 
     // The capped op should be deleted and counted as failed.
-    expect(result).toEqual({ succeeded: 0, failed: 1 })
+    expect(result).toEqual({
+      succeeded: [],
+      failed: [
+        expect.objectContaining({
+          type: 'add-set',
+          sessionId: 's1',
+          clientSetLogId: null,
+          data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5 },
+          exhausted: true,
+        }),
+      ],
+    })
     const remaining = await offlineQueue.getAll()
     expect(remaining).toHaveLength(0)
   })

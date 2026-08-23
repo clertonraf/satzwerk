@@ -14,7 +14,7 @@ export interface QueuedSetLog {
 type QueuedOpBase = { id?: number; sessionId: string; queuedAt: number; retryCount: number }
 
 export type QueuedOp =
-  | (QueuedOpBase & { type: 'add-set'; data: AddSetLogRequest })
+  | (QueuedOpBase & { type: 'add-set'; data: AddSetLogRequest; clientSetLogId?: string })
   | (QueuedOpBase & { type: 'update-set'; setLogId: string; data: UpdateSetLogRequest })
   | (QueuedOpBase & { type: 'delete-set'; setLogId: string })
 
