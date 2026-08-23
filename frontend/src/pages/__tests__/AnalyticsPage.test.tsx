@@ -48,6 +48,6 @@ it('renders the exercise selector and progress chart content', async () => {
 
   expect(await screen.findByRole('heading', { name: 'Analytics' })).toBeInTheDocument()
   expect(screen.getByText('Bench Press')).toBeInTheDocument()
-  expect(screen.getByText('Top set progression')).toBeInTheDocument()
-  expect(screen.getByText('85 kg × 6')).toBeInTheDocument()
+  expect(await screen.findByText('Top set progression')).toBeInTheDocument()
+  expect(await screen.findByText('85 kg × 6')).toBeInTheDocument()
 })

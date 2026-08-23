@@ -21,7 +21,7 @@ export default function AnalyticsPage() {
     enabled: effectiveExerciseId !== null,
   })
 
-  if (topExercisesLoading || (effectiveExerciseId !== null && progressQuery.isLoading)) return null
+  if (topExercisesLoading) return null
 
   return (
     <div className="space-y-6">

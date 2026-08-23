@@ -12,6 +12,7 @@ export default function ExerciseProgressChart({ progress, isLoading }: ExerciseP
   return (
     <div>
       <p className="text-sm font-medium">Top set progression</p>
+      <p className="text-xs text-muted-foreground">{progress.exerciseName}</p>
     </div>
   )
 }
