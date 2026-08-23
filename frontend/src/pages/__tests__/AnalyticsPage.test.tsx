@@ -82,6 +82,21 @@ describe('AnalyticsPage', () => {
     expect(squatButton).toHaveAttribute('aria-pressed', 'false')
   })
 
+  it('renders empty state when topExercises resolves to an empty array', async () => {
+    vi.mocked(analyticsService.topExercises).mockResolvedValue([])
+
+    render(
+      <QueryClientWrapper>
+        <MemoryRouter>
+          <AnalyticsPage />
+        </MemoryRouter>
+      </QueryClientWrapper>,
+    )
+
+    expect(await screen.findByText('Log a workout to see your exercise analytics.')).toBeInTheDocument()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
   it('shows a loading message while exercise progress is being fetched', async () => {
     vi.mocked(analyticsService.topExercises).mockResolvedValue([
       { exerciseId: 'ex-1', exerciseName: 'Bench Press', setCount: 42 },

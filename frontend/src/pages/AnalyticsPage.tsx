@@ -38,6 +38,21 @@ export default function AnalyticsPage() {
       </div>
     )
 
+  if (exercises.length === 0)
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Analytics</h1>
+          <p className="text-sm text-muted-foreground">Inspect one Exercise at a time.</p>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">Log a workout to see your exercise analytics.</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+
   return (
     <div className="space-y-6">
       <div>
