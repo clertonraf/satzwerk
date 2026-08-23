@@ -36,16 +36,24 @@ export default function AnalyticsPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
-            {exercises.map((exercise) => (
-              <button
-                key={exercise.exerciseId}
-                type="button"
-                className="rounded-full border px-3 py-1 text-sm"
-                onClick={() => setSelectedExerciseId(exercise.exerciseId)}
-              >
-                {exercise.exerciseName}
-              </button>
-            ))}
+            {exercises.map((exercise) => {
+              const isActive = exercise.exerciseId === effectiveExerciseId
+              return (
+                <button
+                  key={exercise.exerciseId}
+                  type="button"
+                  className={
+                    isActive
+                      ? 'rounded-full border px-3 py-1 text-sm bg-primary text-primary-foreground border-primary font-medium'
+                      : 'rounded-full border px-3 py-1 text-sm'
+                  }
+                  aria-pressed={isActive}
+                  onClick={() => setSelectedExerciseId(exercise.exerciseId)}
+                >
+                  {exercise.exerciseName}
+                </button>
+              )
+            })}
           </div>
         </CardContent>
       </Card>

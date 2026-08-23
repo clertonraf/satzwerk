@@ -6,7 +6,7 @@ interface ExerciseProgressChartProps {
 }
 
 export default function ExerciseProgressChart({ progress, isLoading }: ExerciseProgressChartProps) {
-  if (isLoading) return null
+  if (isLoading) return <p className="text-sm text-muted-foreground">Loading progress…</p>
   if (!progress) return null
 
   return (
