@@ -4,6 +4,11 @@ import com.satzwerk.PostgresTestContainer
 import com.satzwerk.auth.AuthResponse
 import com.satzwerk.partners.AppGrantResponse
 import com.satzwerk.partners.PartnerAppRegistrationResponse
+import com.satzwerk.publicapi.IdempotencyRecordRepository
+import com.satzwerk.publicapi.PartnerWriteAuditRepository
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -18,6 +23,12 @@ import java.util.UUID
 class PublicWorkoutPlanIntegrationTest : PostgresTestContainer() {
     @Autowired
     lateinit var client: WebTestClient
+
+    @Autowired
+    lateinit var idempotencyRecordRepository: IdempotencyRecordRepository
+
+    @Autowired
+    lateinit var partnerWriteAuditRepository: PartnerWriteAuditRepository
 
     @Test
     fun `partner app with plans write scope can create a WorkoutPlan structure`() {
@@ -109,6 +120,28 @@ class PublicWorkoutPlanIntegrationTest : PostgresTestContainer() {
             .expectBody()
             .jsonPath("$[?(@.id == '$planA')].isActive").isEqualTo(listOf(false))
             .jsonPath("$[?(@.id == '$planB')].isActive").isEqualTo(listOf(true))
+    }
+
+    @Test
+    fun `same Idempotency-Key replays the original WorkoutPlan activation response and records audit twice`() {
+        val token = registerAndLogin()
+        val app = registerApp(token)
+        val grant = grantAccess(token, app.clientId)
+        val plan = createPlan(token, "Replay Plan")
+        val idempotencyKey = UUID.randomUUID().toString()
+
+        val first = activatePublicPlan(grant, plan, idempotencyKey)
+        val replayed = activatePublicPlan(grant, plan, idempotencyKey)
+
+        assertEquals(first, replayed)
+        runBlocking {
+            val records = idempotencyRecordRepository.findAllByGrantId(grant.grantId).toList()
+            val audits = partnerWriteAuditRepository.findAllByGrantId(grant.grantId).toList()
+            assertEquals(1, records.size)
+            assertEquals(2, audits.size)
+            assertEquals("plans:write", audits.first().grantedScopes)
+            assertEquals("""{"command":"activate-workout-plan"}""", records.first().requestFingerprint)
+        }
     }
 
     @Test
@@ -367,6 +400,22 @@ class PublicWorkoutPlanIntegrationTest : PostgresTestContainer() {
             .responseBody
             .blockFirst()!!
             .id
+
+    private fun activatePublicPlan(
+        grant: AppGrantResponse,
+        planId: UUID,
+        idempotencyKey: String,
+    ): String =
+        client
+            .post()
+            .uri("/api/public/plans/$planId/activate")
+            .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", idempotencyKey)
+            .exchange()
+            .expectStatus().isOk
+            .expectBody(String::class.java)
+            .returnResult()
+            .responseBody!!
 
     private fun registerAndLogin(suffix: String = UUID.randomUUID().toString()): String {
         val auth =

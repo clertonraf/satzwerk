@@ -24,6 +24,7 @@ class PartnerWritePolicyServiceTest {
     @Test
     fun `execute finalizes a claimed idempotency record before returning`(): Unit =
         runBlocking {
+            val requestCodec = PartnerWriteRequestFingerprintCodec.body(ExampleRequest(name = "Bench Press"))
             val claimedRecord = pendingRecord(id = UUID.randomUUID())
             val idempotencyRecordRepository =
                 mock<IdempotencyRecordRepository> {
@@ -50,7 +51,7 @@ class PartnerWritePolicyServiceTest {
                     partnerPrincipal(),
                     request(),
                     HttpStatus.CREATED,
-                    ExampleRequest(name = "Bench Press"),
+                    requestCodec,
                 ) {
                     ExampleResponse(name = "Bench Press")
                 }
@@ -69,6 +70,7 @@ class PartnerWritePolicyServiceTest {
     @Test
     fun `execute replays a completed record when another request already claimed the key`(): Unit =
         runBlocking {
+            val requestCodec = PartnerWriteRequestFingerprintCodec.body(ExampleRequest(name = "Bench Press"))
             val completedRecord =
                 pendingRecord(id = UUID.randomUUID()).copy(
                     responseStatus = HttpStatus.CREATED.value(),
@@ -105,7 +107,7 @@ class PartnerWritePolicyServiceTest {
                     partnerPrincipal(),
                     request(),
                     HttpStatus.CREATED,
-                    ExampleRequest(name = "Bench Press"),
+                    requestCodec,
                 ) {
                     executed = true
                     ExampleResponse(name = "Should not run")
@@ -152,7 +154,7 @@ class PartnerWritePolicyServiceTest {
                             partnerPrincipal(),
                             request(),
                             HttpStatus.CREATED,
-                            ExampleRequest(name = "Changed Bench"),
+                            PartnerWriteRequestFingerprintCodec.body(ExampleRequest(name = "Changed Bench")),
                         ) {
                             ExampleResponse(name = "Should not run")
                         }
@@ -163,7 +165,111 @@ class PartnerWritePolicyServiceTest {
             verify(partnerWriteAuditRepository, never()).save(any())
         }
 
-    private fun request(): ServerRequest {
+    @Test
+    fun `execute replays a completed record for a stateless command`(): Unit =
+        runBlocking {
+            val completedRecord =
+                pendingRecord(
+                    id = UUID.randomUUID(),
+                    requestPath = "/api/public/plans/$PLAN_ID/activate",
+                    requestFingerprint = """{"command":"activate-workout-plan"}""",
+                ).copy(
+                    responseStatus = HttpStatus.OK.value(),
+                    responseBody = """{"id":"$PLAN_ID","isActive":true}""",
+                )
+            val idempotencyRecordRepository =
+                mock<IdempotencyRecordRepository> {
+                    onBlocking { claim(any(), any(), any(), any(), any()) } doReturn null
+                    onBlocking {
+                        findByGrantIdAndRequestMethodAndRequestPathAndIdempotencyKey(
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                        )
+                    } doReturn completedRecord
+                }
+            val partnerWriteAuditRepository =
+                mock<PartnerWriteAuditRepository> {
+                    onBlocking { save(any()) } doAnswer { invocation ->
+                        invocation.arguments[0] as PartnerWriteAuditEntry
+                    }
+                }
+            val service =
+                PartnerWritePolicyService(
+                    idempotencyRecordRepository = idempotencyRecordRepository,
+                    partnerWriteAuditRepository = partnerWriteAuditRepository,
+                    objectMapper = jacksonObjectMapper(),
+                )
+
+            var executed = false
+            val response =
+                service.execute(
+                    partnerPrincipal(),
+                    request(path = "/api/public/plans/$PLAN_ID/activate"),
+                    HttpStatus.OK,
+                    PartnerWriteRequestFingerprintCodec.stateless("activate-workout-plan"),
+                ) {
+                    executed = true
+                    ExampleResponse(name = "Should not run")
+                }
+
+            assertEquals(HttpStatus.OK, response.statusCode())
+            assertFalse(executed)
+            verify(idempotencyRecordRepository, never()).save(any())
+        }
+
+    @Test
+    fun `execute rejects a different stateless command for an existing idempotency key`(): Unit =
+        runBlocking {
+            val completedRecord =
+                pendingRecord(
+                    id = UUID.randomUUID(),
+                    requestPath = "/api/public/plans/$PLAN_ID/activate",
+                    requestFingerprint = """{"command":"activate-workout-plan"}""",
+                ).copy(
+                    responseStatus = HttpStatus.OK.value(),
+                    responseBody = """{"id":"$PLAN_ID","isActive":true}""",
+                )
+            val idempotencyRecordRepository =
+                mock<IdempotencyRecordRepository> {
+                    onBlocking { claim(any(), any(), any(), any(), any()) } doReturn null
+                    onBlocking {
+                        findByGrantIdAndRequestMethodAndRequestPathAndIdempotencyKey(
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                        )
+                    } doReturn completedRecord
+                }
+            val partnerWriteAuditRepository = mock<PartnerWriteAuditRepository>()
+            val service =
+                PartnerWritePolicyService(
+                    idempotencyRecordRepository = idempotencyRecordRepository,
+                    partnerWriteAuditRepository = partnerWriteAuditRepository,
+                    objectMapper = jacksonObjectMapper(),
+                )
+
+            val error =
+                org.junit.jupiter.api.assertThrows<ConflictException> {
+                    runBlocking {
+                        service.execute(
+                            partnerPrincipal(),
+                            request(path = "/api/public/plans/$PLAN_ID/activate"),
+                            HttpStatus.OK,
+                            PartnerWriteRequestFingerprintCodec.stateless("complete-workout-plan"),
+                        ) {
+                            ExampleResponse(name = "Should not run")
+                        }
+                    }
+                }
+
+            assertEquals("Idempotency-Key already used with a different payload", error.message)
+            verify(partnerWriteAuditRepository, never()).save(any())
+        }
+
+    private fun request(path: String = "/api/public/exercises"): ServerRequest {
         val headers =
             mock<ServerRequest.Headers> {
                 on { firstHeader("Idempotency-Key") } doReturn IDEMPOTENCY_KEY
@@ -171,7 +277,7 @@ class PartnerWritePolicyServiceTest {
         return mock {
             on { headers() } doReturn headers
             on { method() } doReturn HttpMethod.POST
-            on { path() } doReturn "/api/public/exercises"
+            on { path() } doReturn path
         }
     }
 
@@ -190,17 +296,20 @@ class PartnerWritePolicyServiceTest {
                 ),
         )
 
-    private fun pendingRecord(id: UUID) =
-        IdempotencyRecord(
-            id = id,
-            grantId = GRANT_ID,
-            requestMethod = HttpMethod.POST.name(),
-            requestPath = "/api/public/exercises",
-            idempotencyKey = IDEMPOTENCY_KEY,
-            requestFingerprint = """{"name":"Bench Press"}""",
-            responseStatus = -1,
-            responseBody = "__pending__",
-        )
+    private fun pendingRecord(
+        id: UUID,
+        requestPath: String = "/api/public/exercises",
+        requestFingerprint: String = """{"name":"Bench Press"}""",
+    ) = IdempotencyRecord(
+        id = id,
+        grantId = GRANT_ID,
+        requestMethod = HttpMethod.POST.name(),
+        requestPath = requestPath,
+        idempotencyKey = IDEMPOTENCY_KEY,
+        requestFingerprint = requestFingerprint,
+        responseStatus = -1,
+        responseBody = "__pending__",
+    )
 
     private data class ExampleRequest(val name: String)
 
@@ -210,6 +319,7 @@ class PartnerWritePolicyServiceTest {
         private val USER_ID: UUID = UUID.randomUUID()
         private val APP_ID: UUID = UUID.randomUUID()
         private val GRANT_ID: UUID = UUID.randomUUID()
+        private val PLAN_ID: UUID = UUID.randomUUID()
         private const val IDEMPOTENCY_KEY = "idem-key"
     }
 }

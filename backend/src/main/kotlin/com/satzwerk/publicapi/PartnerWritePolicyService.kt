@@ -28,8 +28,35 @@ private const val IDEMPOTENCY_HEADER = "Idempotency-Key"
 private const val PENDING_RESPONSE_STATUS = -1
 private const val MAX_PENDING_RECORD_POLLS = 40
 private const val PENDING_RECORD_POLL_DELAY_MILLIS = 25L
-private const val EMPTY_REQUEST_FINGERPRINT = ""
 private const val IDEMPOTENCY_PAYLOAD_MISMATCH_MESSAGE = "Idempotency-Key already used with a different payload"
+
+sealed interface PartnerWriteRequestFingerprintCodec {
+    fun encode(objectMapper: ObjectMapper): String
+
+    companion object {
+        fun body(requestBody: Any): PartnerWriteRequestFingerprintCodec = Body(requestBody)
+
+        fun stateless(command: String): PartnerWriteRequestFingerprintCodec = Stateless(command)
+    }
+}
+
+private data class Body(
+    private val requestBody: Any,
+) : PartnerWriteRequestFingerprintCodec {
+    override fun encode(objectMapper: ObjectMapper): String =
+        objectMapper.valueToTree<JsonNode>(requestBody)
+            .let(::canonicalizeJson)
+            .let(objectMapper::writeValueAsString)
+}
+
+private data class Stateless(
+    private val command: String,
+) : PartnerWriteRequestFingerprintCodec {
+    override fun encode(objectMapper: ObjectMapper): String =
+        canonicalizeJson(
+            JsonNodeFactory.instance.objectNode().put("command", command.trim()),
+        ).let(objectMapper::writeValueAsString)
+}
 
 private data class PartnerWriteRequestMetadata(
     val grantId: UUID,
@@ -146,7 +173,7 @@ class PartnerWritePolicyService(
         partnerPrincipal: PartnerAppRequestPrincipal,
         request: ServerRequest,
         successStatus: HttpStatus,
-        requestBody: Any? = null,
+        requestFingerprintCodec: PartnerWriteRequestFingerprintCodec,
         block: suspend (UUID) -> T,
     ): ServerResponse {
         val metadata =
@@ -158,7 +185,7 @@ class PartnerWritePolicyService(
                 requestMethod = request.method().name(),
                 requestPath = request.path(),
                 idempotencyKey = requireIdempotencyKey(request),
-                requestFingerprint = requestFingerprint(requestBody),
+                requestFingerprint = requestFingerprintCodec.encode(objectMapper),
             )
         val claimedRecord =
             idempotencyRecordRepository.claim(
@@ -220,35 +247,6 @@ class PartnerWritePolicyService(
             ?.takeIf { it.isNotBlank() }
             ?: throw BadRequestException("$IDEMPOTENCY_HEADER header required")
 
-    private fun requestFingerprint(requestBody: Any?): String =
-        requestBody
-            ?.let { objectMapper.valueToTree<JsonNode>(it) }
-            ?.let(::canonicalizeJson)
-            ?.let(objectMapper::writeValueAsString)
-            ?: EMPTY_REQUEST_FINGERPRINT
-
-    private fun canonicalizeJson(node: JsonNode): JsonNode =
-        when {
-            node.isObject -> {
-                val canonicalObject = ObjectNode(JsonNodeFactory.instance)
-                node.fields().asSequence().sortedBy { it.key }.forEach { (key, value) ->
-                    canonicalObject.set<JsonNode>(key, canonicalizeJson(value))
-                }
-                canonicalObject
-            }
-
-            node.isArray -> {
-                val canonicalArray = ArrayNode(JsonNodeFactory.instance)
-                node.forEach { canonicalArray.add(canonicalizeJson(it)) }
-                canonicalArray
-            }
-
-            node.isBigDecimal || node.isFloatingPointNumber ->
-                DecimalNode.valueOf(node.decimalValue().stripTrailingZeros())
-
-            else -> node.deepCopy<JsonNode>()
-        }
-
     private suspend fun awaitCompletedRecord(metadata: PartnerWriteRequestMetadata): IdempotencyRecord {
         repeat(MAX_PENDING_RECORD_POLLS) {
             val record =
@@ -269,3 +267,25 @@ class PartnerWritePolicyService(
         throw ConflictException("Idempotent request is still in progress")
     }
 }
+
+private fun canonicalizeJson(node: JsonNode): JsonNode =
+    when {
+        node.isObject -> {
+            val canonicalObject = ObjectNode(JsonNodeFactory.instance)
+            node.fields().asSequence().sortedBy { it.key }.forEach { (key, value) ->
+                canonicalObject.set<JsonNode>(key, canonicalizeJson(value))
+            }
+            canonicalObject
+        }
+
+        node.isArray -> {
+            val canonicalArray = ArrayNode(JsonNodeFactory.instance)
+            node.forEach { canonicalArray.add(canonicalizeJson(it)) }
+            canonicalArray
+        }
+
+        node.isBigDecimal || node.isFloatingPointNumber ->
+            DecimalNode.valueOf(node.decimalValue().stripTrailingZeros())
+
+        else -> node.deepCopy<JsonNode>()
+    }

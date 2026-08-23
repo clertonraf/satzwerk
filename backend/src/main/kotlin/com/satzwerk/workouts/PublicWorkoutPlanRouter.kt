@@ -5,6 +5,7 @@ import com.satzwerk.common.body
 import com.satzwerk.common.validateOrBadRequest
 import com.satzwerk.publicapi.PartnerWritePolicyService
 import com.satzwerk.publicapi.PartnerWritePrincipalValidationService
+import com.satzwerk.publicapi.PartnerWriteRequestFingerprintCodec
 import com.satzwerk.publicapi.PublicScope
 import com.satzwerk.publicapi.handlePublicScope
 import jakarta.validation.Validator
@@ -70,7 +71,7 @@ private fun CoRouterFunctionDsl.publicPlanCrudRoutes(
                     partnerPrincipal,
                     request,
                     HttpStatus.CREATED,
-                    body,
+                    PartnerWriteRequestFingerprintCodec.body(body),
                 ) { userId ->
                     workoutPlanService.create(userId, body)
                 }
@@ -88,7 +89,7 @@ private fun CoRouterFunctionDsl.publicPlanCrudRoutes(
                     partnerPrincipal,
                     request,
                     HttpStatus.OK,
-                    body,
+                    PartnerWriteRequestFingerprintCodec.body(body),
                 ) { userId ->
                     workoutPlanService.update(userId, planId, body)
                 }
@@ -100,7 +101,12 @@ private fun CoRouterFunctionDsl.publicPlanCrudRoutes(
         handlePublicScope(request, PublicScope.PLANS_WRITE, extra = publicWorkoutPlanWriteErrors) { ctx ->
             val partnerPrincipal = partnerWritePrincipalValidationService.requireValidPrincipal(ctx)
             val planId = ctx.pathId("planId")
-            partnerWritePolicyService.execute(partnerPrincipal, request, HttpStatus.OK) { userId ->
+            partnerWritePolicyService.execute(
+                partnerPrincipal,
+                request,
+                HttpStatus.OK,
+                PartnerWriteRequestFingerprintCodec.stateless("activate-workout-plan"),
+            ) { userId ->
                 workoutPlanService.activate(userId, planId)
                 workoutPlanService.getDetail(userId, planId)
             }
@@ -124,7 +130,7 @@ private fun CoRouterFunctionDsl.publicGroupRoutes(
                     partnerPrincipal,
                     request,
                     HttpStatus.CREATED,
-                    body,
+                    PartnerWriteRequestFingerprintCodec.body(body),
                 ) { userId ->
                     workoutGroupService.create(userId, planId, body)
                 }
@@ -143,7 +149,7 @@ private fun CoRouterFunctionDsl.publicGroupRoutes(
                     partnerPrincipal,
                     request,
                     HttpStatus.OK,
-                    body,
+                    PartnerWriteRequestFingerprintCodec.body(body),
                 ) { userId ->
                     workoutGroupService.update(userId, planId, groupId, body)
                 }
@@ -169,7 +175,7 @@ private fun CoRouterFunctionDsl.publicWorkoutExerciseRoutes(
                     partnerPrincipal,
                     request,
                     HttpStatus.CREATED,
-                    body,
+                    PartnerWriteRequestFingerprintCodec.body(body),
                 ) { userId ->
                     workoutExerciseService.create(userId, planId, groupId, body)
                 }
@@ -189,7 +195,7 @@ private fun CoRouterFunctionDsl.publicWorkoutExerciseRoutes(
                     partnerPrincipal,
                     request,
                     HttpStatus.OK,
-                    body,
+                    PartnerWriteRequestFingerprintCodec.body(body),
                 ) { userId ->
                     workoutExerciseService.update(userId, planId, groupId, exerciseId, body)
                 }

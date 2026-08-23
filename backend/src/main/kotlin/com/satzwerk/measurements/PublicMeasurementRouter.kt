@@ -5,6 +5,7 @@ import com.satzwerk.common.body
 import com.satzwerk.common.validateOrBadRequest
 import com.satzwerk.publicapi.PartnerWritePolicyService
 import com.satzwerk.publicapi.PartnerWritePrincipalValidationService
+import com.satzwerk.publicapi.PartnerWriteRequestFingerprintCodec
 import com.satzwerk.publicapi.PublicScope
 import com.satzwerk.publicapi.handlePublicScope
 import jakarta.validation.Validator
@@ -41,7 +42,12 @@ class PublicMeasurementRouter {
                     val partnerPrincipal = partnerWritePrincipalValidationService.requireValidPrincipal(ctx)
                     val body = ctx.body<UpsertMeasurementRequest>()
                     validateOrBadRequest(validator, body) {
-                        partnerWritePolicyService.execute(partnerPrincipal, request, HttpStatus.OK, body) { userId ->
+                        partnerWritePolicyService.execute(
+                            partnerPrincipal,
+                            request,
+                            HttpStatus.OK,
+                            PartnerWriteRequestFingerprintCodec.body(body),
+                        ) { userId ->
                             measurementService.upsert(userId, body)
                         }
                     }
