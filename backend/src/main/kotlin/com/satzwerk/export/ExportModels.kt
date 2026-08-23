@@ -85,7 +85,16 @@ data class ExportMedicationLogDto(
     val notes: String?,
 )
 
-data class UserDataExportDto(
+data class UserDataExportV1Dto(
+    val version: Int = 1,
+    val exportedAt: Instant = Instant.now(),
+    val profile: ExportProfileDto,
+    val exercises: List<ExportExerciseDto>,
+    val workoutPlans: List<ExportWorkoutPlanDto>,
+    val workoutSessions: List<ExportWorkoutSessionDto>,
+)
+
+data class UserDataExportV2Dto(
     val version: Int = 2,
     val exportedAt: Instant = Instant.now(),
     val profile: ExportProfileDto,

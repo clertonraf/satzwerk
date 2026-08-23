@@ -1,5 +1,6 @@
 package com.satzwerk.export
 
+import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ConflictException
@@ -18,8 +19,6 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
-private const val MAX_SUPPORTED_EXPORT_VERSION = 2
-
 private data class ExerciseImportResult(
     val exerciseIdMap: Map<UUID, UUID>,
     val importedCount: Int,
@@ -35,33 +34,38 @@ class ExportService(
     private val medicationLogRepository: MedicationLogRepository,
     private val objectMapper: ObjectMapper,
 ) {
-    suspend fun exportForUser(userId: UUID): UserDataExportDto {
+    private val translatorRegistry = ExportTranslatorRegistry(objectMapper)
+
+    suspend fun exportForUser(userId: UUID): Any {
         val user = userRepository.findById(userId) ?: throw NotFoundException("User not found")
-        return UserDataExportDto(
-            profile = ExportProfileDto(email = user.email, displayName = user.displayName),
-            exercises = exerciseRepository.findAllByUserId(userId).map(::toExerciseDto),
-            workoutPlans = exportPlans(userId),
-            workoutSessions = exportSessions(userId),
-            medications = exportMedicationsFor(userId, medicationRepository, objectMapper),
-            medicationLogs = exportMedicationLogsFor(userId, medicationRepository, medicationLogRepository),
+        return translatorRegistry.current().export(
+            ExportSnapshot(
+                profile = ExportProfileDto(email = user.email, displayName = user.displayName),
+                exercises = exerciseRepository.findAllByUserId(userId).map(::toExerciseDto),
+                workoutPlans = exportPlans(userId),
+                workoutSessions = exportSessions(userId),
+                medications = exportMedicationsFor(userId, medicationRepository, objectMapper),
+                medicationLogs = exportMedicationLogsFor(userId, medicationRepository, medicationLogRepository),
+            ),
         )
     }
 
     @Transactional
     suspend fun importForUser(
         userId: UUID,
-        dto: UserDataExportDto,
+        root: JsonNode,
     ): ImportSummaryDto {
-        checkImportPreconditions(userId, dto)
-        val exerciseResult = importExercises(userId, dto.exercises)
-        val (groupIdMap, importedPlans) = importPlans(userId, dto.workoutPlans, exerciseResult.exerciseIdMap)
+        val export = translatorRegistry.forImport(root).importSnapshot(root)
+        checkImportPreconditions(userId)
+        val exerciseResult = importExercises(userId, export.exercises)
+        val (groupIdMap, importedPlans) = importPlans(userId, export.workoutPlans, exerciseResult.exerciseIdMap)
         val (importedSessions, importedSetLogs) =
-            importSessions(userId, dto.workoutSessions, exerciseResult.exerciseIdMap, groupIdMap)
+            importSessions(userId, export.workoutSessions, exerciseResult.exerciseIdMap, groupIdMap)
         val medResult =
             importMedicationsAndLogs(
                 userId,
-                dto.medications,
-                dto.medicationLogs,
+                export.medications,
+                export.medicationLogs,
                 MedicationImportDeps(medicationRepository, medicationLogRepository, objectMapper),
             )
         return ImportSummaryDto(
@@ -76,15 +80,7 @@ class ExportService(
         )
     }
 
-    private suspend fun checkImportPreconditions(
-        userId: UUID,
-        dto: UserDataExportDto,
-    ) {
-        if (dto.version !in 1..MAX_SUPPORTED_EXPORT_VERSION) {
-            throw BadRequestException(
-                "Unsupported export version: ${dto.version}. Supported versions: 1, $MAX_SUPPORTED_EXPORT_VERSION.",
-            )
-        }
+    private suspend fun checkImportPreconditions(userId: UUID) {
         if (workoutDataPort.findOpenSession(userId) != null) {
             throw ConflictException("You have an open workout session. Complete or discard it before importing.")
         }
