@@ -93,6 +93,8 @@ class RequestContext(
             throw BadRequestException("Invalid request body: ${e.message ?: "malformed input"}", e)
         }
 
+    fun header(name: String): String? = request.headers().firstHeader(name)
+
     fun pathId(name: String): UUID = parseUuid(request.pathVariable(name))
 
     fun queryParam(name: String): String? = request.queryParam(name).orElse(null)

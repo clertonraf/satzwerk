@@ -173,6 +173,15 @@ class RequestContextTest {
     }
 
     @Test
+    fun `header returns first header value when present`() {
+        val headers = mock(ServerRequest.Headers::class.java)
+        `when`(headers.firstHeader("X-Test")).thenReturn("value")
+        `when`(request.headers()).thenReturn(headers)
+
+        assertEquals("value", ctx.header("X-Test"))
+    }
+
+    @Test
     fun `queryParam returns null when absent`() {
         `when`(request.queryParam("filter")).thenReturn(Optional.empty())
 

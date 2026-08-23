@@ -1,7 +1,6 @@
 package com.satzwerk.common
 
 import com.satzwerk.auth.InsufficientScopeException
-import com.satzwerk.partners.PartnerPrincipal
 import jakarta.validation.Validator
 import org.springframework.http.HttpStatus
 import org.springframework.web.reactive.function.server.ServerRequest
@@ -106,8 +105,4 @@ suspend fun requireScope(
     scope: String,
 ) {
     RequestContext(request).requireScope(scope)
-}
-
-suspend fun requirePartnerPrincipal(request: ServerRequest): PartnerPrincipal {
-    return RequestContext(request).requirePartnerAppPrincipal().partnerPrincipal
 }
