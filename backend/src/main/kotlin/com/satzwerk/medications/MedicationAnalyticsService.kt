@@ -3,7 +3,6 @@ package com.satzwerk.medications
 import org.springframework.stereotype.Service
 import java.time.LocalDate
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 private const val STREAK_WINDOW_DAYS = 30L
@@ -78,25 +77,10 @@ class MedicationAnalyticsService(
         val medicationSpecs = medications.map { med -> med to frequencySpecModule.deserialize(med.frequency) }
         val logs = medicationLogRepository.findByUserIdAndTakenAtBetweenOrderByTakenAtDesc(userId, from, to)
         val logsByDay = logs.groupBy { it.takenAt.atZone(ZoneOffset.UTC).toLocalDate() }
-
-        val days = mutableListOf<AdherenceHeatmapDayDto>()
-        var current = startDate
-        while (!current.isAfter(today)) {
-            val dayLogs = logsByDay[current] ?: emptyList()
-            val scheduled =
-                medicationSpecs.sumOf { (_, spec) -> spec.scheduledCountOn(current) }
-            val taken = dayLogs.count { it.taken }
-            val ratio = if (scheduled > 0) taken.toDouble() / scheduled.toDouble() else 0.0
-            days.add(
-                AdherenceHeatmapDayDto(
-                    date = current.format(DateTimeFormatter.ISO_LOCAL_DATE),
-                    adherenceRatio = ratio.coerceIn(0.0, 1.0),
-                    takenCount = taken,
-                    scheduledCount = scheduled,
-                ),
-            )
-            current = current.plusDays(1)
-        }
+        val days =
+            buildAdherenceHeatmapDays(startDate, today, logsByDay) { day ->
+                medicationSpecs.sumOf { (_, spec) -> spec.scheduledCountOn(day) }
+            }
         return AdherenceHeatmapDto(days = days)
     }
 
@@ -129,24 +113,7 @@ class MedicationAnalyticsService(
                 to,
             )
         val logsByDay = logs.groupBy { it.takenAt.atZone(ZoneOffset.UTC).toLocalDate() }
-
-        val days = mutableListOf<AdherenceHeatmapDayDto>()
-        var current = startDate
-        while (!current.isAfter(today)) {
-            val scheduled = spec.scheduledCountOn(current)
-            val dayLogs = logsByDay[current] ?: emptyList()
-            val taken = dayLogs.count { it.taken }
-            val ratio = if (scheduled > 0) taken.toDouble() / scheduled.toDouble() else 0.0
-            days.add(
-                AdherenceHeatmapDayDto(
-                    date = current.format(DateTimeFormatter.ISO_LOCAL_DATE),
-                    adherenceRatio = ratio.coerceIn(0.0, 1.0),
-                    takenCount = taken,
-                    scheduledCount = scheduled,
-                ),
-            )
-            current = current.plusDays(1)
-        }
+        val days = buildAdherenceHeatmapDays(startDate, today, logsByDay, spec::scheduledCountOn)
         return AdherenceHeatmapDto(days = days)
     }
 
