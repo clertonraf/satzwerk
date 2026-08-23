@@ -82,6 +82,21 @@ describe('AnalyticsPage', () => {
     expect(squatButton).toHaveAttribute('aria-pressed', 'false')
   })
 
+  it('renders error state when topExercises query fails', async () => {
+    vi.mocked(analyticsService.topExercises).mockRejectedValue(new Error('Network error'))
+
+    render(
+      <QueryClientWrapper>
+        <MemoryRouter>
+          <AnalyticsPage />
+        </MemoryRouter>
+      </QueryClientWrapper>,
+    )
+
+    expect(await screen.findByText('Could not load exercises. Please try again later.')).toBeInTheDocument()
+    expect(screen.queryByText('Log a workout to see your exercise analytics.')).toBeNull()
+  })
+
   it('renders empty state when topExercises resolves to an empty array', async () => {
     vi.mocked(analyticsService.topExercises).mockResolvedValue([])
 

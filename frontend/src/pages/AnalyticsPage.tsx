@@ -9,7 +9,7 @@ import { queryKeys } from '@/services/queryKeys'
 const TOP_EXERCISES_LIMIT = 20
 
 export default function AnalyticsPage() {
-  const { data: topExercises, isLoading: topExercisesLoading } = useQuery({
+  const { data: topExercises, isLoading: topExercisesLoading, isError: topExercisesError } = useQuery({
     queryKey: queryKeys.analytics.topExercises(TOP_EXERCISES_LIMIT),
     queryFn: () => analyticsService.topExercises(TOP_EXERCISES_LIMIT),
   })
@@ -33,6 +33,21 @@ export default function AnalyticsPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="h-8 animate-pulse rounded bg-muted" />
+          </CardContent>
+        </Card>
+      </div>
+    )
+
+  if (topExercisesError)
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Analytics</h1>
+          <p className="text-sm text-muted-foreground">Inspect one Exercise at a time.</p>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-destructive">Could not load exercises. Please try again later.</p>
           </CardContent>
         </Card>
       </div>
