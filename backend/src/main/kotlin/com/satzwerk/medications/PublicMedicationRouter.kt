@@ -4,6 +4,7 @@ import com.satzwerk.common.ConflictException
 import com.satzwerk.common.body
 import com.satzwerk.common.validateOrBadRequest
 import com.satzwerk.publicapi.PartnerWritePolicyService
+import com.satzwerk.publicapi.PartnerWritePrincipalValidationService
 import com.satzwerk.publicapi.PublicScope
 import com.satzwerk.publicapi.handlePublicScope
 import jakarta.validation.Validator
@@ -24,6 +25,7 @@ class PublicMedicationRouter {
     fun publicMedicationRoutes(
         medicationService: MedicationService,
         partnerWritePolicyService: PartnerWritePolicyService,
+        partnerWritePrincipalValidationService: PartnerWritePrincipalValidationService,
         validator: Validator,
     ) = coRouter {
         "/api/public/medications".nest {
@@ -35,9 +37,15 @@ class PublicMedicationRouter {
              */
             POST("") { request ->
                 handlePublicScope(request, PublicScope.MEDICATIONS_WRITE, extra = publicMedicationWriteErrors) { ctx ->
+                    val partnerPrincipal = partnerWritePrincipalValidationService.requireValidPrincipal(ctx)
                     val body = ctx.body<CreateMedicationRequest>()
                     validateOrBadRequest(validator, body) {
-                        partnerWritePolicyService.execute(request, HttpStatus.CREATED, body) { userId ->
+                        partnerWritePolicyService.execute(
+                            partnerPrincipal,
+                            request,
+                            HttpStatus.CREATED,
+                            body,
+                        ) { userId ->
                             medicationService.createMedication(userId, body)
                         }
                     }
@@ -52,10 +60,16 @@ class PublicMedicationRouter {
              */
             PUT("/{id}") { request ->
                 handlePublicScope(request, PublicScope.MEDICATIONS_WRITE, extra = publicMedicationWriteErrors) { ctx ->
+                    val partnerPrincipal = partnerWritePrincipalValidationService.requireValidPrincipal(ctx)
                     val id = ctx.pathId("id")
                     val body = ctx.body<UpdateMedicationRequest>()
                     validateOrBadRequest(validator, body) {
-                        partnerWritePolicyService.execute(request, HttpStatus.OK, body) { userId ->
+                        partnerWritePolicyService.execute(
+                            partnerPrincipal,
+                            request,
+                            HttpStatus.OK,
+                            body,
+                        ) { userId ->
                             medicationService.updateMedication(userId, id, body)
                         }
                     }
@@ -70,10 +84,16 @@ class PublicMedicationRouter {
              */
             POST("/{id}/logs") { request ->
                 handlePublicScope(request, PublicScope.MEDICATIONS_WRITE, extra = publicMedicationWriteErrors) { ctx ->
+                    val partnerPrincipal = partnerWritePrincipalValidationService.requireValidPrincipal(ctx)
                     val medicationId = ctx.pathId("id")
                     val body = ctx.body<LogDoseRequest>()
                     validateOrBadRequest(validator, body) {
-                        partnerWritePolicyService.execute(request, HttpStatus.CREATED, body) { userId ->
+                        partnerWritePolicyService.execute(
+                            partnerPrincipal,
+                            request,
+                            HttpStatus.CREATED,
+                            body,
+                        ) { userId ->
                             medicationService.logDose(userId, medicationId, body)
                         }
                     }
