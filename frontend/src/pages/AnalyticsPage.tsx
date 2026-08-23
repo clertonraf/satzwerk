@@ -4,19 +4,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import ExerciseProgressChart from '@/features/analytics/ExerciseProgressChart'
 import ExerciseSessionHistoryCard from '@/features/analytics/ExerciseSessionHistoryCard'
 import { analyticsService } from '@/services/analyticsService'
+import { exerciseService } from '@/services/exerciseService'
 import { queryKeys } from '@/services/queryKeys'
 
-export const TOP_EXERCISES_LIMIT = 20
-
 export default function AnalyticsPage() {
-  const { data: topExercises, isLoading: topExercisesLoading, isError: topExercisesError } = useQuery({
-    queryKey: queryKeys.analytics.topExercises(TOP_EXERCISES_LIMIT),
-    queryFn: () => analyticsService.topExercises(TOP_EXERCISES_LIMIT),
+  const { data: exercisesData, isLoading: exercisesLoading, isError: exercisesError } = useQuery({
+    queryKey: queryKeys.exercises.all(),
+    queryFn: () => exerciseService.list(),
   })
-  const exercises = topExercises ?? []
+  const exercises = exercisesData ?? []
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null)
-  const selectedIsPresent = selectedExerciseId !== null && exercises.some((e) => e.exerciseId === selectedExerciseId)
-  const effectiveExerciseId = selectedIsPresent ? selectedExerciseId : (exercises[0]?.exerciseId ?? null)
+  const selectedIsPresent = selectedExerciseId !== null && exercises.some((exercise) => exercise.id === selectedExerciseId)
+  const effectiveExerciseId = selectedIsPresent ? selectedExerciseId : (exercises[0]?.id ?? null)
 
   const progressQuery = useQuery({
     queryKey: queryKeys.analytics.exerciseProgress(effectiveExerciseId!),
@@ -24,7 +23,7 @@ export default function AnalyticsPage() {
     enabled: effectiveExerciseId !== null,
   })
 
-  if (topExercisesLoading)
+  if (exercisesLoading)
     return (
       <div className="space-y-6">
         <div>
@@ -39,7 +38,7 @@ export default function AnalyticsPage() {
       </div>
     )
 
-  if (topExercisesError)
+  if (exercisesError)
     return (
       <div className="space-y-6">
         <div>
@@ -63,7 +62,7 @@ export default function AnalyticsPage() {
         </div>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Log a workout to see your exercise analytics.</p>
+            <p className="text-sm text-muted-foreground">Create an exercise to see analytics.</p>
           </CardContent>
         </Card>
       </div>
@@ -83,10 +82,10 @@ export default function AnalyticsPage() {
         <CardContent>
           <div className="flex flex-wrap gap-2">
             {exercises.map((exercise) => {
-              const isActive = exercise.exerciseId === effectiveExerciseId
+              const isActive = exercise.id === effectiveExerciseId
               return (
                 <button
-                  key={exercise.exerciseId}
+                  key={exercise.id}
                   type="button"
                   className={
                     isActive
@@ -94,9 +93,9 @@ export default function AnalyticsPage() {
                       : 'rounded-full border px-3 py-1 text-sm'
                   }
                   aria-pressed={isActive}
-                  onClick={() => setSelectedExerciseId(exercise.exerciseId)}
+                  onClick={() => setSelectedExerciseId(exercise.id)}
                 >
-                  {exercise.exerciseName}
+                  {exercise.name}
                 </button>
               )
             })}

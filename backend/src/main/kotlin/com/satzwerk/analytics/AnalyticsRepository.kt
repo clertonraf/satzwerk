@@ -212,6 +212,7 @@ class AnalyticsRepository(
                     SELECT
                         ws.id AS session_id,
                         DATE(ws.completed_at AT TIME ZONE 'UTC') AS session_date,
+                        ws.completed_at AS session_completed_at,
                         wg.title AS workout_group_title,
                         sl.exercise_id,
                         e.name AS exercise_name,
@@ -224,7 +225,7 @@ class AnalyticsRepository(
                     FROM set_logs sl
                     JOIN workout_sessions ws ON sl.workout_session_id = ws.id
                     JOIN workout_groups wg ON ws.workout_group_id = wg.id
-                    JOIN exercises e ON sl.exercise_id = e.id
+                    JOIN exercises e ON sl.exercise_id = e.id AND e.user_id = :userId
                     WHERE ws.user_id = :userId
                       AND ws.completed_at IS NOT NULL
                       AND sl.exercise_id = :exerciseId
@@ -232,7 +233,7 @@ class AnalyticsRepository(
                 SELECT *
                 FROM ranked_sets
                 WHERE rank_in_session = 1
-                ORDER BY session_date ASC, session_id ASC
+                ORDER BY session_date ASC, session_completed_at ASC, session_id ASC
                 """.trimIndent(),
             )
             .bind("userId", userId)

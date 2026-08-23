@@ -7,6 +7,7 @@ import RegisterPage from '@/features/auth/RegisterPage'
 import SessionPage from '@/features/sessions/SessionPage'
 import PlanBuilderPage from '@/features/workouts/PlanBuilderPage'
 import WorkoutsPage from '@/features/workouts/WorkoutsPage'
+import AnalyticsPage from '@/pages/AnalyticsPage'
 import DashboardPage from '@/pages/DashboardPage'
 import SettingsPage from '@/pages/SettingsPage'
 import { useOfflineSync } from '@/hooks/useOfflineSync'
@@ -50,6 +51,7 @@ export default function App() {
               <AppShell>
                 <Routes>
                   <Route path="/" element={<DashboardPage />} />
+                  <Route path="/analytics" element={<AnalyticsPage />} />
                   <Route path="/session" element={<SessionPage />} />
                   <Route path="/workouts" element={<WorkoutsPage />} />
                   <Route path="/workouts/exercises" element={<WorkoutsPage />} />

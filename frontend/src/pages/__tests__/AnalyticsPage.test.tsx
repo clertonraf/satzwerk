@@ -4,14 +4,20 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { QueryClientWrapper } from '@/test/QueryClientWrapper'
-import AnalyticsPage, { TOP_EXERCISES_LIMIT } from '../AnalyticsPage'
+import AnalyticsPage from '../AnalyticsPage'
 import { analyticsService } from '@/services/analyticsService'
+import { exerciseService } from '@/services/exerciseService'
 import { queryKeys } from '@/services/queryKeys'
 
 vi.mock('@/services/analyticsService', () => ({
   analyticsService: {
     exerciseProgress: vi.fn(),
-    topExercises: vi.fn(),
+  },
+}))
+
+vi.mock('@/services/exerciseService', () => ({
+  exerciseService: {
+    list: vi.fn(),
   },
 }))
 
@@ -37,16 +43,27 @@ const mockProgress = {
   ],
 }
 
+function buildExercise(id: string, name: string, muscleGroup: string) {
+  return {
+    id,
+    name,
+    muscleGroup,
+    description: null,
+    videoUrl: null,
+    equipment: null,
+    createdAt: '',
+    updatedAt: '',
+  }
+}
+
 describe('AnalyticsPage', () => {
   beforeEach(() => {
-    vi.mocked(analyticsService.topExercises).mockReset()
+    vi.mocked(exerciseService.list).mockReset()
     vi.mocked(analyticsService.exerciseProgress).mockReset()
   })
 
   it('renders the exercise selector and progress chart content', async () => {
-    vi.mocked(analyticsService.topExercises).mockResolvedValue([
-      { exerciseId: 'ex-1', exerciseName: 'Bench Press', setCount: 42 },
-    ])
+    vi.mocked(exerciseService.list).mockResolvedValue([buildExercise('ex-1', 'Bench Press', 'CHEST')])
     vi.mocked(analyticsService.exerciseProgress).mockResolvedValue(mockProgress)
 
     render(
@@ -67,9 +84,9 @@ describe('AnalyticsPage', () => {
   })
 
   it('marks the default-selected exercise pill as active via aria-pressed', async () => {
-    vi.mocked(analyticsService.topExercises).mockResolvedValue([
-      { exerciseId: 'ex-1', exerciseName: 'Bench Press', setCount: 42 },
-      { exerciseId: 'ex-2', exerciseName: 'Squat', setCount: 30 },
+    vi.mocked(exerciseService.list).mockResolvedValue([
+      buildExercise('ex-1', 'Bench Press', 'CHEST'),
+      buildExercise('ex-2', 'Squat', 'LEGS'),
     ])
     vi.mocked(analyticsService.exerciseProgress).mockResolvedValue(mockProgress)
 
@@ -88,8 +105,8 @@ describe('AnalyticsPage', () => {
     expect(squatButton).toHaveAttribute('aria-pressed', 'false')
   })
 
-  it('renders error state when topExercises query fails', async () => {
-    vi.mocked(analyticsService.topExercises).mockRejectedValue(new Error('Network error'))
+  it('renders error state when exercise list query fails', async () => {
+    vi.mocked(exerciseService.list).mockRejectedValue(new Error('Network error'))
 
     render(
       <QueryClientWrapper>
@@ -100,11 +117,11 @@ describe('AnalyticsPage', () => {
     )
 
     expect(await screen.findByText('Could not load exercises. Please try again later.')).toBeInTheDocument()
-    expect(screen.queryByText('Log a workout to see your exercise analytics.')).toBeNull()
+    expect(screen.queryByText('Create an exercise to see analytics.')).toBeNull()
   })
 
-  it('renders empty state when topExercises resolves to an empty array', async () => {
-    vi.mocked(analyticsService.topExercises).mockResolvedValue([])
+  it('renders empty state when the exercise list resolves to an empty array', async () => {
+    vi.mocked(exerciseService.list).mockResolvedValue([])
 
     render(
       <QueryClientWrapper>
@@ -114,15 +131,14 @@ describe('AnalyticsPage', () => {
       </QueryClientWrapper>,
     )
 
-    expect(await screen.findByText('Log a workout to see your exercise analytics.')).toBeInTheDocument()
+    expect(await screen.findByText('Create an exercise to see analytics.')).toBeInTheDocument()
     expect(screen.queryByRole('button')).toBeNull()
   })
 
-  it('falls back to first exercise when selectedExerciseId is not in the current topExercises list', async () => {
-    // Step 1: start with two exercises (ex-1 default, ex-2 available)
-    vi.mocked(analyticsService.topExercises).mockResolvedValue([
-      { exerciseId: 'ex-1', exerciseName: 'Bench Press', setCount: 42 },
-      { exerciseId: 'ex-2', exerciseName: 'Squat', setCount: 30 },
+  it('falls back to first exercise when selectedExerciseId is not in the current exercise list', async () => {
+    vi.mocked(exerciseService.list).mockResolvedValue([
+      buildExercise('ex-1', 'Bench Press', 'CHEST'),
+      buildExercise('ex-2', 'Squat', 'LEGS'),
     ])
     vi.mocked(analyticsService.exerciseProgress).mockResolvedValue(mockProgress)
 
@@ -143,10 +159,7 @@ describe('AnalyticsPage', () => {
     // Step 3: topExercises refreshes — ex-2 disappears, only ex-1 remains
     vi.mocked(analyticsService.exerciseProgress).mockReset()
     vi.mocked(analyticsService.exerciseProgress).mockResolvedValue(mockProgress)
-    queryClient.setQueryData(
-      queryKeys.analytics.topExercises(TOP_EXERCISES_LIMIT),
-      [{ exerciseId: 'ex-1', exerciseName: 'Bench Press', setCount: 42 }],
-    )
+    queryClient.setQueryData(queryKeys.exercises.all(), [buildExercise('ex-1', 'Bench Press', 'CHEST')])
 
     rerender(
       <QueryClientProvider client={queryClient}>
@@ -165,9 +178,7 @@ describe('AnalyticsPage', () => {
   })
 
   it('shows the exercise pill, per-exercise empty state, and no recent-sessions section when progress has no data', async () => {
-    vi.mocked(analyticsService.topExercises).mockResolvedValue([
-      { exerciseId: 'ex-1', exerciseName: 'Bench Press', setCount: 42 },
-    ])
+    vi.mocked(exerciseService.list).mockResolvedValue([buildExercise('ex-1', 'Bench Press', 'CHEST')])
     vi.mocked(analyticsService.exerciseProgress).mockResolvedValue({
       exerciseId: 'ex-1',
       exerciseName: 'Bench Press',
@@ -195,9 +206,7 @@ describe('AnalyticsPage', () => {
   })
 
   it('renders progress error state when exerciseProgress query fails', async () => {
-    vi.mocked(analyticsService.topExercises).mockResolvedValue([
-      { exerciseId: 'ex-1', exerciseName: 'Bench Press', setCount: 42 },
-    ])
+    vi.mocked(exerciseService.list).mockResolvedValue([buildExercise('ex-1', 'Bench Press', 'CHEST')])
     vi.mocked(analyticsService.exerciseProgress).mockRejectedValue(new Error('Network error'))
 
     render(
@@ -219,9 +228,7 @@ describe('AnalyticsPage', () => {
   })
 
   it('shows a loading message while exercise progress is being fetched', async () => {
-    vi.mocked(analyticsService.topExercises).mockResolvedValue([
-      { exerciseId: 'ex-1', exerciseName: 'Bench Press', setCount: 42 },
-    ])
+    vi.mocked(exerciseService.list).mockResolvedValue([buildExercise('ex-1', 'Bench Press', 'CHEST')])
     // Never resolves — keeps the query in loading state
     vi.mocked(analyticsService.exerciseProgress).mockReturnValue(new Promise(() => {}))
 

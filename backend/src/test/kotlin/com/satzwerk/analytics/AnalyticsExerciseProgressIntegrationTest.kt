@@ -82,6 +82,84 @@ class AnalyticsExerciseProgressIntegrationTest : PostgresTestContainer() {
             .jsonPath("$.recentSessions[0].topSetLabel").isEqualTo("85 kg × 6")
     }
 
+    @Test
+    fun `exercise progress keeps same-day sessions in completion order and recentSessions newest first`() {
+        val token = registerAndLogin()
+        val exerciseId = createExercise(token, "Bench Press")
+        val groupId = createWorkoutGroup(token, exerciseId, sets = 3, reps = 8)
+
+        createCompletedSession(
+            token = token,
+            groupId = groupId,
+            exerciseId = exerciseId,
+            window =
+                ProgressSessionWindow(
+                    startedAt = Instant.parse("2026-08-01T08:00:00Z"),
+                    completedAt = Instant.parse("2026-08-01T09:00:00Z"),
+                ),
+            logs =
+                listOf(
+                    setLog(weight = BigDecimal("80.00"), reps = 8, setNumber = 1),
+                ),
+        )
+        createCompletedSession(
+            token = token,
+            groupId = groupId,
+            exerciseId = exerciseId,
+            window =
+                ProgressSessionWindow(
+                    startedAt = Instant.parse("2026-08-01T18:00:00Z"),
+                    completedAt = Instant.parse("2026-08-01T19:00:00Z"),
+                ),
+            logs =
+                listOf(
+                    setLog(weight = BigDecimal("90.00"), reps = 5, setNumber = 1),
+                ),
+        )
+
+        webTestClient.get()
+            .uri("/api/analytics/exercises/$exerciseId/progress")
+            .header(HttpHeaders.AUTHORIZATION, "Bearer $token")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.points[0].topSetWeightKg").isEqualTo(80.00)
+            .jsonPath("$.points[1].topSetWeightKg").isEqualTo(90.00)
+            .jsonPath("$.recentSessions[0].topSetLabel").isEqualTo("90 kg × 5")
+            .jsonPath("$.recentSessions[1].topSetLabel").isEqualTo("80 kg × 8")
+    }
+
+    @Test
+    fun `exercise progress does not expose another user's exercise name even if it is logged in a session`() {
+        val ownerToken = registerAndLogin()
+        val ownerExerciseId = createExercise(ownerToken, "Bench Press")
+        val groupId = createWorkoutGroup(ownerToken, ownerExerciseId, sets = 3, reps = 8)
+
+        val otherToken = registerAndLogin()
+        val foreignExerciseId = createExercise(otherToken, "Secret Deadlift")
+
+        createCompletedSession(
+            token = ownerToken,
+            groupId = groupId,
+            exerciseId = foreignExerciseId,
+            window =
+                ProgressSessionWindow(
+                    startedAt = Instant.parse("2026-08-01T08:00:00Z"),
+                    completedAt = Instant.parse("2026-08-01T09:00:00Z"),
+                ),
+            logs =
+                listOf(
+                    setLog(weight = BigDecimal("120.00"), reps = 5, setNumber = 1),
+                ),
+        )
+
+        webTestClient.get()
+            .uri("/api/analytics/exercises/$foreignExerciseId/progress")
+            .header(HttpHeaders.AUTHORIZATION, "Bearer $ownerToken")
+            .exchange()
+            .expectStatus().isNotFound
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private fun registerAndLogin(): String {
