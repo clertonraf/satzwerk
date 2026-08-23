@@ -90,4 +90,49 @@ class ExportTranslatorsTest {
         assertEquals(1, root.path("medications").size())
         assertEquals(1, root.path("medicationLogs").size())
     }
+
+    @Test
+    fun `version 2 translator imports older payload when set log rir is missing`() {
+        val payload =
+            objectMapper.valueToTree<JsonNode>(
+                mapOf(
+                    "version" to 2,
+                    "exportedAt" to "2026-01-01T00:00:00Z",
+                    "profile" to mapOf("email" to "legacy-v2@test.com", "displayName" to "LegacyV2"),
+                    "exercises" to emptyList<Any>(),
+                    "workoutPlans" to emptyList<Any>(),
+                    "workoutSessions" to
+                        listOf(
+                            mapOf(
+                                "id" to UUID.randomUUID(),
+                                "workoutGroupId" to UUID.randomUUID(),
+                                "startedAt" to "2026-01-01T00:00:00Z",
+                                "completedAt" to "2026-01-01T01:00:00Z",
+                                "notes" to null,
+                                "setLogs" to
+                                    listOf(
+                                        mapOf(
+                                            "id" to UUID.randomUUID(),
+                                            "exerciseId" to UUID.randomUUID(),
+                                            "setNumber" to 1,
+                                            "weight" to BigDecimal("100.0"),
+                                            "reps" to 5,
+                                            "loggedAt" to "2026-01-01T00:30:00Z",
+                                            "isPr" to false,
+                                        ),
+                                    ),
+                            ),
+                        ),
+                    "medications" to emptyList<Any>(),
+                    "medicationLogs" to emptyList<Any>(),
+                ),
+            )
+
+        val translator = registry.forImport(payload)
+        val snapshot = translator.importSnapshot(payload)
+        val importedSetLog = snapshot.workoutSessions.single().setLogs.single()
+
+        assertEquals(2, translator.version)
+        assertEquals(null, importedSetLog.rir)
+    }
 }
