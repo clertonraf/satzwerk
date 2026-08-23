@@ -44,6 +44,8 @@ class PlanImportServiceTest {
             whenever(planImportParsingAdapters.normalizeFilename("Push_Pull-Legs.xlsx")).thenReturn("Push Pull Legs")
             whenever(planImportParsingAdapters.parseTechnique("Rest Pause Cluster"))
                 .thenReturn(AdvancedTechnique.REST_PAUSE.name)
+            whenever(planImportParsingAdapters.parseReps(parsedResponse.workouts[0].exercises[0].reps))
+                .thenReturn(PlanImportReps(reps = 0, toFailure = true))
             whenever(exerciseResolver.resolve(userId, mapOf("Bench Press" to "CHEST"))).thenReturn(
                 mapOf(
                     "bench press" to
@@ -63,12 +65,15 @@ class PlanImportServiceTest {
             assertEquals("Push Pull Legs", response.name)
             verify(planImportParsingAdapters).normalizeFilename("Push_Pull-Legs.xlsx")
             verify(planImportParsingAdapters).parseTechnique("Rest Pause Cluster")
+            verify(planImportParsingAdapters).parseReps(parsedResponse.workouts[0].exercises[0].reps)
 
             val captor = argumentCaptor<Iterable<WorkoutExercise>>()
             verify(workoutExerciseRepository).saveAll(captor.capture())
             val savedExercises = captor.firstValue.toList()
             assertEquals(1, savedExercises.size)
             assertEquals(AdvancedTechnique.REST_PAUSE.name, savedExercises[0].advancedTechnique)
+            assertEquals(0, savedExercises[0].reps)
+            assertEquals(true, savedExercises[0].toFailure)
         }
 
     private fun mockFilePart(): FilePart =

@@ -1,6 +1,5 @@
 package com.satzwerk.workouts
 
-import com.fasterxml.jackson.databind.JsonNode
 import kotlinx.coroutines.flow.toList
 import org.springframework.http.codec.multipart.FilePart
 import org.springframework.stereotype.Service
@@ -75,13 +74,13 @@ class PlanImportService(
                 val groupId = requireNotNull(group.id)
                 parsedWorkout.exercises.mapIndexed { exerciseIndex, parsedExercise ->
                     val exercise = requireNotNull(exerciseByNameLower[parsedExercise.exercise.lowercase()])
-                    val (reps, toFailure) = mapReps(parsedExercise.reps)
+                    val parsedReps = planImportParsingAdapters.parseReps(parsedExercise.reps)
                     WorkoutExercise(
                         workoutGroupId = groupId,
                         exerciseId = requireNotNull(exercise.id),
                         sets = parsedExercise.sets,
-                        reps = reps,
-                        toFailure = toFailure,
+                        reps = parsedReps.reps,
+                        toFailure = parsedReps.toFailure,
                         advancedTechnique = planImportParsingAdapters.parseTechnique(parsedExercise.advancedTechnique),
                         orderIndex = exerciseIndex,
                     )
@@ -89,11 +88,4 @@ class PlanImportService(
             }
         workoutExerciseRepository.saveAll(allExercises).toList()
     }
-
-    private fun mapReps(repsNode: JsonNode): Pair<Int, Boolean> =
-        if (repsNode.isTextual && repsNode.asText().uppercase() == "F") {
-            0 to true
-        } else {
-            repsNode.asInt() to false
-        }
 }
