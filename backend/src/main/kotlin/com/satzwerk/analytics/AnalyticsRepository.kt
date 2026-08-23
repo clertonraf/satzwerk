@@ -230,7 +230,15 @@ class AnalyticsRepository(
                       AND ws.completed_at IS NOT NULL
                       AND sl.exercise_id = :exerciseId
                 )
-                SELECT *
+                SELECT
+                    session_id,
+                    session_date,
+                    session_completed_at,
+                    workout_group_title,
+                    exercise_id,
+                    exercise_name,
+                    top_set_weight_kg,
+                    top_set_reps
                 FROM ranked_sets
                 WHERE rank_in_session = 1
                 ORDER BY session_date ASC, session_completed_at ASC, session_id ASC
