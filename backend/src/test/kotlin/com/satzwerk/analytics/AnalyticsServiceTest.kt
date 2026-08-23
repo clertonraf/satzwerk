@@ -35,7 +35,7 @@ class AnalyticsServiceTest {
                 onBlocking { findDashboardSummary(any()) } doReturn summaryRow
                 onBlocking { findWorkoutDays(any()) } doReturn workoutDays
             }
-        return AnalyticsService(port, mock<ExerciseRepository>())
+        return AnalyticsService(mock<PublicAnalyticsService>(), port, mock<ExerciseRepository>())
     }
 
     @Test
@@ -122,7 +122,11 @@ class AnalyticsServiceTest {
                     onBlocking { findWorkoutDays(any()) } doReturn emptyList()
                     onBlocking { findExercisesBySetCount(any(), any(), eq(false)) } doReturn rows
                 }
-            val result = AnalyticsService(port, mock<ExerciseRepository>()).topExercises(userId, limit = 2)
+            val result =
+                AnalyticsService(mock<PublicAnalyticsService>(), port, mock<ExerciseRepository>()).topExercises(
+                    userId,
+                    limit = 2,
+                )
 
             assertEquals(2, result.size)
             assertEquals("Bench Press", result[0].exerciseName)
@@ -148,7 +152,11 @@ class AnalyticsServiceTest {
                     onBlocking { findWorkoutDays(any()) } doReturn emptyList()
                     onBlocking { findExercisesBySetCount(any(), any(), eq(true)) } doReturn rows
                 }
-            val result = AnalyticsService(port, mock<ExerciseRepository>()).leastExercises(userId, limit = 2)
+            val result =
+                AnalyticsService(mock<PublicAnalyticsService>(), port, mock<ExerciseRepository>()).leastExercises(
+                    userId,
+                    limit = 2,
+                )
 
             assertEquals(2, result.size)
             assertEquals("Calf Raises", result[0].exerciseName)

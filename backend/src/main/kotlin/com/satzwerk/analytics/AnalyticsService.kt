@@ -16,6 +16,7 @@ private const val RECENT_SESSIONS_LIMIT = 5
 
 @Service
 class AnalyticsService(
+    private val publicAnalyticsService: PublicAnalyticsService,
     private val workoutReadPort: WorkoutReadPort,
     private val exerciseRepository: ExerciseRepository,
 ) {
@@ -23,15 +24,7 @@ class AnalyticsService(
         userId: UUID,
         from: LocalDate,
         to: LocalDate,
-    ): List<HeatmapEntry> {
-        val countsByDate = workoutReadPort.findSetCountsByDate(userId, from, to)
-
-        return from.datesUntil(to.plusDays(1))
-            .map { date ->
-                val count = countsByDate[date] ?: 0
-                HeatmapEntry(date = date, count = count, intensity = intensityTier(count))
-            }.toList()
-    }
+    ): List<HeatmapEntry> = publicAnalyticsService.heatmap(userId, from, to)
 
     suspend fun streak(userId: UUID): StreakResponse {
         val days = workoutReadPort.findWorkoutDays(userId)
