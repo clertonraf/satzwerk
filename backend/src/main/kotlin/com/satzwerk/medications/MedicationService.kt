@@ -1,9 +1,7 @@
 package com.satzwerk.medications
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.NotFoundException
-import io.r2dbc.postgresql.codec.Json
 import org.springframework.stereotype.Service
 import java.time.Instant
 import java.time.LocalDate
@@ -15,7 +13,7 @@ class MedicationService(
     private val medicationRepository: MedicationRepository,
     private val medicationLogRepository: MedicationLogRepository,
     private val medicationAnalyticsService: MedicationAnalyticsService,
-    private val objectMapper: ObjectMapper,
+    private val frequencySpecModule: FrequencySpecModule,
 ) {
     suspend fun createMedication(
         userId: UUID,
@@ -29,17 +27,17 @@ class MedicationService(
                 name = request.name,
                 dosageAmount = request.dosageAmount,
                 dosageUnit = request.dosageUnit.name,
-                frequency = serializeFrequency(request.frequency, objectMapper),
+                frequency = frequencySpecModule.serialize(request.frequency),
                 purpose = request.purpose,
             )
         val saved = medicationRepository.save(entity)
-        return toMedicationResponse(saved, objectMapper, streak = 0)
+        return toMedicationResponse(saved, frequencySpecModule, streak = 0)
     }
 
     suspend fun getMedications(userId: UUID): List<MedicationResponse> {
         val meds = medicationRepository.findByUserIdOrderByNameAsc(userId)
         val streaks = medicationAnalyticsService.getAdherenceStreaksBatch(meds)
-        return meds.map { med -> toMedicationResponse(med, objectMapper, streaks[med.id] ?: 0) }
+        return meds.map { med -> toMedicationResponse(med, frequencySpecModule, streaks[med.id] ?: 0) }
     }
 
     suspend fun getMedication(
@@ -48,7 +46,7 @@ class MedicationService(
     ): MedicationResponse {
         val med = requireOwnedMedication(medicationRepository, userId, id)
         val streak = medicationAnalyticsService.getAdherenceStreak(id)
-        return toMedicationResponse(med, objectMapper, streak)
+        return toMedicationResponse(med, frequencySpecModule, streak)
     }
 
     suspend fun updateMedication(
@@ -66,13 +64,13 @@ class MedicationService(
                 name = request.name,
                 dosageAmount = request.dosageAmount,
                 dosageUnit = request.dosageUnit.name,
-                frequency = serializeFrequency(request.frequency, objectMapper),
+                frequency = frequencySpecModule.serialize(request.frequency),
                 purpose = request.purpose,
                 updatedAt = Instant.now(),
             )
         val saved = medicationRepository.save(updated)
         val streak = medicationAnalyticsService.getAdherenceStreak(id)
-        return toMedicationResponse(saved, objectMapper, streak)
+        return toMedicationResponse(saved, frequencySpecModule, streak)
     }
 
     suspend fun deactivateMedication(
@@ -149,8 +147,9 @@ class MedicationService(
 
         return medicationRepository.findByUserIdOrderByNameAsc(userId)
             .filter { it.isActive }
-            .filter { isDueToday(deserializeFrequency(it.frequency, objectMapper), today) }
-            .map { med ->
+            .map { med -> med to frequencySpecModule.deserialize(med.frequency) }
+            .filter { (_, frequencySpec) -> frequencySpec.isDueOn(today) }
+            .map { (med, frequencySpec) ->
                 val logs =
                     medicationLogRepository.findByMedicationIdAndTakenAtBetweenOrderByTakenAtDesc(
                         requireNotNull(med.id),
@@ -159,8 +158,8 @@ class MedicationService(
                     )
                 val streak = medicationAnalyticsService.getAdherenceStreak(requireNotNull(med.id))
                 ScheduledDoseSummaryDto(
-                    medication = toMedicationResponse(med, objectMapper, streak),
-                    scheduledCount = scheduledCountForToday(deserializeFrequency(med.frequency, objectMapper)),
+                    medication = toMedicationResponse(med, frequencySpecModule, streak),
+                    scheduledCount = frequencySpec.scheduledCountOn(today),
                     logs = logs.map { it.toResponse() },
                 )
             }
@@ -173,19 +172,9 @@ suspend fun requireOwnedMedication(
     id: UUID,
 ): Medication = repo.findByUserIdAndId(userId, id) ?: throw NotFoundException("Medication $id not found")
 
-fun serializeFrequency(
-    spec: FrequencySpec,
-    mapper: ObjectMapper,
-): Json = Json.of(mapper.writeValueAsString(spec))
-
-fun deserializeFrequency(
-    json: Json,
-    mapper: ObjectMapper,
-): FrequencySpec = mapper.readValue(json.asString(), FrequencySpec::class.java)
-
 fun toMedicationResponse(
     med: Medication,
-    mapper: ObjectMapper,
+    frequencySpecModule: FrequencySpecModule,
     streak: Int,
 ): MedicationResponse =
     MedicationResponse(
@@ -193,36 +182,9 @@ fun toMedicationResponse(
         name = med.name,
         dosageAmount = med.dosageAmount,
         dosageUnit = DosageUnit.valueOf(med.dosageUnit),
-        frequency = deserializeFrequency(med.frequency, mapper),
+        frequency = frequencySpecModule.deserialize(med.frequency),
         purpose = med.purpose,
         isActive = med.isActive,
         createdAt = med.createdAt,
         currentStreak = streak,
     )
-
-fun isDueToday(
-    spec: FrequencySpec,
-    today: LocalDate,
-): Boolean =
-    when (spec) {
-        is FrequencySpec.Daily -> true
-        is FrequencySpec.Weekly -> {
-            val isoDay = today.dayOfWeek.value
-            spec.weekdays.isEmpty() || isoDay in spec.weekdays
-        }
-        is FrequencySpec.Monthly -> {
-            val day = today.dayOfMonth
-            val daysInMonth = today.lengthOfMonth()
-            // Treat days beyond the month length as due on the last day of the month
-            spec.daysOfMonth.isEmpty() ||
-                day in spec.daysOfMonth ||
-                (day == daysInMonth && spec.daysOfMonth.any { it > daysInMonth })
-        }
-    }
-
-fun scheduledCountForToday(spec: FrequencySpec): Int =
-    when (spec) {
-        is FrequencySpec.Daily -> spec.timesPerDay
-        is FrequencySpec.Weekly -> 1
-        is FrequencySpec.Monthly -> 1
-    }
