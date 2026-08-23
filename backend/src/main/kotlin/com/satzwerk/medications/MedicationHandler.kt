@@ -146,24 +146,24 @@ internal suspend fun journalHandler(
 ): ServerResponse =
     handleErrors {
         val ctx = RequestContext(request)
-        val today = LocalDate.now(ZoneOffset.UTC)
         val zoneOffset = parseZoneOffsetMinutes(request)
+        val today = LocalDate.now(zoneOffset)
         val from =
             request.queryParam("from").map { value ->
                 try {
-                    LocalDate.parse(value).atStartOfDay(ZoneOffset.UTC).toInstant()
+                    parseLocalDateStart(value, zoneOffset)
                 } catch (_: DateTimeParseException) {
                     throw BadRequestException("Invalid from date: '$value'. Expected yyyy-MM-dd.")
                 }
-            }.orElse(today.minusDays(DEFAULT_JOURNAL_DAYS).atStartOfDay(ZoneOffset.UTC).toInstant())
+            }.orElse(parseLocalDateStart(today.minusDays(DEFAULT_JOURNAL_DAYS).toString(), zoneOffset))
         val to =
             request.queryParam("to").map { value ->
                 try {
-                    LocalDate.parse(value).plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().minusNanos(1)
+                    parseLocalDateEnd(value, zoneOffset)
                 } catch (_: DateTimeParseException) {
                     throw BadRequestException("Invalid to date: '$value'. Expected yyyy-MM-dd.")
                 }
-            }.orElse(today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().minusNanos(1))
+            }.orElse(parseLocalDateEnd(today.toString(), zoneOffset))
         ServerResponse.ok().bodyValueAndAwait(medicationService.getJournalView(ctx.userId(), from, to, zoneOffset))
     }
 
@@ -181,3 +181,13 @@ private fun parseZoneOffsetMinutes(request: ServerRequest): ZoneOffset =
             throw BadRequestException("Invalid timezoneOffsetMinutes: '$value'. Expected a valid UTC offset.")
         }
     }.orElse(ZoneOffset.UTC)
+
+private fun parseLocalDateStart(
+    value: String,
+    zoneOffset: ZoneOffset,
+): Instant = LocalDate.parse(value).atStartOfDay().atOffset(zoneOffset).toInstant()
+
+private fun parseLocalDateEnd(
+    value: String,
+    zoneOffset: ZoneOffset,
+): Instant = LocalDate.parse(value).plusDays(1).atStartOfDay().atOffset(zoneOffset).toInstant().minusNanos(1)

@@ -24,6 +24,8 @@ vi.mock('@/services/medicationsApi', () => ({
 
 const mockGetAll = vi.mocked(medicationsApi.getAll)
 const mockCreate = vi.mocked(medicationsApi.create)
+const mockUpdate = vi.mocked(medicationsApi.update)
+const mockDeactivate = vi.mocked(medicationsApi.deactivate)
 
 const ACTIVE_MED: Medication = {
   id: 'med-1',
@@ -57,6 +59,8 @@ describe('MedicationsTab', () => {
   beforeEach(() => {
     mockGetAll.mockReset()
     mockCreate.mockReset()
+    mockUpdate.mockReset()
+    mockDeactivate.mockReset()
   })
 
   it('shows loading state then medication list', async () => {
@@ -127,6 +131,41 @@ describe('MedicationsTab', () => {
     await waitFor(() =>
       expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.medications.all() }),
     )
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.medications.today() })
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.medications.journal() })
+  })
+
+  it('invalidates today and journal read models after updating a medication', async () => {
+    const user = userEvent.setup()
+    mockGetAll.mockResolvedValue([ACTIVE_MED])
+    mockUpdate.mockResolvedValue({ ...ACTIVE_MED, name: 'Vitamin D3' })
+    const queryClient = renderTab()
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue()
+
+    await waitFor(() => screen.getByRole('button', { name: /edit/i }))
+    await user.click(screen.getByRole('button', { name: /edit/i }))
+    await user.clear(screen.getByLabelText(/^name$/i))
+    await user.type(screen.getByLabelText(/^name$/i), 'Vitamin D3')
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ id: 'med-1', name: 'Vitamin D3' })),
+    )
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.medications.today() })
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.medications.journal() })
+  })
+
+  it('invalidates today and journal read models after deactivating a medication', async () => {
+    const user = userEvent.setup()
+    mockGetAll.mockResolvedValue([ACTIVE_MED])
+    mockDeactivate.mockResolvedValue(undefined)
+    const queryClient = renderTab()
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue()
+
+    await waitFor(() => screen.getByRole('button', { name: /deactivate/i }))
+    await user.click(screen.getByRole('button', { name: /deactivate/i }))
+
+    await waitFor(() => expect(mockDeactivate).toHaveBeenCalledWith('med-1'))
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.medications.today() })
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.medications.journal() })
   })
