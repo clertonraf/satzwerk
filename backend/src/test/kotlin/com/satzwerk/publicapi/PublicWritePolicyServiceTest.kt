@@ -2,8 +2,6 @@ package com.satzwerk.publicapi
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.satzwerk.common.ConflictException
-import com.satzwerk.common.PartnerAppRequestPrincipal
-import com.satzwerk.partners.PartnerPrincipal
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -20,29 +18,29 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.reactive.function.server.ServerRequest
 import java.util.UUID
 
-class PartnerWritePolicyServiceTest {
+class PublicWritePolicyServiceTest {
     @Test
-    fun `execute finalizes a claimed idempotency record before returning`(): Unit =
+    fun `execute finalizes a claimed idempotency record before returning for a partner app`(): Unit =
         runBlocking {
-            val requestCodec = PartnerWriteRequestFingerprintCodec.body(ExampleRequest(name = "Bench Press"))
+            val requestCodec = PublicWriteRequestFingerprintCodec.body(ExampleRequest(name = "Bench Press"))
             val claimedRecord = pendingRecord(id = UUID.randomUUID())
             val idempotencyRecordRepository =
-                mock<IdempotencyRecordRepository> {
+                mock<PublicWriteIdempotencyRecordRepository> {
                     onBlocking { claim(any(), any(), any(), any(), any()) } doReturn claimedRecord
                     onBlocking { save(any()) } doAnswer { invocation ->
-                        invocation.arguments[0] as IdempotencyRecord
+                        invocation.arguments[0] as PublicWriteIdempotencyRecord
                     }
                 }
-            val partnerWriteAuditRepository =
-                mock<PartnerWriteAuditRepository> {
+            val publicWriteAuditRepository =
+                mock<PublicWriteAuditRepository> {
                     onBlocking { save(any()) } doAnswer { invocation ->
-                        invocation.arguments[0] as PartnerWriteAuditEntry
+                        invocation.arguments[0] as PublicWriteAuditEntry
                     }
                 }
             val service =
-                PartnerWritePolicyService(
+                PublicWritePolicyService(
                     idempotencyRecordRepository = idempotencyRecordRepository,
-                    partnerWriteAuditRepository = partnerWriteAuditRepository,
+                    publicWriteAuditRepository = publicWriteAuditRepository,
                     objectMapper = jacksonObjectMapper(),
                 )
 
@@ -57,30 +55,91 @@ class PartnerWritePolicyServiceTest {
                 }
 
             assertEquals(HttpStatus.CREATED, response.statusCode())
-            val savedRecord = argumentCaptor<IdempotencyRecord>()
-            val savedAudit = argumentCaptor<PartnerWriteAuditEntry>()
-            verify(idempotencyRecordRepository).save(savedRecord.capture())
-            verify(partnerWriteAuditRepository).save(savedAudit.capture())
-            assertEquals(HttpStatus.CREATED.value(), savedRecord.firstValue.responseStatus)
-            assertEquals("""{"name":"Bench Press"}""", savedRecord.firstValue.responseBody)
-            assertEquals("""{"name":"Bench Press"}""", savedRecord.firstValue.requestFingerprint)
+            val savedRecord = argumentCaptor<PublicWriteIdempotencyRecord>()
+            val savedAudit = argumentCaptor<PublicWriteAuditEntry>()
+            verify(idempotencyRecordRepository, org.mockito.kotlin.times(2)).save(savedRecord.capture())
+            verify(publicWriteAuditRepository).save(savedAudit.capture())
+            assertEquals(HttpStatus.CREATED.value(), savedRecord.lastValue.responseStatus)
+            assertEquals("""{"name":"Bench Press"}""", savedRecord.lastValue.responseBody)
+            assertEquals("""{"name":"Bench Press"}""", savedRecord.lastValue.requestFingerprint)
+            assertEquals(PublicWritePrincipalType.PARTNER_APP, savedRecord.lastValue.principalType)
+            assertEquals(GRANT_ID, savedRecord.lastValue.credentialId)
+            assertEquals(PublicWritePrincipalType.PARTNER_APP, savedAudit.firstValue.principalType)
+            assertEquals(GRANT_ID, savedAudit.firstValue.credentialId)
+            assertEquals(APP_ID, savedAudit.firstValue.appId)
+            assertEquals(GRANT_ID, savedAudit.firstValue.grantId)
+            assertEquals("exercises:write", savedAudit.firstValue.grantedScopes)
+        }
+
+    @Test
+    fun `execute finalizes a claimed idempotency record before returning for a personal api token`(): Unit =
+        runBlocking {
+            val requestCodec = PublicWriteRequestFingerprintCodec.body(ExampleRequest(name = "Bench Press"))
+            val claimedRecord =
+                pendingRecord(
+                    id = UUID.randomUUID(),
+                    principalType = PublicWritePrincipalType.PERSONAL_API_TOKEN,
+                    credentialId = TOKEN_ID,
+                )
+            val idempotencyRecordRepository =
+                mock<PublicWriteIdempotencyRecordRepository> {
+                    onBlocking { claim(any(), any(), any(), any(), any()) } doReturn claimedRecord
+                    onBlocking { save(any()) } doAnswer { invocation ->
+                        invocation.arguments[0] as PublicWriteIdempotencyRecord
+                    }
+                }
+            val publicWriteAuditRepository =
+                mock<PublicWriteAuditRepository> {
+                    onBlocking { save(any()) } doAnswer { invocation ->
+                        invocation.arguments[0] as PublicWriteAuditEntry
+                    }
+                }
+            val service =
+                PublicWritePolicyService(
+                    idempotencyRecordRepository = idempotencyRecordRepository,
+                    publicWriteAuditRepository = publicWriteAuditRepository,
+                    objectMapper = jacksonObjectMapper(),
+                )
+
+            val response =
+                service.execute(
+                    personalApiTokenPrincipal(),
+                    request(),
+                    HttpStatus.CREATED,
+                    requestCodec,
+                ) {
+                    ExampleResponse(name = "Bench Press")
+                }
+
+            assertEquals(HttpStatus.CREATED, response.statusCode())
+            val savedRecord = argumentCaptor<PublicWriteIdempotencyRecord>()
+            val savedAudit = argumentCaptor<PublicWriteAuditEntry>()
+            verify(idempotencyRecordRepository, org.mockito.kotlin.times(2)).save(savedRecord.capture())
+            verify(publicWriteAuditRepository).save(savedAudit.capture())
+            assertEquals(PublicWritePrincipalType.PERSONAL_API_TOKEN, savedRecord.lastValue.principalType)
+            assertEquals(TOKEN_ID, savedRecord.lastValue.credentialId)
+            assertEquals(PublicWritePrincipalType.PERSONAL_API_TOKEN, savedAudit.firstValue.principalType)
+            assertEquals(TOKEN_ID, savedAudit.firstValue.credentialId)
+            assertEquals(null, savedAudit.firstValue.appId)
+            assertEquals(null, savedAudit.firstValue.grantId)
             assertEquals("exercises:write", savedAudit.firstValue.grantedScopes)
         }
 
     @Test
     fun `execute replays a completed record when another request already claimed the key`(): Unit =
         runBlocking {
-            val requestCodec = PartnerWriteRequestFingerprintCodec.body(ExampleRequest(name = "Bench Press"))
+            val requestCodec = PublicWriteRequestFingerprintCodec.body(ExampleRequest(name = "Bench Press"))
             val completedRecord =
                 pendingRecord(id = UUID.randomUUID()).copy(
                     responseStatus = HttpStatus.CREATED.value(),
                     responseBody = """{"name":"Bench Press"}""",
                 )
             val idempotencyRecordRepository =
-                mock<IdempotencyRecordRepository> {
+                mock<PublicWriteIdempotencyRecordRepository> {
                     onBlocking { claim(any(), any(), any(), any(), any()) } doReturn null
                     onBlocking {
-                        findByGrantIdAndRequestMethodAndRequestPathAndIdempotencyKey(
+                        findByPrincipalTypeAndCredentialIdAndRequestMethodAndRequestPathAndIdempotencyKey(
+                            any(),
                             any(),
                             any(),
                             any(),
@@ -88,16 +147,16 @@ class PartnerWritePolicyServiceTest {
                         )
                     } doReturn completedRecord
                 }
-            val partnerWriteAuditRepository =
-                mock<PartnerWriteAuditRepository> {
+            val publicWriteAuditRepository =
+                mock<PublicWriteAuditRepository> {
                     onBlocking { save(any()) } doAnswer { invocation ->
-                        invocation.arguments[0] as PartnerWriteAuditEntry
+                        invocation.arguments[0] as PublicWriteAuditEntry
                     }
                 }
             val service =
-                PartnerWritePolicyService(
+                PublicWritePolicyService(
                     idempotencyRecordRepository = idempotencyRecordRepository,
-                    partnerWriteAuditRepository = partnerWriteAuditRepository,
+                    publicWriteAuditRepository = publicWriteAuditRepository,
                     objectMapper = jacksonObjectMapper(),
                 )
 
@@ -105,6 +164,62 @@ class PartnerWritePolicyServiceTest {
             val response =
                 service.execute(
                     partnerPrincipal(),
+                    request(),
+                    HttpStatus.CREATED,
+                    requestCodec,
+                ) {
+                    executed = true
+                    ExampleResponse(name = "Should not run")
+                }
+
+            assertEquals(HttpStatus.CREATED, response.statusCode())
+            assertFalse(executed)
+            verify(idempotencyRecordRepository, never()).save(any())
+        }
+
+    @Test
+    fun `execute replays a completed record for a personal api token`(): Unit =
+        runBlocking {
+            val requestCodec = PublicWriteRequestFingerprintCodec.body(ExampleRequest(name = "Bench Press"))
+            val completedRecord =
+                pendingRecord(
+                    id = UUID.randomUUID(),
+                    principalType = PublicWritePrincipalType.PERSONAL_API_TOKEN,
+                    credentialId = TOKEN_ID,
+                ).copy(
+                    responseStatus = HttpStatus.CREATED.value(),
+                    responseBody = """{"name":"Bench Press"}""",
+                )
+            val idempotencyRecordRepository =
+                mock<PublicWriteIdempotencyRecordRepository> {
+                    onBlocking { claim(any(), any(), any(), any(), any()) } doReturn null
+                    onBlocking {
+                        findByPrincipalTypeAndCredentialIdAndRequestMethodAndRequestPathAndIdempotencyKey(
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                        )
+                    } doReturn completedRecord
+                }
+            val publicWriteAuditRepository =
+                mock<PublicWriteAuditRepository> {
+                    onBlocking { save(any()) } doAnswer { invocation ->
+                        invocation.arguments[0] as PublicWriteAuditEntry
+                    }
+                }
+            val service =
+                PublicWritePolicyService(
+                    idempotencyRecordRepository = idempotencyRecordRepository,
+                    publicWriteAuditRepository = publicWriteAuditRepository,
+                    objectMapper = jacksonObjectMapper(),
+                )
+
+            var executed = false
+            val response =
+                service.execute(
+                    personalApiTokenPrincipal(),
                     request(),
                     HttpStatus.CREATED,
                     requestCodec,
@@ -128,10 +243,11 @@ class PartnerWritePolicyServiceTest {
                     responseBody = """{"name":"Bench Press"}""",
                 )
             val idempotencyRecordRepository =
-                mock<IdempotencyRecordRepository> {
+                mock<PublicWriteIdempotencyRecordRepository> {
                     onBlocking { claim(any(), any(), any(), any(), any()) } doReturn null
                     onBlocking {
-                        findByGrantIdAndRequestMethodAndRequestPathAndIdempotencyKey(
+                        findByPrincipalTypeAndCredentialIdAndRequestMethodAndRequestPathAndIdempotencyKey(
+                            any(),
                             any(),
                             any(),
                             any(),
@@ -139,11 +255,11 @@ class PartnerWritePolicyServiceTest {
                         )
                     } doReturn completedRecord
                 }
-            val partnerWriteAuditRepository = mock<PartnerWriteAuditRepository>()
+            val publicWriteAuditRepository = mock<PublicWriteAuditRepository>()
             val service =
-                PartnerWritePolicyService(
+                PublicWritePolicyService(
                     idempotencyRecordRepository = idempotencyRecordRepository,
-                    partnerWriteAuditRepository = partnerWriteAuditRepository,
+                    publicWriteAuditRepository = publicWriteAuditRepository,
                     objectMapper = jacksonObjectMapper(),
                 )
 
@@ -154,7 +270,7 @@ class PartnerWritePolicyServiceTest {
                             partnerPrincipal(),
                             request(),
                             HttpStatus.CREATED,
-                            PartnerWriteRequestFingerprintCodec.body(ExampleRequest(name = "Changed Bench")),
+                            PublicWriteRequestFingerprintCodec.body(ExampleRequest(name = "Changed Bench")),
                         ) {
                             ExampleResponse(name = "Should not run")
                         }
@@ -162,7 +278,7 @@ class PartnerWritePolicyServiceTest {
                 }
 
             assertEquals("Idempotency-Key already used with a different payload", error.message)
-            verify(partnerWriteAuditRepository, never()).save(any())
+            verify(publicWriteAuditRepository, never()).save(any())
         }
 
     @Test
@@ -178,10 +294,11 @@ class PartnerWritePolicyServiceTest {
                     responseBody = """{"id":"$PLAN_ID","isActive":true}""",
                 )
             val idempotencyRecordRepository =
-                mock<IdempotencyRecordRepository> {
+                mock<PublicWriteIdempotencyRecordRepository> {
                     onBlocking { claim(any(), any(), any(), any(), any()) } doReturn null
                     onBlocking {
-                        findByGrantIdAndRequestMethodAndRequestPathAndIdempotencyKey(
+                        findByPrincipalTypeAndCredentialIdAndRequestMethodAndRequestPathAndIdempotencyKey(
+                            any(),
                             any(),
                             any(),
                             any(),
@@ -189,16 +306,16 @@ class PartnerWritePolicyServiceTest {
                         )
                     } doReturn completedRecord
                 }
-            val partnerWriteAuditRepository =
-                mock<PartnerWriteAuditRepository> {
+            val publicWriteAuditRepository =
+                mock<PublicWriteAuditRepository> {
                     onBlocking { save(any()) } doAnswer { invocation ->
-                        invocation.arguments[0] as PartnerWriteAuditEntry
+                        invocation.arguments[0] as PublicWriteAuditEntry
                     }
                 }
             val service =
-                PartnerWritePolicyService(
+                PublicWritePolicyService(
                     idempotencyRecordRepository = idempotencyRecordRepository,
-                    partnerWriteAuditRepository = partnerWriteAuditRepository,
+                    publicWriteAuditRepository = publicWriteAuditRepository,
                     objectMapper = jacksonObjectMapper(),
                 )
 
@@ -208,7 +325,7 @@ class PartnerWritePolicyServiceTest {
                     partnerPrincipal(),
                     request(path = "/api/public/plans/$PLAN_ID/activate"),
                     HttpStatus.OK,
-                    PartnerWriteRequestFingerprintCodec.stateless("activate-workout-plan"),
+                    PublicWriteRequestFingerprintCodec.stateless("activate-workout-plan"),
                 ) {
                     executed = true
                     ExampleResponse(name = "Should not run")
@@ -232,10 +349,11 @@ class PartnerWritePolicyServiceTest {
                     responseBody = """{"id":"$PLAN_ID","isActive":true}""",
                 )
             val idempotencyRecordRepository =
-                mock<IdempotencyRecordRepository> {
+                mock<PublicWriteIdempotencyRecordRepository> {
                     onBlocking { claim(any(), any(), any(), any(), any()) } doReturn null
                     onBlocking {
-                        findByGrantIdAndRequestMethodAndRequestPathAndIdempotencyKey(
+                        findByPrincipalTypeAndCredentialIdAndRequestMethodAndRequestPathAndIdempotencyKey(
+                            any(),
                             any(),
                             any(),
                             any(),
@@ -243,11 +361,11 @@ class PartnerWritePolicyServiceTest {
                         )
                     } doReturn completedRecord
                 }
-            val partnerWriteAuditRepository = mock<PartnerWriteAuditRepository>()
+            val publicWriteAuditRepository = mock<PublicWriteAuditRepository>()
             val service =
-                PartnerWritePolicyService(
+                PublicWritePolicyService(
                     idempotencyRecordRepository = idempotencyRecordRepository,
-                    partnerWriteAuditRepository = partnerWriteAuditRepository,
+                    publicWriteAuditRepository = publicWriteAuditRepository,
                     objectMapper = jacksonObjectMapper(),
                 )
 
@@ -258,7 +376,7 @@ class PartnerWritePolicyServiceTest {
                             partnerPrincipal(),
                             request(path = "/api/public/plans/$PLAN_ID/activate"),
                             HttpStatus.OK,
-                            PartnerWriteRequestFingerprintCodec.stateless("complete-workout-plan"),
+                            PublicWriteRequestFingerprintCodec.stateless("complete-workout-plan"),
                         ) {
                             ExampleResponse(name = "Should not run")
                         }
@@ -266,7 +384,7 @@ class PartnerWritePolicyServiceTest {
                 }
 
             assertEquals("Idempotency-Key already used with a different payload", error.message)
-            verify(partnerWriteAuditRepository, never()).save(any())
+            verify(publicWriteAuditRepository, never()).save(any())
         }
 
     private fun request(path: String = "/api/public/exercises"): ServerRequest {
@@ -282,27 +400,33 @@ class PartnerWritePolicyServiceTest {
     }
 
     private fun partnerPrincipal() =
-        PartnerAppRequestPrincipal(
+        PublicWritePrincipal(
+            principalType = PublicWritePrincipalType.PARTNER_APP,
             userId = USER_ID,
+            credentialId = GRANT_ID,
+            scopes = setOf("exercises:write"),
             appId = APP_ID,
             grantId = GRANT_ID,
+        )
+
+    private fun personalApiTokenPrincipal() =
+        PublicWritePrincipal(
+            principalType = PublicWritePrincipalType.PERSONAL_API_TOKEN,
+            userId = USER_ID,
+            credentialId = TOKEN_ID,
             scopes = setOf("exercises:write"),
-            partnerPrincipal =
-                PartnerPrincipal(
-                    userId = USER_ID.toString(),
-                    appId = APP_ID.toString(),
-                    grantId = GRANT_ID.toString(),
-                    grantedScopes = "exercises:write",
-                ),
         )
 
     private fun pendingRecord(
         id: UUID,
+        principalType: PublicWritePrincipalType = PublicWritePrincipalType.PARTNER_APP,
+        credentialId: UUID = GRANT_ID,
         requestPath: String = "/api/public/exercises",
         requestFingerprint: String = """{"name":"Bench Press"}""",
-    ) = IdempotencyRecord(
+    ) = PublicWriteIdempotencyRecord(
         id = id,
-        grantId = GRANT_ID,
+        principalType = principalType,
+        credentialId = credentialId,
         requestMethod = HttpMethod.POST.name(),
         requestPath = requestPath,
         idempotencyKey = IDEMPOTENCY_KEY,
@@ -317,6 +441,7 @@ class PartnerWritePolicyServiceTest {
 
     companion object {
         private val USER_ID: UUID = UUID.randomUUID()
+        private val TOKEN_ID: UUID = UUID.randomUUID()
         private val APP_ID: UUID = UUID.randomUUID()
         private val GRANT_ID: UUID = UUID.randomUUID()
         private val PLAN_ID: UUID = UUID.randomUUID()
