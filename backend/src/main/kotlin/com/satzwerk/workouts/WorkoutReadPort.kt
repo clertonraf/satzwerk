@@ -1,17 +1,25 @@
-package com.satzwerk.analytics
+package com.satzwerk.workouts
 
+import com.satzwerk.analytics.DashboardSummaryRow
+import com.satzwerk.analytics.ExerciseProgressRow
+import com.satzwerk.analytics.PersonalRecordRow
+import com.satzwerk.analytics.TopExerciseRow
+import com.satzwerk.analytics.WeeklyTrendRow
+import com.satzwerk.sessions.SetLog
+import com.satzwerk.sessions.SetLogRepository
+import com.satzwerk.sessions.WorkoutSession
+import com.satzwerk.sessions.WorkoutSessionRepository
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.reactive.asFlow
 import kotlinx.coroutines.reactive.awaitSingle
 import org.springframework.r2dbc.core.DatabaseClient
-import org.springframework.stereotype.Repository
+import org.springframework.stereotype.Component
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
 private const val DEFAULT_WEEKLY_TREND_WEEKS = 8
-private const val DEFAULT_TOP_EXERCISES_LIMIT = 5
 
 private val DASHBOARD_SUMMARY_SQL =
     """
@@ -43,10 +51,60 @@ private val DASHBOARD_SUMMARY_SQL =
         WHERE user_id = :userId AND completed_at IS NOT NULL) AS avg_session_duration_minutes
     """.trimIndent()
 
-@Repository
-class AnalyticsRepository(
+data class WorkoutPlanExportData(
+    val plan: WorkoutPlan,
+    val groups: List<WorkoutGroupExportData>,
+)
+
+data class WorkoutGroupExportData(
+    val group: WorkoutGroup,
+    val exercises: List<WorkoutExercise>,
+)
+
+data class WorkoutSessionExportData(
+    val session: WorkoutSession,
+    val setLogs: List<SetLog>,
+)
+
+@Component
+class WorkoutReadPort(
+    private val workoutPlanRepository: WorkoutPlanRepository,
+    private val workoutGroupRepository: WorkoutGroupRepository,
+    private val workoutExerciseRepository: WorkoutExerciseRepository,
+    private val workoutSessionRepository: WorkoutSessionRepository,
+    private val setLogRepository: SetLogRepository,
     private val databaseClient: DatabaseClient,
 ) {
+    suspend fun findOpenSession(userId: UUID): WorkoutSession? =
+        workoutSessionRepository.findByUserIdAndCompletedAtIsNull(userId)
+
+    suspend fun findExportPlans(userId: UUID): List<WorkoutPlanExportData> =
+        workoutPlanRepository.findAllByUserId(userId).map { plan ->
+            val groups =
+                workoutGroupRepository.findAllByWorkoutPlanIdOrderByOrderIndex(requireNotNull(plan.id)).map { group ->
+                    WorkoutGroupExportData(
+                        group = group,
+                        exercises =
+                            workoutExerciseRepository.findAllByWorkoutGroupIdOrderByOrderIndex(
+                                requireNotNull(group.id),
+                            ),
+                    )
+                }
+            WorkoutPlanExportData(plan = plan, groups = groups)
+        }
+
+    suspend fun findExportSessions(userId: UUID): List<WorkoutSessionExportData> {
+        val sessions = workoutSessionRepository.findAllByUserId(userId)
+        val logsBySession =
+            setLogRepository
+                .findAllByWorkoutSessionIdIn(sessions.mapNotNull { it.id })
+                .groupBy { it.workoutSessionId }
+
+        return sessions.map { session ->
+            WorkoutSessionExportData(session = session, setLogs = logsBySession[session.id] ?: emptyList())
+        }
+    }
+
     suspend fun findSetCountsByDate(
         userId: UUID,
         from: LocalDate,
@@ -191,15 +249,11 @@ class AnalyticsRepository(
             .asFlow()
             .toList()
 
-    suspend fun findTopExercisesBySetCount(
+    suspend fun findExercisesBySetCount(
         userId: UUID,
-        limit: Int = DEFAULT_TOP_EXERCISES_LIMIT,
-    ): List<TopExerciseRow> = findExercisesBySetCount(userId, limit, ascending = false)
-
-    suspend fun findLeastExercisesBySetCount(
-        userId: UUID,
-        limit: Int = DEFAULT_TOP_EXERCISES_LIMIT,
-    ): List<TopExerciseRow> = findExercisesBySetCount(userId, limit, ascending = true)
+        limit: Int,
+        ascending: Boolean,
+    ): List<TopExerciseRow> = selectExercisesBySetCount(databaseClient, userId, limit, ascending)
 
     suspend fun findExerciseProgress(
         userId: UUID,
@@ -262,77 +316,39 @@ class AnalyticsRepository(
             }.all()
             .asFlow()
             .toList()
-
-    private suspend fun findExercisesBySetCount(
-        userId: UUID,
-        limit: Int,
-        ascending: Boolean,
-    ): List<TopExerciseRow> {
-        val direction = if (ascending) "ASC" else "DESC"
-        return databaseClient
-            .sql(
-                """
-                SELECT sl.exercise_id, e.name AS exercise_name, COUNT(sl.id) AS set_count
-                FROM set_logs sl
-                JOIN workout_sessions ws ON sl.workout_session_id = ws.id
-                JOIN exercises e ON sl.exercise_id = e.id AND e.user_id = :userId
-                WHERE ws.user_id = :userId
-                GROUP BY sl.exercise_id, e.name
-                ORDER BY set_count $direction, e.name ASC
-                LIMIT :limit
-                """.trimIndent(),
-            ).bind("userId", userId)
-            .bind("limit", limit)
-            .map { row, _ ->
-                TopExerciseRow(
-                    exerciseId = row.get("exercise_id", UUID::class.java)!!,
-                    exerciseName = row.get("exercise_name", String::class.java)!!,
-                    setCount =
-                        Math.toIntExact(
-                            requireNotNull(row.get("set_count", java.lang.Long::class.java)).toLong(),
-                        ),
-                )
-            }.all()
-            .asFlow()
-            .toList()
-    }
 }
 
-data class DashboardSummaryRow(
-    val totalSessions: Int,
-    val sessionsThisMonth: Int,
-    val setsThisWeek: Int,
-    val prsThisMonth: Int,
-    val activePlanDays: Int?,
-    val avgSessionDurationMinutes: Int?,
-)
-
-data class WeeklyTrendRow(
-    val week: String,
-    val setCount: Int,
-    val sessionCount: Int,
-)
-
-data class PersonalRecordRow(
-    val exerciseId: UUID,
-    val exerciseName: String,
-    val weightKg: BigDecimal,
-    val reps: Int,
-    val achievedAt: Instant,
-)
-
-data class TopExerciseRow(
-    val exerciseId: UUID,
-    val exerciseName: String,
-    val setCount: Int,
-)
-
-data class ExerciseProgressRow(
-    val sessionId: UUID,
-    val sessionDate: LocalDate,
-    val workoutGroupTitle: String,
-    val exerciseId: UUID,
-    val exerciseName: String,
-    val topSetWeightKg: BigDecimal,
-    val topSetReps: Int,
-)
+suspend fun selectExercisesBySetCount(
+    databaseClient: DatabaseClient,
+    userId: UUID,
+    limit: Int,
+    ascending: Boolean,
+): List<TopExerciseRow> {
+    val direction = if (ascending) "ASC" else "DESC"
+    return databaseClient
+        .sql(
+            """
+            SELECT sl.exercise_id, e.name AS exercise_name, COUNT(sl.id) AS set_count
+            FROM set_logs sl
+            JOIN workout_sessions ws ON sl.workout_session_id = ws.id
+            JOIN exercises e ON sl.exercise_id = e.id AND e.user_id = :userId
+            WHERE ws.user_id = :userId
+            GROUP BY sl.exercise_id, e.name
+            ORDER BY set_count $direction, e.name ASC
+            LIMIT :limit
+            """.trimIndent(),
+        ).bind("userId", userId)
+        .bind("limit", limit)
+        .map { row, _ ->
+            TopExerciseRow(
+                exerciseId = row.get("exercise_id", UUID::class.java)!!,
+                exerciseName = row.get("exercise_name", String::class.java)!!,
+                setCount =
+                    Math.toIntExact(
+                        requireNotNull(row.get("set_count", java.lang.Long::class.java)).toLong(),
+                    ),
+            )
+        }.all()
+        .asFlow()
+        .toList()
+}

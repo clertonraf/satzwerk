@@ -1,11 +1,13 @@
 package com.satzwerk.analytics
 
 import com.satzwerk.workouts.ExerciseRepository
+import com.satzwerk.workouts.WorkoutReadPort
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -28,12 +30,12 @@ class AnalyticsServiceTest {
         summaryRow: DashboardSummaryRow = emptySummaryRow,
         workoutDays: List<LocalDate> = emptyList(),
     ): AnalyticsService {
-        val repo =
-            mock<AnalyticsRepository> {
+        val port =
+            mock<WorkoutReadPort> {
                 onBlocking { findDashboardSummary(any()) } doReturn summaryRow
                 onBlocking { findWorkoutDays(any()) } doReturn workoutDays
             }
-        return AnalyticsService(repo, mock<ExerciseRepository>())
+        return AnalyticsService(port, mock<ExerciseRepository>())
     }
 
     @Test
@@ -114,13 +116,13 @@ class AnalyticsServiceTest {
                     TopExerciseRow(exerciseId = exerciseId1, exerciseName = "Bench Press", setCount = 42),
                     TopExerciseRow(exerciseId = exerciseId2, exerciseName = "Squat", setCount = 35),
                 )
-            val repo =
-                mock<AnalyticsRepository> {
+            val port =
+                mock<WorkoutReadPort> {
                     onBlocking { findDashboardSummary(any()) } doReturn emptySummaryRow
                     onBlocking { findWorkoutDays(any()) } doReturn emptyList()
-                    onBlocking { findTopExercisesBySetCount(any(), any()) } doReturn rows
+                    onBlocking { findExercisesBySetCount(any(), any(), eq(false)) } doReturn rows
                 }
-            val result = AnalyticsService(repo, mock<ExerciseRepository>()).topExercises(userId, limit = 2)
+            val result = AnalyticsService(port, mock<ExerciseRepository>()).topExercises(userId, limit = 2)
 
             assertEquals(2, result.size)
             assertEquals("Bench Press", result[0].exerciseName)
@@ -140,13 +142,13 @@ class AnalyticsServiceTest {
                     TopExerciseRow(exerciseId = exerciseId1, exerciseName = "Calf Raises", setCount = 2),
                     TopExerciseRow(exerciseId = exerciseId2, exerciseName = "Hip Thrust", setCount = 5),
                 )
-            val repo =
-                mock<AnalyticsRepository> {
+            val port =
+                mock<WorkoutReadPort> {
                     onBlocking { findDashboardSummary(any()) } doReturn emptySummaryRow
                     onBlocking { findWorkoutDays(any()) } doReturn emptyList()
-                    onBlocking { findLeastExercisesBySetCount(any(), any()) } doReturn rows
+                    onBlocking { findExercisesBySetCount(any(), any(), eq(true)) } doReturn rows
                 }
-            val result = AnalyticsService(repo, mock<ExerciseRepository>()).leastExercises(userId, limit = 2)
+            val result = AnalyticsService(port, mock<ExerciseRepository>()).leastExercises(userId, limit = 2)
 
             assertEquals(2, result.size)
             assertEquals("Calf Raises", result[0].exerciseName)

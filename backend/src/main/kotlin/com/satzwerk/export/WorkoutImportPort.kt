@@ -21,42 +21,19 @@ data class ImportGroupSpec(
 )
 
 /**
- * Deep persistence boundary for import/export operations.
+ * Deep persistence boundary for workout import writes.
  *
- * Provides query methods for the export path and deep write methods for the import path.
- * The import methods own the ID-wiring between plan → group → exercise and session → set-log,
- * so callers construct template entities without knowing the newly-assigned IDs.
+ * Owns the ID-wiring between plan → group → exercise and session → set-log so callers can supply
+ * template entities without knowing the generated IDs ahead of time.
  */
 @Component
-class WorkoutDataPort(
+class WorkoutImportPort(
     private val workoutPlanRepository: WorkoutPlanRepository,
     private val workoutGroupRepository: WorkoutGroupRepository,
     private val workoutExerciseRepository: WorkoutExerciseRepository,
     private val workoutSessionRepository: WorkoutSessionRepository,
     private val setLogRepository: SetLogRepository,
 ) {
-    suspend fun findOpenSession(userId: UUID): WorkoutSession? =
-        workoutSessionRepository.findByUserIdAndCompletedAtIsNull(userId)
-
-    suspend fun findAllPlans(userId: UUID): List<WorkoutPlan> = workoutPlanRepository.findAllByUserId(userId)
-
-    suspend fun findGroupsForPlan(planId: UUID): List<WorkoutGroup> =
-        workoutGroupRepository.findAllByWorkoutPlanIdOrderByOrderIndex(planId)
-
-    suspend fun findExercisesForGroup(groupId: UUID): List<WorkoutExercise> =
-        workoutExerciseRepository.findAllByWorkoutGroupIdOrderByOrderIndex(groupId)
-
-    suspend fun findAllSessions(userId: UUID): List<WorkoutSession> = workoutSessionRepository.findAllByUserId(userId)
-
-    suspend fun findSetLogsBySessionIds(sessionIds: List<UUID>): Map<UUID, List<SetLog>> =
-        setLogRepository.findAllByWorkoutSessionIdIn(sessionIds).groupBy { it.workoutSessionId }
-
-    /**
-     * Saves [plan] along with each group and its exercises, wiring the generated IDs at each level.
-     *
-     * @return a map from each [ImportGroupSpec.exportedId] to the newly-assigned group ID,
-     *         allowing callers to remap session references from the original export.
-     */
     suspend fun importPlanWithGroups(
         plan: WorkoutPlan,
         groupSpecs: List<ImportGroupSpec>,
@@ -75,11 +52,6 @@ class WorkoutDataPort(
         return groupIdMap
     }
 
-    /**
-     * Saves [session] and all [setLogs], wiring [SetLog.workoutSessionId] to the newly-assigned session ID.
-     *
-     * @return the number of set logs saved.
-     */
     suspend fun importSessionWithSetLogs(
         session: WorkoutSession,
         setLogs: List<SetLog>,

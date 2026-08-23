@@ -3,6 +3,7 @@ package com.satzwerk.analytics
 import com.satzwerk.common.NotFoundException
 import com.satzwerk.sessions.epley
 import com.satzwerk.workouts.ExerciseRepository
+import com.satzwerk.workouts.WorkoutReadPort
 import org.springframework.stereotype.Service
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -15,7 +16,7 @@ private const val RECENT_SESSIONS_LIMIT = 5
 
 @Service
 class AnalyticsService(
-    private val analyticsRepository: AnalyticsRepository,
+    private val workoutReadPort: WorkoutReadPort,
     private val exerciseRepository: ExerciseRepository,
 ) {
     suspend fun heatmap(
@@ -23,7 +24,7 @@ class AnalyticsService(
         from: LocalDate,
         to: LocalDate,
     ): List<HeatmapEntry> {
-        val countsByDate = analyticsRepository.findSetCountsByDate(userId, from, to)
+        val countsByDate = workoutReadPort.findSetCountsByDate(userId, from, to)
 
         return from.datesUntil(to.plusDays(1))
             .map { date ->
@@ -33,14 +34,14 @@ class AnalyticsService(
     }
 
     suspend fun streak(userId: UUID): StreakResponse {
-        val days = analyticsRepository.findWorkoutDays(userId)
+        val days = workoutReadPort.findWorkoutDays(userId)
         val (current, longest) = computeStreaks(days)
         return StreakResponse(currentStreak = current, longestStreak = longest)
     }
 
     suspend fun dashboardSummary(userId: UUID): DashboardSummary {
-        val summaryRow = analyticsRepository.findDashboardSummary(userId)
-        val days = analyticsRepository.findWorkoutDays(userId)
+        val summaryRow = workoutReadPort.findDashboardSummary(userId)
+        val days = workoutReadPort.findWorkoutDays(userId)
         val (currentStreak, longestStreak) = computeStreaks(days)
         return DashboardSummary(
             currentStreak = currentStreak,
@@ -58,7 +59,7 @@ class AnalyticsService(
         userId: UUID,
         weeks: Int = DEFAULT_TREND_WEEKS,
     ): List<WeeklyTrendEntry> =
-        analyticsRepository.findWeeklyTrend(userId, weeks).map { row ->
+        workoutReadPort.findWeeklyTrend(userId, weeks).map { row ->
             WeeklyTrendEntry(week = row.week, setCount = row.setCount, sessionCount = row.sessionCount)
         }
 
@@ -66,7 +67,7 @@ class AnalyticsService(
         userId: UUID,
         limit: Int = DEFAULT_PR_LIMIT,
     ): List<PersonalRecord> =
-        analyticsRepository.findRecentPersonalRecords(userId, limit).map { row ->
+        workoutReadPort.findRecentPersonalRecords(userId, limit).map { row ->
             PersonalRecord(
                 exerciseId = row.exerciseId,
                 exerciseName = row.exerciseName,
@@ -80,7 +81,7 @@ class AnalyticsService(
         userId: UUID,
         limit: Int = DEFAULT_TOP_EXERCISES_LIMIT,
     ): List<TopExercise> =
-        analyticsRepository.findTopExercisesBySetCount(userId, limit).map { row ->
+        workoutReadPort.findExercisesBySetCount(userId, limit, ascending = false).map { row ->
             TopExercise(
                 exerciseId = row.exerciseId,
                 exerciseName = row.exerciseName,
@@ -92,7 +93,7 @@ class AnalyticsService(
         userId: UUID,
         limit: Int = DEFAULT_TOP_EXERCISES_LIMIT,
     ): List<TopExercise> =
-        analyticsRepository.findLeastExercisesBySetCount(userId, limit).map { row ->
+        workoutReadPort.findExercisesBySetCount(userId, limit, ascending = true).map { row ->
             TopExercise(
                 exerciseId = row.exerciseId,
                 exerciseName = row.exerciseName,
@@ -104,7 +105,7 @@ class AnalyticsService(
         userId: UUID,
         exerciseId: UUID,
     ): ExerciseProgressResponse {
-        val rows = analyticsRepository.findExerciseProgress(userId, exerciseId)
+        val rows = workoutReadPort.findExerciseProgress(userId, exerciseId)
         if (rows.isEmpty()) {
             val exercise =
                 exerciseRepository.findByIdAndUserId(exerciseId, userId)
@@ -145,7 +146,7 @@ class AnalyticsService(
 
 /**
  * Computes current and longest workout streaks from a list of workout days (descending order).
- * [days] should be the full workout-day history from [AnalyticsRepository.findWorkoutDays].
+ * [days] should be the full workout-day history from [WorkoutReadPort.findWorkoutDays].
  * Returns Pair(currentStreak, longestStreak).
  */
 internal fun computeStreaks(days: List<LocalDate>): Pair<Int, Int> {
