@@ -16,6 +16,7 @@ type QueuedOpBase = { id?: number; sessionId: string; queuedAt: number; retryCou
 export type QueuedOp =
   | (QueuedOpBase & { type: 'add-set'; data: AddSetLogRequest })
   | (QueuedOpBase & { type: 'update-set'; setLogId: string; data: UpdateSetLogRequest })
+  | (QueuedOpBase & { type: 'delete-set'; setLogId: string })
 
 class SatzwerkDb extends Dexie {
   queuedSetLogs!: Table<QueuedSetLog>

@@ -7,6 +7,7 @@ const MAX_RETRIES = 3
 type EnqueuePayload =
   | { type: 'add-set'; sessionId: string; data: AddSetLogRequest }
   | { type: 'update-set'; sessionId: string; setLogId: string; data: UpdateSetLogRequest }
+  | { type: 'delete-set'; sessionId: string; setLogId: string }
 
 export interface FlushResult {
   succeeded: number
@@ -59,7 +60,10 @@ export const offlineQueue = {
         if (op.type === 'add-set') {
           return sessionService.addSetLog(op.sessionId, op.data)
         }
-        return sessionService.updateSetLog(op.sessionId, op.setLogId, op.data)
+        if (op.type === 'update-set') {
+          return sessionService.updateSetLog(op.sessionId, op.setLogId, op.data)
+        }
+        return sessionService.deleteSetLog(op.sessionId, op.setLogId)
       }),
     )
 
