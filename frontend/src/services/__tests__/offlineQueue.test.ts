@@ -39,6 +39,21 @@ describe('offlineQueue.enqueue', () => {
     }
   })
 
+  it('stores a delete-set op in the queue', async () => {
+    await offlineQueue.enqueue({
+      type: 'delete-set',
+      sessionId: 's1',
+      setLogId: 'log-1',
+    })
+
+    const ops = await offlineQueue.getAll()
+    expect(ops).toHaveLength(1)
+    expect(ops[0].type).toBe('delete-set')
+    if (ops[0].type === 'delete-set') {
+      expect(ops[0].setLogId).toBe('log-1')
+    }
+  })
+
   it('stamps queuedAt on each op', async () => {
     await offlineQueue.enqueue({
       type: 'add-set',
@@ -93,6 +108,22 @@ describe('offlineQueue.flush', () => {
     await offlineQueue.flush()
 
     expect(updateSetLogSpy).toHaveBeenCalledWith('s1', 'log-1', { weight: 90, reps: 3 })
+  })
+
+  it('dispatches delete-set ops to sessionService.deleteSetLog', async () => {
+    const deleteSetLogSpy = vi.spyOn(sessionServiceModule.sessionService, 'deleteSetLog').mockResolvedValue(
+      undefined,
+    )
+
+    await offlineQueue.enqueue({
+      type: 'delete-set',
+      sessionId: 's1',
+      setLogId: 'log-1',
+    })
+
+    await offlineQueue.flush()
+
+    expect(deleteSetLogSpy).toHaveBeenCalledWith('s1', 'log-1')
   })
 
   it('removes successfully flushed ops from the queue', async () => {
@@ -194,4 +225,3 @@ describe('offlineQueue.clear', () => {
     expect(ops).toHaveLength(0)
   })
 })
-

@@ -9,6 +9,7 @@ import { sessionService } from '@/services/sessionService'
 import { useWorkoutSessionMachine } from '../useWorkoutSessionMachine'
 
 const mockAddSetLog = vi.fn()
+const mockDeleteSetLog = vi.fn()
 const mockUseOnlineStatus = vi.fn()
 
 vi.mock('@/hooks/useOnlineStatus', () => ({
@@ -17,9 +18,10 @@ vi.mock('@/hooks/useOnlineStatus', () => ({
 
 vi.mock('@/features/sessions/useSessionTransport', () => ({
   useSessionTransport: () => ({
-    transport: { addSetLog: mockAddSetLog, updateSetLog: vi.fn() },
+    transport: { addSetLog: mockAddSetLog, updateSetLog: vi.fn(), deleteSetLog: mockDeleteSetLog },
     isAddPending: false,
     isUpdatePending: false,
+    isDeletePending: false,
   }),
 }))
 
@@ -90,6 +92,7 @@ describe('useWorkoutSessionMachine', () => {
     mockUseOnlineStatus.mockReset()
     mockUseOnlineStatus.mockReturnValue(true)
     mockAddSetLog.mockReset()
+    mockDeleteSetLog.mockReset()
     vi.mocked(sessionService.start).mockReset()
     // Reset getOpen before applying the default 404 rejection so prior call
     // history doesn't bleed across tests.
@@ -316,7 +319,8 @@ describe('useWorkoutSessionMachine', () => {
   })
 
   describe('DELETE_SET', () => {
-    it('removes set log from session cache and invalidates open + referenceWeights', async () => {
+    it('optimistically removes set log while offline and leaves reconnect confirmation to the queue', async () => {
+      mockUseOnlineStatus.mockReturnValue(false)
       const setLog = {
         id: 'log-1',
         exerciseId: 'ex-1',
@@ -327,7 +331,13 @@ describe('useWorkoutSessionMachine', () => {
       }
       const session = buildSession({ setLogs: [setLog], setCount: 1 })
       queryClient.setQueryData(queryKeys.sessions.open(), session)
-      vi.mocked(sessionService.deleteSetLog).mockResolvedValue(undefined)
+      let resolveDelete = () => {}
+      mockDeleteSetLog.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveDelete = resolve
+          }),
+      )
       const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue()
 
       const { result } = renderHook(
@@ -335,18 +345,24 @@ describe('useWorkoutSessionMachine', () => {
         { wrapper: Wrapper },
       )
 
+      let dispatchPromise: Promise<void> | undefined
       await act(async () => {
-        await result.current.dispatch({ type: 'DELETE_SET', setLogId: 'log-1' })
+        dispatchPromise = result.current.dispatch({ type: 'DELETE_SET', setLogId: 'log-1' })
+        await Promise.resolve()
       })
 
-      expect(sessionService.deleteSetLog).toHaveBeenCalledWith('session-1', 'log-1')
       const updated = queryClient.getQueryData<WorkoutSession>(queryKeys.sessions.open())
+      expect(mockDeleteSetLog).toHaveBeenCalledWith('session-1', 'log-1')
       expect(updated?.setLogs).toHaveLength(0)
       expect(updated?.setCount).toBe(0)
-      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.sessions.open() })
-      expect(invalidateQueries).toHaveBeenCalledWith({
-        queryKey: queryKeys.sessions.referenceWeights('session-1'),
+      expect(invalidateQueries).not.toHaveBeenCalled()
+
+      await act(async () => {
+        resolveDelete()
+        await dispatchPromise
       })
+
+      expect(invalidateQueries).not.toHaveBeenCalled()
     })
   })
 

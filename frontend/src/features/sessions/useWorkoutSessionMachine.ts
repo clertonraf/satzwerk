@@ -30,7 +30,7 @@ export function useWorkoutSessionMachine({
 }) {
   const queryClient = useQueryClient()
   const isOnline = useOnlineStatus()
-  const { transport, isAddPending, isUpdatePending } = useSessionTransport()
+  const { transport, isAddPending, isUpdatePending, isDeletePending } = useSessionTransport()
 
   // machineOverride captures the two phases that can't be derived from query data.
   // null means phase is derived from the open-session query result.
@@ -93,11 +93,6 @@ export function useWorkoutSessionMachine({
 
   const discardMutation = useMutation({
     mutationFn: (sessionId: string) => sessionService.discard(sessionId),
-  })
-
-  const deleteSetLogMutation = useMutation({
-    mutationFn: ({ sessionId, setLogId }: { sessionId: string; setLogId: string }) =>
-      sessionService.deleteSetLog(sessionId, setLogId),
   })
 
   // declared as plain function (not useCallback) to avoid instability from transport dep
@@ -226,7 +221,6 @@ export function useWorkoutSessionMachine({
         case 'DELETE_SET': {
           if (!session) return
           const sessionId = session.id
-          await deleteSetLogMutation.mutateAsync({ sessionId, setLogId: event.setLogId })
           const current = queryClient.getQueryData<WorkoutSession>(queryKeys.sessions.open())
           if (!current) return
           const remaining = current.setLogs.filter((l) => l.id !== event.setLogId)
@@ -235,8 +229,16 @@ export function useWorkoutSessionMachine({
             setLogs: remaining,
             setCount: remaining.length,
           })
-          void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.open() })
-          void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.referenceWeights(sessionId) })
+          try {
+            await transport.deleteSetLog(sessionId, event.setLogId)
+          } catch (error) {
+            queryClient.setQueryData(queryKeys.sessions.open(), current)
+            throw error
+          }
+          if (isOnline) {
+            void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.open() })
+            void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.referenceWeights(sessionId) })
+          }
           break
         }
 
@@ -258,7 +260,7 @@ export function useWorkoutSessionMachine({
     isStartPending: startMutation.isPending,
     isAddSetPending: isAddPending,
     isUpdateSetPending: isUpdatePending,
-    isDeleteSetPending: deleteSetLogMutation.isPending,
+    isDeleteSetPending: isDeletePending,
     isCompletePending: completeMutation.isPending,
     isForfeitPending: discardMutation.isPending,
   }
