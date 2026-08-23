@@ -1,13 +1,9 @@
 package com.satzwerk.common
 
 import com.satzwerk.auth.InsufficientScopeException
-import com.satzwerk.config.AUTHORITY_JWT_SESSION
 import com.satzwerk.partners.PartnerPrincipal
 import jakarta.validation.Validator
-import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.http.HttpStatus
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
-import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.web.reactive.function.server.ServerRequest
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
@@ -92,12 +88,7 @@ suspend fun handleErrors(
  * #205 should reuse this guard unchanged.
  */
 suspend fun requireJwtSession(request: ServerRequest) {
-    val principal = request.principal().awaitSingle()
-    val authorities =
-        (principal as? UsernamePasswordAuthenticationToken)?.authorities ?: emptyList()
-    if (SimpleGrantedAuthority(AUTHORITY_JWT_SESSION) !in authorities) {
-        throw UnauthorizedException()
-    }
+    RequestContext(request).requireJwtSession()
 }
 
 /** Thrown when a valid credential is present but is not a first-party JWT session. */
@@ -114,18 +105,9 @@ suspend fun requireScope(
     request: ServerRequest,
     scope: String,
 ) {
-    val authentication = request.principal().awaitSingle()
-    val authorities =
-        (authentication as? UsernamePasswordAuthenticationToken)
-            ?.authorities ?: emptyList()
-    if (SimpleGrantedAuthority(scope) !in authorities) {
-        throw InsufficientScopeException(scope)
-    }
+    RequestContext(request).requireScope(scope)
 }
 
 suspend fun requirePartnerPrincipal(request: ServerRequest): PartnerPrincipal {
-    val authentication =
-        request.principal().awaitSingle() as? UsernamePasswordAuthenticationToken
-            ?: throw UnauthorizedException()
-    return authentication.credentials as? PartnerPrincipal ?: throw UnauthorizedException()
+    return RequestContext(request).requirePartnerAppPrincipal().partnerPrincipal
 }

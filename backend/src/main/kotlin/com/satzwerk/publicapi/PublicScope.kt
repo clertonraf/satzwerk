@@ -67,7 +67,7 @@ suspend fun handlePublicScope(
     block: suspend (RequestContext) -> ServerResponse,
 ): ServerResponse =
     handleErrors(request, publicScopeErrors + extra) { ctx ->
-        requirePublicScope(request, requiredScope)
+        ctx.requireScope(requiredScope)
         block(ctx)
     }
 

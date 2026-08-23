@@ -2,7 +2,6 @@ package com.satzwerk.workouts
 
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.body
-import com.satzwerk.common.requirePartnerPrincipal
 import com.satzwerk.common.validateOrBadRequest
 import com.satzwerk.publicapi.PartnerWritePolicyService
 import com.satzwerk.publicapi.PublicScope
@@ -30,7 +29,7 @@ class PublicExerciseRouter {
         "/api/public/exercises".nest {
             POST("") { request ->
                 handlePublicScope(request, PublicScope.EXERCISES_WRITE, extra = publicExerciseWriteErrors) { ctx ->
-                    requirePartnerPrincipal(request)
+                    ctx.requirePartnerAppPrincipal()
                     val body = ctx.body<CreateExerciseRequest>()
                     validateOrBadRequest(validator, body) {
                         partnerWritePolicyService.execute(request, HttpStatus.CREATED, body) { userId ->
@@ -42,7 +41,7 @@ class PublicExerciseRouter {
 
             PUT("/{id}") { request ->
                 handlePublicScope(request, PublicScope.EXERCISES_WRITE, extra = publicExerciseWriteErrors) { ctx ->
-                    requirePartnerPrincipal(request)
+                    ctx.requirePartnerAppPrincipal()
                     val exerciseId = ctx.pathId("id")
                     val body = ctx.body<UpdateExerciseRequest>()
                     validateOrBadRequest(validator, body) {
