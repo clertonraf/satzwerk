@@ -9,6 +9,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.PartnerAppRequestPrincipal
+import com.satzwerk.common.UnauthorizedException
+import com.satzwerk.partners.PartnerPrincipal
 import kotlinx.coroutines.delay
 import org.springframework.data.annotation.Id
 import org.springframework.data.r2dbc.repository.Query
@@ -168,6 +170,40 @@ class PartnerWritePolicyService(
     private val partnerWriteAuditRepository: PartnerWriteAuditRepository,
     private val objectMapper: ObjectMapper,
 ) {
+    @Transactional
+    suspend fun <T : Any> execute(
+        principal: PublicWritePrincipal,
+        request: ServerRequest,
+        successStatus: HttpStatus,
+        requestFingerprintCodec: PartnerWriteRequestFingerprintCodec,
+        block: suspend (UUID) -> T,
+    ): ServerResponse {
+        if (principal.principalType != PublicWritePrincipalType.PARTNER_APP) {
+            throw UnauthorizedException()
+        }
+
+        return execute(
+            partnerPrincipal =
+                PartnerAppRequestPrincipal(
+                    userId = principal.userId,
+                    appId = requireNotNull(principal.appId),
+                    grantId = requireNotNull(principal.grantId),
+                    scopes = principal.scopes,
+                    partnerPrincipal =
+                        PartnerPrincipal(
+                            userId = principal.userId.toString(),
+                            appId = requireNotNull(principal.appId).toString(),
+                            grantId = requireNotNull(principal.grantId).toString(),
+                            grantedScopes = principal.scopes.sorted().joinToString(" "),
+                        ),
+                ),
+            request = request,
+            successStatus = successStatus,
+            requestFingerprintCodec = requestFingerprintCodec,
+            block = block,
+        )
+    }
+
     @Transactional
     suspend fun <T : Any> execute(
         partnerPrincipal: PartnerAppRequestPrincipal,
