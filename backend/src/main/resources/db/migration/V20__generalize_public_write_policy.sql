@@ -17,10 +17,31 @@ ALTER TABLE public_write_idempotency_records
 ALTER TABLE public_write_idempotency_records
     DROP CONSTRAINT idempotency_records_grant_id_fkey;
 
-ALTER TABLE public_write_idempotency_records
-    DROP CONSTRAINT idempotency_records_grant_id_request_method_request_path_idempotency_key_key;
+DO $$
+DECLARE legacy_constraint_name TEXT;
+BEGIN
+    FOR legacy_constraint_name IN
+        SELECT c.conname
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        JOIN unnest(c.conkey) WITH ORDINALITY AS cols(attnum, ordinality) ON true
+        JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = cols.attnum
+        WHERE n.nspname = current_schema()
+          AND t.relname = 'public_write_idempotency_records'
+          AND c.contype = 'u'
+        GROUP BY c.conname
+        HAVING string_agg(a.attname, ',' ORDER BY cols.ordinality) =
+            'credential_id,request_method,request_path,idempotency_key'
+    LOOP
+        EXECUTE format(
+            'ALTER TABLE public_write_idempotency_records DROP CONSTRAINT %I',
+            legacy_constraint_name
+        );
+    END LOOP;
+END $$;
 
-DROP INDEX idx_idempotency_records_grant_id;
+DROP INDEX IF EXISTS idx_idempotency_records_grant_id;
 
 ALTER TABLE public_write_idempotency_records
     ADD CONSTRAINT uq_public_write_idempotency_records_identity_key
