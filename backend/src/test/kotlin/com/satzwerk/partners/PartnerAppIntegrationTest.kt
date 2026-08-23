@@ -2,6 +2,7 @@ package com.satzwerk.partners
 
 import com.satzwerk.PostgresTestContainer
 import com.satzwerk.auth.AuthResponse
+import com.satzwerk.publicapi.PublicScope
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
@@ -126,10 +127,12 @@ class PartnerAppIntegrationTest : PostgresTestContainer() {
                     "name" to "Bad App",
                     "description" to "App with invalid scope",
                     "redirectUri" to "https://bad.example/callback",
-                    "scopes" to "admin:all",
+                    "scopes" to "ADMIN:ALL ${PublicScope.EXERCISES_READ}",
                 ),
             ).exchange()
             .expectStatus().isBadRequest
+            .expectBody()
+            .jsonPath("$.error").isEqualTo("Unknown scopes: admin:all")
     }
 
     @Test
@@ -174,7 +177,7 @@ class PartnerAppIntegrationTest : PostgresTestContainer() {
     @Test
     fun `grant rejects scopes not declared by app`() {
         val token = registerAndLogin()
-        val app = registerApp(token, scopes = "exercises:read")
+        val app = registerApp(token, scopes = PublicScope.EXERCISES_READ)
         client
             .post()
             .uri("/api/partner-grants")
@@ -183,10 +186,12 @@ class PartnerAppIntegrationTest : PostgresTestContainer() {
             .bodyValue(
                 mapOf(
                     "clientId" to app.clientId,
-                    "grantedScopes" to "sessions:write",
+                    "grantedScopes" to "SESSIONS:WRITE",
                 ),
             ).exchange()
             .expectStatus().isBadRequest
+            .expectBody()
+            .jsonPath("$.error").isEqualTo("Scopes not declared by app: sessions:write")
     }
 
     @Test

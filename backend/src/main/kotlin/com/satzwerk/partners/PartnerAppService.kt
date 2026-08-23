@@ -5,22 +5,14 @@ import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.ForbiddenException
 import com.satzwerk.common.NotFoundException
+import com.satzwerk.publicapi.validateDeclaredPublicScopes
+import com.satzwerk.publicapi.validateGrantedPublicScopes
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import java.time.Instant
 import java.util.UUID
-
-private val ALLOWED_SCOPES =
-    setOf(
-        "exercises:read", "exercises:write",
-        "plans:read", "plans:write",
-        "sessions:read", "sessions:write",
-        "analytics:read",
-        "measurements:read", "measurements:write",
-        "medications:read", "medications:write",
-    )
 
 @Service
 class PartnerAppService(
@@ -31,7 +23,7 @@ class PartnerAppService(
 ) {
     /** Register a new partner app. Returns the plain client secret once — never retrievable again. */
     suspend fun registerApp(request: RegisterPartnerAppRequest): PartnerAppRegistrationResponse {
-        validateScopes(request.scopes)
+        val declaredScopes = validateScopes(request.scopes)
         val clientId = "satzwerk_${UUID.randomUUID().toString().replace("-", "")}"
         val plainSecret = tokenSecretService.generateHexToken(SECRET_BYTES)
         val app =
@@ -42,7 +34,7 @@ class PartnerAppService(
                     redirectUri = request.redirectUri,
                     clientId = clientId,
                     clientSecretHash = passwordEncoder.encode(plainSecret),
-                    scopes = request.scopes.normaliseScopes(),
+                    scopes = declaredScopes,
                 ),
             )
         return PartnerAppRegistrationResponse(
@@ -72,8 +64,7 @@ class PartnerAppService(
             partnerAppRepository.findByClientId(request.clientId)
                 ?: throw NotFoundException("Partner app not found: ${request.clientId}")
 
-        val grantedScopes = request.grantedScopes.normaliseScopes()
-        validateScopesSubset(grantedScopes, app.scopes)
+        val grantedScopes = validateScopesSubset(request.grantedScopes, app.scopes)
 
         val existing = appGrantRepository.findByAppIdAndUserId(requireNotNull(app.id), userId)
         if (existing != null && existing.revokedAt == null) {
@@ -178,23 +169,12 @@ class PartnerAppService(
 
     // ── Helpers ────────────────────────────────────────────────────────────
 
-    private fun validateScopes(scopes: String) {
-        val invalid = scopes.normaliseScopes().split(" ").filter { it !in ALLOWED_SCOPES }
-        if (invalid.isNotEmpty()) {
-            throw BadRequestException("Unknown scopes: ${invalid.joinToString()}")
-        }
-    }
+    private fun validateScopes(scopes: String): String = validateDeclaredPublicScopes(scopes)
 
     private fun validateScopesSubset(
         grantedScopes: String,
         appScopes: String,
-    ) {
-        val appScopeSet = appScopes.split(" ").toSet()
-        val invalid = grantedScopes.split(" ").filter { it !in appScopeSet }
-        if (invalid.isNotEmpty()) {
-            throw BadRequestException("Scopes not declared by app: ${invalid.joinToString()}")
-        }
-    }
+    ): String = validateGrantedPublicScopes(grantedScopes, appScopes)
 
     private fun PartnerApp.toSummary() =
         PartnerAppSummary(
@@ -207,10 +187,6 @@ class PartnerAppService(
             createdAt = createdAt,
         )
 }
-
-/** Normalise scopes: lowercase, trim, deduplicate, sort for canonical storage. */
-internal fun String.normaliseScopes(): String =
-    split(" ", ",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }.distinct().sorted().joinToString(" ")
 
 private const val SECRET_BYTES = 32
 

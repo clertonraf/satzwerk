@@ -5,31 +5,6 @@ import jakarta.validation.constraints.Size
 import java.time.Instant
 import java.util.UUID
 
-/** Valid scope strings for personal automation tokens. */
-object TokenScope {
-    const val EXERCISES_READ = "exercises:read"
-    const val EXERCISES_WRITE = "exercises:write"
-    const val PLANS_READ = "plans:read"
-    const val PLANS_WRITE = "plans:write"
-    const val SESSIONS_READ = "sessions:read"
-    const val SESSIONS_WRITE = "sessions:write"
-    const val ANALYTICS_READ = "analytics:read"
-    const val MEASUREMENTS_READ = "measurements:read"
-    const val MEASUREMENTS_WRITE = "measurements:write"
-    const val MEDICATIONS_READ = "medications:read"
-    const val MEDICATIONS_WRITE = "medications:write"
-
-    val all =
-        setOf(
-            EXERCISES_READ, EXERCISES_WRITE,
-            PLANS_READ, PLANS_WRITE,
-            SESSIONS_READ, SESSIONS_WRITE,
-            ANALYTICS_READ,
-            MEASUREMENTS_READ, MEASUREMENTS_WRITE,
-            MEDICATIONS_READ, MEDICATIONS_WRITE,
-        )
-}
-
 data class CreatePersonalApiTokenRequest(
     @field:NotBlank
     @field:Size(max = 100)

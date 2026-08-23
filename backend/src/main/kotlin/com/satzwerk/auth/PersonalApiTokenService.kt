@@ -3,6 +3,7 @@ package com.satzwerk.auth
 import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ForbiddenException
 import com.satzwerk.common.NotFoundException
+import com.satzwerk.publicapi.validatePublicScopes
 import org.springframework.stereotype.Service
 import java.time.Instant
 import java.util.UUID
@@ -72,7 +73,5 @@ class PersonalApiTokenService(
 }
 
 private fun validateScopes(scopes: List<String>) {
-    if (scopes.isEmpty()) throw BadRequestException("At least one scope is required")
-    val invalid = scopes.filterNot { it in TokenScope.all }
-    if (invalid.isNotEmpty()) throw BadRequestException("Unknown scopes: ${invalid.joinToString()}")
+    validatePublicScopes(scopes)
 }

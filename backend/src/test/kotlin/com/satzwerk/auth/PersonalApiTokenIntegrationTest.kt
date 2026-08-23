@@ -2,6 +2,7 @@ package com.satzwerk.auth
 
 import com.satzwerk.PostgresTestContainer
 import com.satzwerk.analytics.HeatmapEntry
+import com.satzwerk.publicapi.PublicScope
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -47,9 +48,9 @@ class PersonalApiTokenIntegrationTest : PostgresTestContainer() {
     @Test
     fun `create returns 201 with raw token exposed once`() {
         val jwt = registerAndGetJwt("pat-create@test.com")
-        val resp = createToken(jwt, "My Script", listOf(TokenScope.ANALYTICS_READ))
+        val resp = createToken(jwt, "My Script", listOf(PublicScope.ANALYTICS_READ))
         assertTrue(resp.token.startsWith("satzwerk_"), "raw token must start with satzwerk_ prefix")
-        assertEquals(listOf(TokenScope.ANALYTICS_READ), resp.scopes)
+        assertEquals(listOf(PublicScope.ANALYTICS_READ), resp.scopes)
         assertEquals("My Script", resp.name)
     }
 
@@ -59,9 +60,11 @@ class PersonalApiTokenIntegrationTest : PostgresTestContainer() {
         client.post().uri("/api/tokens")
             .header("Authorization", "Bearer $jwt")
             .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue(mapOf("name" to "bad", "scopes" to listOf("invalid:scope")))
+            .bodyValue(mapOf("name" to "bad", "scopes" to listOf(PublicScope.ANALYTICS_READ, "invalid:scope")))
             .exchange()
             .expectStatus().isBadRequest
+            .expectBody()
+            .jsonPath("$.error").isEqualTo("Unknown scopes: invalid:scope")
     }
 
     @Test
@@ -78,8 +81,8 @@ class PersonalApiTokenIntegrationTest : PostgresTestContainer() {
     @Test
     fun `list returns only active tokens for owner`() {
         val jwt = registerAndGetJwt("pat-list@test.com")
-        createToken(jwt, "Token A", listOf(TokenScope.ANALYTICS_READ))
-        createToken(jwt, "Token B", listOf(TokenScope.EXERCISES_READ))
+        createToken(jwt, "Token A", listOf(PublicScope.ANALYTICS_READ))
+        createToken(jwt, "Token B", listOf(PublicScope.EXERCISES_READ))
 
         client.get().uri("/api/tokens")
             .header("Authorization", "Bearer $jwt")
@@ -94,7 +97,7 @@ class PersonalApiTokenIntegrationTest : PostgresTestContainer() {
     @Test
     fun `revoke removes token from active list`() {
         val jwt = registerAndGetJwt("pat-revoke@test.com")
-        val token = createToken(jwt, "To Revoke", listOf(TokenScope.ANALYTICS_READ))
+        val token = createToken(jwt, "To Revoke", listOf(PublicScope.ANALYTICS_READ))
 
         client.delete().uri("/api/tokens/${token.id}")
             .header("Authorization", "Bearer $jwt")
@@ -112,7 +115,7 @@ class PersonalApiTokenIntegrationTest : PostgresTestContainer() {
     @Test
     fun `revoked token is rejected immediately on public route`() {
         val jwt = registerAndGetJwt("pat-revoke-immediate@test.com")
-        val created = createToken(jwt, "Revoke Me", listOf(TokenScope.ANALYTICS_READ))
+        val created = createToken(jwt, "Revoke Me", listOf(PublicScope.ANALYTICS_READ))
         val rawToken = created.token
 
         // Confirm it works before revocation
@@ -137,14 +140,14 @@ class PersonalApiTokenIntegrationTest : PostgresTestContainer() {
     @Test
     fun `token with wrong scope returns 403 on public heatmap`() {
         val jwt = registerAndGetJwt("pat-wrong-scope@test.com")
-        val created = createToken(jwt, "Exercises Only", listOf(TokenScope.EXERCISES_READ))
+        val created = createToken(jwt, "Exercises Only", listOf(PublicScope.EXERCISES_READ))
 
         client.get().uri("/api/public/analytics/heatmap?from=2026-01-01&to=2026-01-07")
             .header("Authorization", "Bearer ${created.token}")
             .exchange()
             .expectStatus().isForbidden
             .expectBody()
-            .jsonPath("$.error").isEqualTo("Required scope: ${TokenScope.ANALYTICS_READ}")
+            .jsonPath("$.error").isEqualTo("Required scope: ${PublicScope.ANALYTICS_READ}")
     }
 
     @Test
@@ -157,7 +160,7 @@ class PersonalApiTokenIntegrationTest : PostgresTestContainer() {
     @Test
     fun `valid token with analytics read returns heatmap data`() {
         val jwt = registerAndGetJwt("pat-heatmap@test.com")
-        val created = createToken(jwt, "Heatmap Reader", listOf(TokenScope.ANALYTICS_READ))
+        val created = createToken(jwt, "Heatmap Reader", listOf(PublicScope.ANALYTICS_READ))
 
         client.get().uri("/api/public/analytics/heatmap?from=2026-01-01&to=2026-01-07")
             .header("Authorization", "Bearer ${created.token}")
@@ -170,13 +173,13 @@ class PersonalApiTokenIntegrationTest : PostgresTestContainer() {
     @Test
     fun `PAT cannot be used to manage tokens - JWT required`() {
         val jwt = registerAndGetJwt("pat-meta@test.com")
-        val created = createToken(jwt, "Meta Token", listOf(TokenScope.ANALYTICS_READ))
+        val created = createToken(jwt, "Meta Token", listOf(PublicScope.ANALYTICS_READ))
 
         // A PAT cannot be used to create other tokens — JWT is required for management routes
         client.post().uri("/api/tokens")
             .header("Authorization", "Bearer ${created.token}")
             .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue(mapOf("name" to "nested", "scopes" to listOf(TokenScope.ANALYTICS_READ)))
+            .bodyValue(mapOf("name" to "nested", "scopes" to listOf(PublicScope.ANALYTICS_READ)))
             .exchange()
             .expectStatus().isUnauthorized
     }
@@ -185,7 +188,7 @@ class PersonalApiTokenIntegrationTest : PostgresTestContainer() {
     fun `user cannot revoke another users token`() {
         val jwtA = registerAndGetJwt("pat-owner-a@test.com")
         val jwtB = registerAndGetJwt("pat-owner-b@test.com")
-        val tokenA = createToken(jwtA, "A token", listOf(TokenScope.ANALYTICS_READ))
+        val tokenA = createToken(jwtA, "A token", listOf(PublicScope.ANALYTICS_READ))
 
         client.delete().uri("/api/tokens/${tokenA.id}")
             .header("Authorization", "Bearer $jwtB")
