@@ -212,6 +212,20 @@ describe('DashboardPage', () => {
     expect(screen.queryByText('Last Session')).not.toBeInTheDocument()
   })
 
+  it('renders a "View analytics" link pointing to /analytics', async () => {
+    render(
+      <QueryClientWrapper>
+        <MemoryRouter>
+          <DashboardPage />
+        </MemoryRouter>
+      </QueryClientWrapper>
+    )
+
+    const link = await screen.findByRole('link', { name: 'View analytics' })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveAttribute('href', '/analytics')
+  })
+
   it('does not render the weekly trend section when weekly-trend widget is hidden', async () => {
     useDashboardPreferences.getState().setVisibleWidgets('user-1', ['summary-grid', 'activity-heatmap', 'last-session', 'recent-prs'])
 
