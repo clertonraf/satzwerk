@@ -1,5 +1,6 @@
 package com.satzwerk.common
 
+import com.satzwerk.auth.PersonalApiToken
 import com.satzwerk.config.AUTHORITY_JWT_SESSION
 import com.satzwerk.partners.PartnerPrincipal
 import kotlinx.coroutines.runBlocking
@@ -93,12 +94,21 @@ class RequestContextTest {
     }
 
     @Test
-    fun `principal resolves personal api token authentication scopes`() {
+    fun `principal resolves personal api token authentication`() {
         val userId = UUID.randomUUID()
+        val tokenId = UUID.randomUUID()
+        val personalApiToken =
+            PersonalApiToken(
+                id = tokenId,
+                userId = userId,
+                name = "Automation token",
+                tokenHash = "hash",
+                scopesRaw = "analytics:read,exercises:write",
+            )
         val authentication =
             UsernamePasswordAuthenticationToken(
                 userId.toString(),
-                "satzwerk_token",
+                personalApiToken,
                 listOf(
                     SimpleGrantedAuthority("analytics:read"),
                     SimpleGrantedAuthority("exercises:write"),
@@ -106,10 +116,11 @@ class RequestContextTest {
             )
         `when`(request.principal()).thenReturn(Mono.just(authentication))
 
-        val principal = runBlocking { ctx.principal() }
+        val principal = runBlocking { ctx.principal() } as PersonalApiTokenRequestPrincipal
 
         assertEquals(RequestPrincipalKind.PERSONAL_API_TOKEN, principal.kind)
         assertEquals(userId, principal.userId)
+        assertEquals(tokenId, principal.tokenId)
         assertEquals(setOf("analytics:read", "exercises:write"), principal.scopes)
     }
 

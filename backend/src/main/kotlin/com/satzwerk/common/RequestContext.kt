@@ -1,6 +1,7 @@
 package com.satzwerk.common
 
 import com.satzwerk.auth.InsufficientScopeException
+import com.satzwerk.auth.PersonalApiToken
 import com.satzwerk.config.AUTHORITY_JWT_SESSION
 import com.satzwerk.partners.PartnerPrincipal
 import kotlinx.coroutines.reactor.awaitSingle
@@ -45,6 +46,7 @@ data class JwtSessionRequestPrincipal(
 
 data class PersonalApiTokenRequestPrincipal(
     override val userId: UUID,
+    val tokenId: UUID,
     override val scopes: Set<String>,
 ) : RequestPrincipal {
     override val kind: RequestPrincipalKind = RequestPrincipalKind.PERSONAL_API_TOKEN
@@ -113,19 +115,31 @@ private fun resolveAuthenticationPrincipal(authentication: UsernamePasswordAuthe
             .map { it.authority }
             .filter { it != AUTHORITY_JWT_SESSION }
             .toSet()
-    val partnerPrincipal = authentication.credentials as? PartnerPrincipal
-    return partnerPrincipal?.let {
-        PartnerAppRequestPrincipal(
-            userId = userId,
-            appId = parseUuid(it.appId),
-            grantId = parseUuid(it.grantId),
-            scopes = scopes,
-            partnerPrincipal = it,
-        )
+    return when (val credentials = authentication.credentials) {
+        is PartnerPrincipal ->
+            PartnerAppRequestPrincipal(
+                userId = userId,
+                appId = parseUuid(credentials.appId),
+                grantId = parseUuid(credentials.grantId),
+                scopes = scopes,
+                partnerPrincipal = credentials,
+            )
+
+        is PersonalApiToken ->
+            PersonalApiTokenRequestPrincipal(
+                userId = userId,
+                tokenId = requireNotNull(credentials.id),
+                scopes = scopes,
+            )
+
+        else ->
+            if (authentication.authorities.any { it.authority == AUTHORITY_JWT_SESSION }) {
+                JwtSessionRequestPrincipal(userId)
+            } else {
+                error(
+                    "Unsupported authentication credentials for request principal: " +
+                        (credentials?.javaClass?.name ?: "null"),
+                )
+            }
     }
-        ?: if (authentication.authorities.any { it.authority == AUTHORITY_JWT_SESSION }) {
-            JwtSessionRequestPrincipal(userId)
-        } else {
-            PersonalApiTokenRequestPrincipal(userId, scopes)
-        }
 }
