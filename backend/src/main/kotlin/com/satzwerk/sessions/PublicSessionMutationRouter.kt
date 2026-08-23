@@ -6,9 +6,9 @@ import com.satzwerk.common.NotFoundException
 import com.satzwerk.common.body
 import com.satzwerk.common.validateOrBadRequest
 import com.satzwerk.publicapi.PartnerWritePolicyService
+import com.satzwerk.publicapi.PartnerWritePrincipalValidationService
 import com.satzwerk.publicapi.PartnerWriteRequestFingerprintCodec
 import com.satzwerk.publicapi.PublicScope
-import com.satzwerk.publicapi.PublicWritePrincipalValidationService
 import com.satzwerk.publicapi.handlePublicScope
 import jakarta.validation.Validator
 import org.springframework.context.annotation.Bean
@@ -25,7 +25,7 @@ private val publicSessionWriteErrors: Map<KClass<out Throwable>, HttpStatus> =
 
 @Configuration
 class PublicSessionMutationRouter(
-    private val partnerWritePrincipalValidationService: PublicWritePrincipalValidationService,
+    private val partnerWritePrincipalValidationService: PartnerWritePrincipalValidationService,
 ) {
     @Bean
     fun publicSessionMutationRoutes(
@@ -61,7 +61,7 @@ class PublicSessionMutationRouter(
 private fun CoRouterFunctionDsl.publicSessionStartRoutes(
     workoutSessionService: WorkoutSessionService,
     partnerWritePolicyService: PartnerWritePolicyService,
-    partnerWritePrincipalValidationService: PublicWritePrincipalValidationService,
+    partnerWritePrincipalValidationService: PartnerWritePrincipalValidationService,
     validator: Validator,
 ) {
     POST("") { request ->
@@ -91,7 +91,7 @@ private fun CoRouterFunctionDsl.publicSessionSetLogRoutes(
     workoutSessionService: WorkoutSessionService,
     setLogService: SetLogService,
     partnerWritePolicyService: PartnerWritePolicyService,
-    partnerWritePrincipalValidationService: PublicWritePrincipalValidationService,
+    partnerWritePrincipalValidationService: PartnerWritePrincipalValidationService,
     validator: Validator,
 ) {
     POST("/{id}/set-logs") { request ->
@@ -137,7 +137,7 @@ private fun CoRouterFunctionDsl.publicSessionSetLogRoutes(
 private fun CoRouterFunctionDsl.publicSessionLifecycleRoutes(
     workoutSessionService: WorkoutSessionService,
     partnerWritePolicyService: PartnerWritePolicyService,
-    partnerWritePrincipalValidationService: PublicWritePrincipalValidationService,
+    partnerWritePrincipalValidationService: PartnerWritePrincipalValidationService,
     validator: Validator,
 ) {
     POST("/{id}/complete") { request ->

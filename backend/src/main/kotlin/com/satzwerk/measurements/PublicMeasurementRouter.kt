@@ -4,9 +4,9 @@ import com.satzwerk.common.ConflictException
 import com.satzwerk.common.body
 import com.satzwerk.common.validateOrBadRequest
 import com.satzwerk.publicapi.PartnerWritePolicyService
+import com.satzwerk.publicapi.PartnerWritePrincipalValidationService
 import com.satzwerk.publicapi.PartnerWriteRequestFingerprintCodec
 import com.satzwerk.publicapi.PublicScope
-import com.satzwerk.publicapi.PublicWritePrincipalValidationService
 import com.satzwerk.publicapi.handlePublicScope
 import jakarta.validation.Validator
 import org.springframework.context.annotation.Bean
@@ -20,7 +20,7 @@ class PublicMeasurementRouter {
     fun publicMeasurementRoutes(
         measurementService: MeasurementService,
         partnerWritePolicyService: PartnerWritePolicyService,
-        partnerWritePrincipalValidationService: PublicWritePrincipalValidationService,
+        partnerWritePrincipalValidationService: PartnerWritePrincipalValidationService,
         validator: Validator,
     ) = coRouter {
         "/api/public/measurements".nest {

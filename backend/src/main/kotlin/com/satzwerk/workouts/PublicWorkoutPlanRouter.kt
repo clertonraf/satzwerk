@@ -4,9 +4,9 @@ import com.satzwerk.common.ConflictException
 import com.satzwerk.common.body
 import com.satzwerk.common.validateOrBadRequest
 import com.satzwerk.publicapi.PartnerWritePolicyService
+import com.satzwerk.publicapi.PartnerWritePrincipalValidationService
 import com.satzwerk.publicapi.PartnerWriteRequestFingerprintCodec
 import com.satzwerk.publicapi.PublicScope
-import com.satzwerk.publicapi.PublicWritePrincipalValidationService
 import com.satzwerk.publicapi.handlePublicScope
 import jakarta.validation.Validator
 import org.springframework.context.annotation.Bean
@@ -23,7 +23,7 @@ private val publicWorkoutPlanWriteErrors: Map<KClass<out Throwable>, HttpStatus>
 
 @Configuration
 class PublicWorkoutPlanRouter(
-    private val partnerWritePrincipalValidationService: PublicWritePrincipalValidationService,
+    private val partnerWritePrincipalValidationService: PartnerWritePrincipalValidationService,
 ) {
     @Bean
     fun publicWorkoutPlanRoutes(
@@ -59,7 +59,7 @@ class PublicWorkoutPlanRouter(
 private fun CoRouterFunctionDsl.publicPlanCrudRoutes(
     workoutPlanService: WorkoutPlanService,
     partnerWritePolicyService: PartnerWritePolicyService,
-    partnerWritePrincipalValidationService: PublicWritePrincipalValidationService,
+    partnerWritePrincipalValidationService: PartnerWritePrincipalValidationService,
     validator: Validator,
 ) {
     POST("") { request ->
@@ -117,7 +117,7 @@ private fun CoRouterFunctionDsl.publicPlanCrudRoutes(
 private fun CoRouterFunctionDsl.publicGroupRoutes(
     workoutGroupService: WorkoutGroupService,
     partnerWritePolicyService: PartnerWritePolicyService,
-    partnerWritePrincipalValidationService: PublicWritePrincipalValidationService,
+    partnerWritePrincipalValidationService: PartnerWritePrincipalValidationService,
     validator: Validator,
 ) {
     POST("/{planId}/groups") { request ->
@@ -161,7 +161,7 @@ private fun CoRouterFunctionDsl.publicGroupRoutes(
 private fun CoRouterFunctionDsl.publicWorkoutExerciseRoutes(
     workoutExerciseService: WorkoutExerciseService,
     partnerWritePolicyService: PartnerWritePolicyService,
-    partnerWritePrincipalValidationService: PublicWritePrincipalValidationService,
+    partnerWritePrincipalValidationService: PartnerWritePrincipalValidationService,
     validator: Validator,
 ) {
     POST("/{planId}/groups/{groupId}/exercises") { request ->
