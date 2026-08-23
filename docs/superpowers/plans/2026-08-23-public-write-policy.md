@@ -22,7 +22,7 @@
 | Create | `backend/src/main/kotlin/com/satzwerk/publicapi/PublicWritePrincipal.kt` | Shared public-write principal model and principal-type enum |
 | Rename | `backend/src/main/kotlin/com/satzwerk/publicapi/PartnerWritePolicyService.kt` → `backend/src/main/kotlin/com/satzwerk/publicapi/PublicWritePolicyService.kt` | Shared public-write idempotency/audit service, repositories, and fingerprint codec |
 | Rename | `backend/src/test/kotlin/com/satzwerk/publicapi/PartnerWritePolicyServiceTest.kt` → `backend/src/test/kotlin/com/satzwerk/publicapi/PublicWritePolicyServiceTest.kt` | Unit tests for shared idempotency and audit behavior across PAT and partner principals |
-| Create | `backend/src/main/resources/db/migration/V20__generalize_public_write_policy.sql` | Rename partner-only tables, widen schema, backfill partner rows |
+| Create | `backend/src/main/resources/db/migration/V21__generalize_public_write_policy.sql` | Rename partner-only tables, widen schema, backfill partner rows |
 | Modify | `backend/src/main/kotlin/com/satzwerk/workouts/PublicExerciseRouter.kt` | Swap to shared public-write validation/policy types |
 | Modify | `backend/src/main/kotlin/com/satzwerk/workouts/PublicWorkoutPlanRouter.kt` | Swap to shared public-write validation/policy types |
 | Modify | `backend/src/main/kotlin/com/satzwerk/sessions/PublicSessionMutationRouter.kt` | Swap to shared public-write validation/policy types |
@@ -184,7 +184,8 @@ Co-authored-by: Copilot App <223556219+Copilot@users.noreply.github.com>"
 
 **Files:**
 - Create: `backend/src/main/kotlin/com/satzwerk/publicapi/PublicWritePrincipal.kt`
-- Rename: `backend/src/main/kotlin/com/satzwerk/publicapi/PartnerWritePrincipalValidationService.kt` → `backend/src/main/kotlin/com/satzwerk/publicapi/PublicWritePrincipalValidationService.kt`
+- Create: `backend/src/main/kotlin/com/satzwerk/publicapi/PublicWritePrincipalValidationService.kt`
+- Modify: `backend/src/main/kotlin/com/satzwerk/publicapi/PartnerWritePrincipalValidationService.kt`
 - Rename: `backend/src/test/kotlin/com/satzwerk/publicapi/PartnerWritePrincipalValidationServiceTest.kt` → `backend/src/test/kotlin/com/satzwerk/publicapi/PublicWritePrincipalValidationServiceTest.kt`
 
 ### Steps
@@ -272,7 +273,7 @@ data class PublicWritePrincipal(
 )
 ```
 
-Rename and rewrite the validation service in `backend/src/main/kotlin/com/satzwerk/publicapi/PublicWritePrincipalValidationService.kt`:
+Create the shared resolver in `backend/src/main/kotlin/com/satzwerk/publicapi/PublicWritePrincipalValidationService.kt`:
 
 ```kotlin
 @Service
@@ -324,6 +325,25 @@ class PublicWritePrincipalValidationService(
 }
 ```
 
+Then keep `backend/src/main/kotlin/com/satzwerk/publicapi/PartnerWritePrincipalValidationService.kt` as a temporary compatibility shim until Task 4 rewires the routers. The shim should keep the old router contract alive without duplicating the grant-validation rules:
+
+```kotlin
+@Service
+class PartnerWritePrincipalValidationService(
+    private val publicWritePrincipalValidationService: PublicWritePrincipalValidationService,
+) {
+    suspend fun requireValidPrincipal(ctx: RequestContext): PartnerAppRequestPrincipal {
+        val principal = publicWritePrincipalValidationService.requireValidPrincipal(ctx)
+        if (principal.principalType != PublicWritePrincipalType.PARTNER_APP) {
+            throw UnauthorizedException()
+        }
+        return ctx.requirePartnerAppPrincipal()
+    }
+}
+```
+
+Do **not** rewire routers in this task. Task 4 owns that change.
+
 - [ ] **Step 4: Run the focused validation test again**
 
 ```bash
@@ -337,6 +357,7 @@ Expected: PASS.
 ```bash
 git add \
   backend/src/main/kotlin/com/satzwerk/publicapi/PublicWritePrincipal.kt \
+  backend/src/main/kotlin/com/satzwerk/publicapi/PartnerWritePrincipalValidationService.kt \
   backend/src/main/kotlin/com/satzwerk/publicapi/PublicWritePrincipalValidationService.kt \
   backend/src/test/kotlin/com/satzwerk/publicapi/PublicWritePrincipalValidationServiceTest.kt
 git commit -m "refactor(publicapi): add shared public write principal resolution
@@ -352,9 +373,10 @@ Co-authored-by: Copilot App <223556219+Copilot@users.noreply.github.com>"
 ## Task 3: Generalize the public-write policy service and schema
 
 **Files:**
-- Rename: `backend/src/main/kotlin/com/satzwerk/publicapi/PartnerWritePolicyService.kt` → `backend/src/main/kotlin/com/satzwerk/publicapi/PublicWritePolicyService.kt`
+- Create: `backend/src/main/kotlin/com/satzwerk/publicapi/PublicWritePolicyService.kt`
+- Modify: `backend/src/main/kotlin/com/satzwerk/publicapi/PartnerWritePolicyService.kt`
 - Rename: `backend/src/test/kotlin/com/satzwerk/publicapi/PartnerWritePolicyServiceTest.kt` → `backend/src/test/kotlin/com/satzwerk/publicapi/PublicWritePolicyServiceTest.kt`
-- Create: `backend/src/main/resources/db/migration/V20__generalize_public_write_policy.sql`
+- Create: `backend/src/main/resources/db/migration/V21__generalize_public_write_policy.sql`
 
 ### Steps
 
@@ -426,9 +448,9 @@ cd backend && ./gradlew test --tests "com.satzwerk.publicapi.PublicWritePolicySe
 
 Expected: FAIL because the public-write policy types, repositories, and migration-backed schema do not exist yet.
 
-- [ ] **Step 3: Rename the service and add the credential-aware schema**
+- [ ] **Step 3: Add the shared policy service and the credential-aware schema**
 
-Rename `PartnerWritePolicyService.kt` to `PublicWritePolicyService.kt`, then make these structural changes:
+Create `backend/src/main/kotlin/com/satzwerk/publicapi/PublicWritePolicyService.kt`, then make these structural changes:
 
 ```kotlin
 private data class PublicWriteRequestMetadata(
@@ -474,7 +496,7 @@ And normalize scopes once inside the service:
 private fun Set<String>.toGrantedScopes(): String = toList().sorted().joinToString(" ")
 ```
 
-Create `backend/src/main/resources/db/migration/V20__generalize_public_write_policy.sql`:
+Create `backend/src/main/resources/db/migration/V21__generalize_public_write_policy.sql`:
 
 ```sql
 ALTER TABLE idempotency_records RENAME TO public_write_idempotency_records;
@@ -520,6 +542,43 @@ ALTER TABLE public_write_idempotency_records
 
 When you write the real migration, keep the existing request fingerprint and granted-scope columns, recreate the indexes under the new table names, and do **not** leave the old partner-only unique/index names behind.
 
+Then keep `backend/src/main/kotlin/com/satzwerk/publicapi/PartnerWritePolicyService.kt` as a temporary compatibility layer until Task 4 rewires routers and Task 5 rewires the remaining tests. The compatibility layer should avoid duplicating the new logic:
+
+```kotlin
+typealias PartnerWriteRequestFingerprintCodec = PublicWriteRequestFingerprintCodec
+typealias IdempotencyRecord = PublicWriteIdempotencyRecord
+typealias PartnerWriteAuditEntry = PublicWriteAuditEntry
+
+@Service
+class PartnerWritePolicyService(
+    private val publicWritePolicyService: PublicWritePolicyService,
+) {
+    suspend fun <T : Any> execute(
+        partnerPrincipal: PartnerAppRequestPrincipal,
+        request: ServerRequest,
+        successStatus: HttpStatus,
+        requestFingerprintCodec: PartnerWriteRequestFingerprintCodec,
+        block: suspend (UUID) -> T,
+    ): ServerResponse =
+        publicWritePolicyService.execute(
+            PublicWritePrincipal(
+                principalType = PublicWritePrincipalType.PARTNER_APP,
+                userId = partnerPrincipal.userId,
+                credentialId = partnerPrincipal.grantId,
+                scopes = partnerPrincipal.scopes,
+                appId = partnerPrincipal.appId,
+                grantId = partnerPrincipal.grantId,
+            ),
+            request,
+            successStatus,
+            requestFingerprintCodec,
+            block,
+        )
+}
+```
+
+Do **not** rewire routers in this task. Task 4 owns that change, and Task 5 owns the remaining integration-test import/assertion rewiring.
+
 - [ ] **Step 4: Run the focused policy test and compile gate**
 
 ```bash
@@ -532,6 +591,7 @@ Expected: PASS.
 
 ```bash
 git add \
+  backend/src/main/kotlin/com/satzwerk/publicapi/PartnerWritePolicyService.kt \
   backend/src/main/kotlin/com/satzwerk/publicapi/PublicWritePolicyService.kt \
   backend/src/test/kotlin/com/satzwerk/publicapi/PublicWritePolicyServiceTest.kt \
   backend/src/main/resources/db/migration/V20__generalize_public_write_policy.sql
