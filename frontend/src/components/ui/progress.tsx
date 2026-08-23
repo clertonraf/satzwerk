@@ -11,11 +11,16 @@ interface ProgressProps extends React.ComponentPropsWithoutRef<typeof ProgressPr
 const Progress = React.forwardRef<
   React.ElementRef<typeof ProgressPrimitive.Root>,
   ProgressProps
->(({ className, value, indicatorClassName, indicatorStyle, ...props }, ref) => {
-  const clamped = Math.min(100, Math.max(0, value ?? 0))
+>(({ className, value, max = 100, indicatorClassName, indicatorStyle, ...props }, ref) => {
+  const safeMax = max > 0 ? max : 100
+  const clamped = Math.min(safeMax, Math.max(0, value ?? 0))
+  const fillPercentage = (clamped / safeMax) * 100
+
   return (
     <ProgressPrimitive.Root
       ref={ref}
+      value={clamped}
+      max={safeMax}
       className={cn(
         "relative h-4 w-full overflow-hidden rounded-full bg-secondary",
         className
@@ -24,7 +29,7 @@ const Progress = React.forwardRef<
     >
       <ProgressPrimitive.Indicator
         className={cn("h-full w-full flex-1 bg-primary transition-all", indicatorClassName)}
-        style={{ transform: `translateX(-${100 - clamped}%)`, ...indicatorStyle }}
+        style={{ ...indicatorStyle, transform: `translateX(-${100 - fillPercentage}%)` }}
       />
     </ProgressPrimitive.Root>
   )
