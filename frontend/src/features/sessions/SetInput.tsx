@@ -21,19 +21,25 @@ const schema = z.object({
     .min(1, 'Reps is required')
     .transform((value) => Number(value))
     .refine((value) => value >= 1, 'Reps must be at least 1'),
+  rir: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || (/^\d+$/.test(value) && Number(value) >= 0 && Number(value) <= 10), 'RiR must be an integer from 0 to 10')
+    .transform((value) => (value === '' ? null : Number(value))),
 })
 
 type SetInputFormValues = z.input<typeof schema>
 type SetInputValues = z.output<typeof schema>
 
 interface SetInputProps {
-  onLog: (data: { weight: number; reps: number; setNumber: number }) => void
+  onLog: (data: { weight: number; reps: number; rir: number | null; setNumber: number }) => void
   onCancel?: () => void
   setNumber: number
   isLoading?: boolean
   unit: 'kg' | 'lb'
   defaultWeight?: number
   defaultReps?: number
+  defaultRir?: number | null
   submitLabel?: string
   resetOnSubmit?: boolean
   variant?: 'card' | 'inline'
@@ -47,6 +53,7 @@ export default function SetInput({
   unit,
   defaultWeight,
   defaultReps,
+  defaultRir,
   submitLabel = 'Log Set',
   resetOnSubmit = true,
   variant = 'card',
@@ -62,6 +69,7 @@ export default function SetInput({
     defaultValues: {
       weight: defaultWeight != null ? String(Number(defaultWeight.toFixed(3))) : '',
       reps: defaultReps != null ? String(defaultReps) : '',
+      rir: defaultRir != null ? String(defaultRir) : '',
     },
   })
 
@@ -71,6 +79,7 @@ export default function SetInput({
   return (
     <form
       className={variant === 'card' ? 'grid gap-3 rounded-lg border border-border p-4' : 'grid gap-3'}
+      noValidate
       onSubmit={handleSubmit((values) => {
         onLog({ ...values, setNumber })
         if (resetOnSubmit) reset()
@@ -78,7 +87,7 @@ export default function SetInput({
     >
       <p className="text-sm font-medium">Set {setNumber}</p>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-3">
         <div className="space-y-2">
           <label className="text-sm font-medium" htmlFor={`weight-${setNumber}`}>
             Weight ({unit})
@@ -97,6 +106,14 @@ export default function SetInput({
           </label>
           <Input id={`reps-${setNumber}`} type="number" inputMode="numeric" min={1} className="text-base" disabled={isLoading} {...register('reps')} />
           {errors.reps ? <p className="text-sm text-destructive">{errors.reps.message}</p> : null}
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium" htmlFor={`rir-${setNumber}`}>
+            RiR
+          </label>
+          <Input id={`rir-${setNumber}`} type="number" inputMode="numeric" min={0} max={10} step={1} className="text-base" disabled={isLoading} {...register('rir')} />
+          {errors.rir ? <p className="text-sm text-destructive">{errors.rir.message}</p> : null}
         </div>
       </div>
 

@@ -238,6 +238,7 @@ private fun toExportSetLogDto(sl: SetLog) =
         setNumber = sl.setNumber,
         weight = sl.weight,
         reps = sl.reps,
+        rir = sl.rir,
         loggedAt = sl.loggedAt,
         isPr = sl.isPr,
     )
@@ -307,6 +308,7 @@ private fun toNewSetLog(
     setNumber = dto.setNumber,
     weight = dto.weight,
     reps = dto.reps,
+    rir = dto.rir,
     loggedAt = dto.loggedAt,
     isPr = dto.isPr,
 )

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import SetInput from '../SetInput'
 
@@ -9,6 +9,7 @@ describe('SetInput', () => {
 
     expect(screen.getByLabelText(/weight/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/reps/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/rir/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /log set/i })).toBeInTheDocument()
   })
 
@@ -20,6 +21,7 @@ describe('SetInput', () => {
 
     await user.type(screen.getByLabelText(/weight/i), '80')
     await user.type(screen.getByLabelText(/reps/i), '5')
+    await user.type(screen.getByLabelText(/rir/i), '2')
     await user.click(screen.getByRole('button', { name: /log set/i }))
 
     await waitFor(() =>
@@ -27,6 +29,7 @@ describe('SetInput', () => {
         expect.objectContaining({
           weight: 80,
           reps: 5,
+          rir: 2,
           setNumber: 1,
         })
       )
@@ -63,11 +66,12 @@ describe('SetInput', () => {
     expect(await screen.findByText(/≈.*kg/i)).toBeInTheDocument()
   })
 
-  it('pre-fills weight and reps when defaultWeight and defaultReps are provided', () => {
-    render(<SetInput onLog={vi.fn()} setNumber={2} unit="kg" defaultWeight={80} defaultReps={5} />)
+  it('pre-fills weight reps and rir when defaults are provided', () => {
+    render(<SetInput onLog={vi.fn()} setNumber={2} unit="kg" defaultWeight={80} defaultReps={5} defaultRir={2} />)
 
     expect(screen.getByLabelText(/weight/i)).toHaveValue('80')
     expect(screen.getByLabelText(/reps/i)).toHaveValue(5)
+    expect(screen.getByLabelText(/rir/i)).toHaveValue(2)
   })
 
   it('renders cancel button and calls onCancel when clicked', async () => {
@@ -137,6 +141,7 @@ describe('SetInput', () => {
         expect.objectContaining({
           weight: 10.5,
           reps: 5,
+          rir: null,
           setNumber: 1,
         })
       )
@@ -181,6 +186,28 @@ describe('SetInput', () => {
     await user.click(screen.getByRole('button', { name: /log set/i }))
 
     expect(await screen.findByText(/non-negative/i)).toBeInTheDocument()
+  })
+
+  it('applies integer range attributes to the rir input', () => {
+    render(<SetInput onLog={vi.fn()} setNumber={1} unit="kg" />)
+
+    const rirInput = screen.getByLabelText(/rir/i)
+    expect(rirInput).toHaveAttribute('min', '0')
+    expect(rirInput).toHaveAttribute('max', '10')
+    expect(rirInput).toHaveAttribute('step', '1')
+  })
+
+  it('shows validation error when rir is above the allowed range', async () => {
+    const user = userEvent.setup()
+
+    render(<SetInput onLog={vi.fn()} setNumber={1} unit="kg" />)
+
+    await user.type(screen.getByLabelText(/weight/i), '80')
+    await user.type(screen.getByLabelText(/reps/i), '5')
+    fireEvent.input(screen.getByLabelText(/rir/i), { target: { value: '11' } })
+    await user.click(screen.getByRole('button', { name: /log set/i }))
+
+    expect(await screen.findByText(/rir must be an integer from 0 to 10/i)).toBeInTheDocument()
   })
 
   it('renders without border wrapper when variant is "inline"', () => {

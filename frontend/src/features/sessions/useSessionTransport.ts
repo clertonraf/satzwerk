@@ -43,6 +43,7 @@ function createQueuedUpdateSetLog(data: UpdateSetLogRequest): SetLogUpdate {
   return {
     weight: data.weight,
     reps: data.reps,
+    rir: data.rir,
   }
 }
 
@@ -62,6 +63,7 @@ export function createOnlineSetLogTransport({
       return {
         weight: updated.weight,
         reps: updated.reps,
+        rir: updated.rir,
       }
     },
 

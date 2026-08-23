@@ -23,6 +23,7 @@ const makeSetLog = (overrides: Partial<SubmittedSetLog> = {}): SubmittedSetLog =
   setNumber: 1,
   weight: 80,
   reps: 5,
+  rir: null,
   loggedAt: '2026-01-01T00:00:00Z',
   pending: false,
   ...overrides,
@@ -34,6 +35,7 @@ const makePendingSetLog = (overrides: Partial<PendingSetLog> = {}): PendingSetLo
   setNumber: 1,
   weight: 80,
   reps: 5,
+  rir: null,
   loggedAt: '2026-01-01T00:00:00Z',
   pending: true,
   ...overrides,
@@ -76,6 +78,11 @@ describe('ExerciseSection', () => {
   it('renders logged sets with formatted weight', () => {
     renderSection({ exerciseLogs: [makeSetLog()] })
     expect(screen.getByText(`Set 1: ${formatDisplayWeight(80, 'kg')} × 5`)).toBeInTheDocument()
+  })
+
+  it('renders rir when present on a logged set', () => {
+    renderSection({ exerciseLogs: [makeSetLog({ rir: 2 })] })
+    expect(screen.getByText(new RegExp(`Set 1: ${formatDisplayWeight(80, 'kg')} × 5 · RiR 2`))).toBeInTheDocument()
   })
 
   it('renders logged sets in lb when unit is lb', () => {
@@ -209,12 +216,18 @@ describe('ExerciseSection #181 — SST drop-set guidance', () => {
 
 describe('ExerciseSection #183 — pre-fill SetInput with previous set', () => {
   it('pre-fills weight and reps from last logged set', () => {
-    renderSection({ exerciseLogs: [makeSetLog({ weight: 80, reps: 10 })] })
+    renderSection({ exerciseLogs: [makeSetLog({ weight: 80, reps: 10, rir: 2 })] })
     const weightInput = screen.getByLabelText(/weight/i) as HTMLInputElement
     expect(weightInput.value).toBe('80')
     const repsInputs = screen.getAllByLabelText(/reps/i)
     // first reps input belongs to the new-set form
     expect(repsInputs[0].getAttribute('value') ?? (repsInputs[0] as HTMLInputElement).value).toBe('10')
+    expect(screen.getByLabelText(/rir/i)).toHaveValue(2)
+  })
+
+  it('prefills rir with 0 for to-failure exercises', () => {
+    renderSection({ exercise: { ...makeExercise(), toFailure: true, reps: 0 } })
+    expect(screen.getByLabelText(/rir/i)).toHaveValue(0)
   })
 
   it('does not pre-fill when no sets have been logged', () => {

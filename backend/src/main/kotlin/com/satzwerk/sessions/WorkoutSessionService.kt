@@ -193,5 +193,6 @@ fun SetLog.toResponse(): SetLogResponse =
         setNumber = setNumber,
         weight = weight,
         reps = reps,
+        rir = rir,
         loggedAt = loggedAt,
     )

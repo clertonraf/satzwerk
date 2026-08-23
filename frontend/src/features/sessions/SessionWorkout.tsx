@@ -23,8 +23,8 @@ interface SessionWorkoutProps {
   isDeleteSetPending: boolean
   isCompletePending: boolean
   isForfeitPending: boolean
-  onLogSet: (exerciseId: string, setNumber: number, weight: number, reps: number, unit: 'kg' | 'lb') => void
-  onUpdateSetLog: (setLogId: string, weight: number, reps: number, unit: 'kg' | 'lb') => Promise<void>
+  onLogSet: (exerciseId: string, setNumber: number, weight: number, reps: number, rir: number | null, unit: 'kg' | 'lb') => void
+  onUpdateSetLog: (setLogId: string, weight: number, reps: number, rir: number | null, unit: 'kg' | 'lb') => Promise<void>
   onDeleteSetLog: (setLogId: string) => void
   onSetExerciseUnit: (exerciseId: string, unit: 'kg' | 'lb') => void
   onComplete: () => void
