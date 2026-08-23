@@ -1,9 +1,14 @@
 import { expect, it, vi, describe, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { QueryClientWrapper } from '@/test/QueryClientWrapper'
 import AnalyticsPage from '../AnalyticsPage'
 import { analyticsService } from '@/services/analyticsService'
+import { queryKeys } from '@/services/queryKeys'
+
+const TOP_EXERCISES_LIMIT_TEST = 20
 
 vi.mock('@/services/analyticsService', () => ({
   analyticsService: {
@@ -113,32 +118,49 @@ describe('AnalyticsPage', () => {
   })
 
   it('falls back to first exercise when selectedExerciseId is not in the current topExercises list', async () => {
-    // Simulate: user had ex-1 selected, but topExercises refreshes and only returns ex-2.
-    // The component should show ex-2 as active (fallback to first) rather than ex-1.
+    // Step 1: start with two exercises (ex-1 default, ex-2 available)
     vi.mocked(analyticsService.topExercises).mockResolvedValue([
+      { exerciseId: 'ex-1', exerciseName: 'Bench Press', setCount: 42 },
       { exerciseId: 'ex-2', exerciseName: 'Squat', setCount: 30 },
     ])
-    vi.mocked(analyticsService.exerciseProgress).mockResolvedValue({
-      ...mockProgress,
-      exerciseId: 'ex-2',
-      exerciseName: 'Squat',
-    })
+    vi.mocked(analyticsService.exerciseProgress).mockResolvedValue(mockProgress)
 
-    render(
-      <QueryClientWrapper>
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
         <MemoryRouter>
           <AnalyticsPage />
         </MemoryRouter>
-      </QueryClientWrapper>,
+      </QueryClientProvider>,
     )
 
-    // Only ex-2 should be rendered and it should be the active pill
+    // Step 2: click ex-2 to make it the explicit selection
     const squatButton = await screen.findByRole('button', { name: 'Squat' })
+    await userEvent.click(squatButton)
     expect(squatButton).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.queryByRole('button', { name: 'Bench Press' })).toBeNull()
-    // Progress query should fire for ex-2, not a stale ex-1
-    expect(vi.mocked(analyticsService.exerciseProgress)).toHaveBeenCalledWith('ex-2')
-    expect(vi.mocked(analyticsService.exerciseProgress)).not.toHaveBeenCalledWith('ex-1')
+
+    // Step 3: topExercises refreshes — ex-2 disappears, only ex-1 remains
+    vi.mocked(analyticsService.exerciseProgress).mockReset()
+    vi.mocked(analyticsService.exerciseProgress).mockResolvedValue(mockProgress)
+    queryClient.setQueryData(
+      queryKeys.analytics.topExercises(TOP_EXERCISES_LIMIT_TEST),
+      [{ exerciseId: 'ex-1', exerciseName: 'Bench Press', setCount: 42 }],
+    )
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <AnalyticsPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    // Step 4: page falls back to ex-1 (the only remaining exercise)
+    const benchButton = await screen.findByRole('button', { name: 'Bench Press' })
+    expect(benchButton).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: 'Squat' })).toBeNull()
+    expect(vi.mocked(analyticsService.exerciseProgress)).toHaveBeenCalledWith('ex-1')
+    expect(vi.mocked(analyticsService.exerciseProgress)).not.toHaveBeenCalledWith('ex-2')
   })
 
   it('shows a loading message while exercise progress is being fetched', async () => {
