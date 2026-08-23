@@ -74,7 +74,7 @@ class AnalyticsExerciseProgressIntegrationTest : PostgresTestContainer() {
             .exchange()
             .expectStatus().isOk
             .expectBody()
-            .jsonPath("$.exerciseId").isEqualTo(exerciseId)
+            .jsonPath("$.exerciseId").isEqualTo(exerciseId.toString())
             .jsonPath("$.points[0].topSetWeightKg").isEqualTo(85.00)
             .jsonPath("$.points[0].topSetReps").isEqualTo(6)
             .jsonPath("$.points[0].estimatedOneRepMaxKg").isEqualTo(102.00)
