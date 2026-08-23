@@ -91,8 +91,7 @@ class WorkoutExerciseService(
                 ReorderDirection.DOWN -> targetIndex + 1
             }
         if (swapIndex !in exercises.indices) {
-            return workoutExerciseRepository.findAllWithNameByWorkoutGroupId(groupId)
-                .map { it.toResponse() }
+            return enrichWorkoutExercises(exercises, exerciseRepository)
         }
 
         val now = Instant.now()
@@ -101,8 +100,10 @@ class WorkoutExerciseService(
         workoutExerciseRepository.save(target.copy(orderIndex = partner.orderIndex, updatedAt = now))
         workoutExerciseRepository.save(partner.copy(orderIndex = target.orderIndex, updatedAt = now))
 
-        return workoutExerciseRepository.findAllWithNameByWorkoutGroupId(groupId)
-            .map { it.toResponse() }
+        return enrichWorkoutExercises(
+            workoutExerciseRepository.findAllByWorkoutGroupIdOrderByOrderIndex(groupId),
+            exerciseRepository,
+        )
     }
 
     private suspend fun getRequiredWorkoutExercise(

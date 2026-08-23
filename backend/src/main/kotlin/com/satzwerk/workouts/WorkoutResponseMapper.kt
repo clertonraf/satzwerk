@@ -65,15 +65,3 @@ fun WorkoutExercise.toResponse(exerciseName: String): WorkoutExerciseResponse =
         advancedTechnique = advancedTechnique,
         orderIndex = orderIndex,
     )
-
-fun WorkoutExerciseWithName.toResponse(): WorkoutExerciseResponse =
-    WorkoutExerciseResponse(
-        id = id,
-        exerciseId = exerciseId,
-        exerciseName = exerciseName,
-        sets = sets,
-        reps = reps,
-        toFailure = toFailure,
-        advancedTechnique = advancedTechnique,
-        orderIndex = orderIndex,
-    )
