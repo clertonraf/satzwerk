@@ -330,17 +330,10 @@ class PublicWritePolicyService(
                         idempotencyKey = metadata.idempotencyKey,
                     )
             if (record != null) {
-                val pendingWithoutFingerprint =
-                    record.responseStatus == PENDING_RESPONSE_STATUS && record.requestFingerprint.isBlank()
-                if (record.hasUnverifiableLegacyFingerprint()) {
-                    throw ConflictException(IDEMPOTENCY_PAYLOAD_MISMATCH_MESSAGE)
+                record.requireMatchingFingerprint(metadata.requestFingerprint)
+                if (record.responseStatus != PENDING_RESPONSE_STATUS) {
+                    return record
                 }
-                if (!pendingWithoutFingerprint && record.requestFingerprint != metadata.requestFingerprint) {
-                    throw ConflictException(IDEMPOTENCY_PAYLOAD_MISMATCH_MESSAGE)
-                }
-            }
-            if (record != null && record.responseStatus != PENDING_RESPONSE_STATUS) {
-                return record
             }
             delay(PENDING_RECORD_POLL_DELAY_MILLIS)
         }
@@ -351,6 +344,17 @@ class PublicWritePolicyService(
 private fun PublicWriteIdempotencyRecord.hasUnverifiableLegacyFingerprint(): Boolean =
     responseStatus != PENDING_RESPONSE_STATUS &&
         (requestFingerprint == LEGACY_NO_FINGERPRINT_SENTINEL || requestFingerprint.isBlank())
+
+private fun PublicWriteIdempotencyRecord.requireMatchingFingerprint(requestFingerprint: String) {
+    val pendingWithoutFingerprint =
+        responseStatus == PENDING_RESPONSE_STATUS && this.requestFingerprint.isBlank()
+    if (
+        hasUnverifiableLegacyFingerprint() ||
+        (!pendingWithoutFingerprint && this.requestFingerprint != requestFingerprint)
+    ) {
+        throw ConflictException(IDEMPOTENCY_PAYLOAD_MISMATCH_MESSAGE)
+    }
+}
 
 private fun requireIdempotencyKey(request: ServerRequest): String =
     request.headers().firstHeader(IDEMPOTENCY_HEADER)
