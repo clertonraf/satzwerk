@@ -15,6 +15,7 @@ class WorkoutPlanService(
     private val workoutPlanRepository: WorkoutPlanRepository,
     private val workoutGroupRepository: WorkoutGroupRepository,
     private val workoutExerciseRepository: WorkoutExerciseRepository,
+    private val exerciseRepository: ExerciseRepository,
 ) {
     suspend fun create(
         userId: UUID,
@@ -39,11 +40,25 @@ class WorkoutPlanService(
     ): WorkoutPlanDetailResponse {
         val plan = getRequiredPlan(userId, planId)
         val groups = workoutGroupRepository.findAllByWorkoutPlanIdOrderByOrderIndex(planId)
+        val groupIds = groups.mapNotNull(WorkoutGroup::id)
+        val workoutExercises =
+            if (groupIds.isEmpty()) {
+                emptyList()
+            } else {
+                workoutExerciseRepository.findAllByWorkoutGroupIdInOrderByWorkoutGroupIdAscOrderIndexAsc(
+                    groupIds,
+                )
+            }
+        val exerciseNamesById =
+            loadExerciseNames(
+                workoutExercises.map(WorkoutExercise::exerciseId).toSet(),
+                exerciseRepository,
+            )
 
         val exercisesByGroup =
-            workoutExerciseRepository.findAllWithNameByPlanId(planId)
+            workoutExercises
                 .groupBy { it.workoutGroupId }
-                .mapValues { (_, exercises) -> exercises.map { it.toResponse() } }
+                .mapValues { (_, exercises) -> toWorkoutExerciseResponses(exercises, exerciseNamesById) }
 
         return plan.toDetailResponse(groups, exercisesByGroup)
     }
