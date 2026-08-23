@@ -8,6 +8,7 @@ import {
   workoutSessionMachineReducer,
 } from '@/features/sessions/workoutSessionMachineReducer'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
+import type { FlushSucceededReceipt } from '@/services/offlineQueue'
 import { queryKeys } from '@/services/queryKeys'
 import type { AddSetLogRequest, PendingSetLog, UpdateSetLogRequest, WorkoutSession } from '@/services/sessionService'
 import { sessionService } from '@/services/sessionService'
@@ -22,6 +23,8 @@ export type SessionEvent =
   | { type: 'UPDATE_SET'; setLogId: string; weight: number; reps: number; unit: 'kg' | 'lb' }
   | { type: 'DELETE_SET'; setLogId: string }
   | { type: 'DISMISS_STALE_PLAN' }
+
+const EMPTY_SYNC_RECEIPTS: FlushSucceededReceipt[] = []
 
 export function useWorkoutSessionMachine({
   onComplete,
@@ -54,6 +57,12 @@ export function useWorkoutSessionMachine({
   })
 
   const session = openSessionQuery.data ?? null
+  const syncReceiptsQuery = useQuery<FlushSucceededReceipt[]>({
+    queryKey: queryKeys.sessions.syncReceipts(session?.id ?? 'no-session'),
+    queryFn: async () => [],
+    enabled: false,
+    initialData: EMPTY_SYNC_RECEIPTS,
+  })
 
   useEffect(() => {
     machineDispatch({
@@ -62,6 +71,21 @@ export function useWorkoutSessionMachine({
       serverSetCount: session?.setCount ?? 0,
     })
   }, [session?.id, session?.setCount])
+
+  useEffect(() => {
+    const confirmedPendingSetLogIds = syncReceiptsQuery.data.flatMap((receipt) =>
+      receipt.type === 'add-set' && receipt.clientSetLogId ? [receipt.clientSetLogId] : [],
+    )
+
+    if (confirmedPendingSetLogIds.length === 0) {
+      return
+    }
+
+    machineDispatch({
+      type: 'pending-set-logs-confirmed',
+      pendingSetLogIds: confirmedPendingSetLogIds,
+    })
+  }, [syncReceiptsQuery.data])
 
   const { phase, conflictSession, pendingGroupId, stalePlanError, pendingSetLogs } = machineState
 
@@ -180,6 +204,12 @@ export function useWorkoutSessionMachine({
           const newLogs = [...current.setLogs, logged]
           return { ...current, setLogs: newLogs, setCount: newLogs.length }
         })
+        if (!logged.pending) {
+          machineDispatch({
+            type: 'pending-set-logs-confirmed',
+            pendingSetLogIds: [pendingLog.id],
+          })
+        }
         break
       }
 

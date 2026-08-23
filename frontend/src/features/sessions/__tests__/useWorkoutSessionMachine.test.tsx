@@ -3,10 +3,13 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import axios, { type AxiosError } from 'axios'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { FlushSucceededReceipt } from '@/services/offlineQueue'
 import { queryKeys } from '@/services/queryKeys'
 import type { PendingSetLog, WorkoutSession } from '@/services/sessionService'
 import { sessionService } from '@/services/sessionService'
 import { useWorkoutSessionMachine } from '../useWorkoutSessionMachine'
+
+type AddSetSyncReceipt = Extract<FlushSucceededReceipt, { type: 'add-set' }>
 
 const mockAddSetLog = vi.fn()
 const mockDeleteSetLog = vi.fn()
@@ -71,6 +74,30 @@ function buildSetLog(setNumber: number): WorkoutSession['setLogs'][number] {
     weight: 80 + setNumber * 5,
     reps: 5,
     loggedAt: '2024-01-01T00:00:00Z',
+  }
+}
+
+function makeSyncReceipt(overrides: Partial<AddSetSyncReceipt> = {}): AddSetSyncReceipt {
+  return {
+    type: 'add-set',
+    sessionId: 'session-1',
+    queuedOpId: 1,
+    clientSetLogId: 'queued-session-1-exercise-1-1-123',
+    data: {
+      exerciseId: 'exercise-1',
+      setNumber: 1,
+      weight: 80,
+      reps: 5,
+    },
+    serverSetLog: {
+      id: 'log-1',
+      exerciseId: 'exercise-1',
+      setNumber: 1,
+      weight: 80,
+      reps: 5,
+      loggedAt: '2024-01-01T00:00:00Z',
+    },
+    ...overrides,
   }
 }
 
@@ -367,7 +394,7 @@ describe('useWorkoutSessionMachine', () => {
   })
 
   describe('pending set log reconciliation', () => {
-    it('removes confirmed logs incrementally when server setCount advances (partial flush)', async () => {
+    it('removes confirmed logs incrementally from explicit sync receipts (partial flush)', async () => {
       // Use deferred promises so transport does not update session cache yet.
       // This lets pendingSetLogs accumulate before reconciliation fires.
       const resolvers: Array<() => void> = []
@@ -396,15 +423,39 @@ describe('useWorkoutSessionMachine', () => {
 
       expect(result.current.pendingSetLogs).toHaveLength(3)
 
-      // Simulate partial server confirmation: server confirms 2 of 3 sets
+      // Simulate partial confirmation with out-of-order receipts.
       await act(async () => {
         queryClient.setQueryData(
-          queryKeys.sessions.open(),
-          buildSession({ setLogs: [buildSetLog(1), buildSetLog(2)], setCount: 2 }),
+          queryKeys.sessions.syncReceipts('session-1'),
+          [
+            makeSyncReceipt({
+              queuedOpId: 2,
+              clientSetLogId: result.current.pendingSetLogs[2].id,
+              data: {
+                exerciseId: 'ex-1',
+                setNumber: 3,
+                weight: 90,
+                reps: 5,
+              },
+              serverSetLog: buildSetLog(3),
+            }),
+            makeSyncReceipt({
+              queuedOpId: 1,
+              clientSetLogId: result.current.pendingSetLogs[0].id,
+              data: {
+                exerciseId: 'ex-1',
+                setNumber: 1,
+                weight: 80,
+                reps: 5,
+              },
+              serverSetLog: buildSetLog(1),
+            }),
+          ],
         )
       })
 
       await waitFor(() => expect(result.current.pendingSetLogs).toHaveLength(1))
+      expect(result.current.pendingSetLogs[0].setNumber).toBe(2)
 
       // Resolve deferred transport and await dispatch completion to clean up
       await act(async () => {
@@ -439,12 +490,85 @@ describe('useWorkoutSessionMachine', () => {
 
       await act(async () => {
         queryClient.setQueryData(
-          queryKeys.sessions.open(),
-          buildSession({ setLogs: [buildSetLog(1), buildSetLog(2)], setCount: 2 }),
+          queryKeys.sessions.syncReceipts('session-1'),
+          [
+            makeSyncReceipt({
+              queuedOpId: 1,
+              clientSetLogId: result.current.pendingSetLogs[0].id,
+              data: {
+                exerciseId: 'ex-1',
+                setNumber: 1,
+                weight: 80,
+                reps: 5,
+              },
+              serverSetLog: buildSetLog(1),
+            }),
+            makeSyncReceipt({
+              queuedOpId: 2,
+              clientSetLogId: result.current.pendingSetLogs[1].id,
+              data: {
+                exerciseId: 'ex-1',
+                setNumber: 2,
+                weight: 85,
+                reps: 5,
+              },
+              serverSetLog: buildSetLog(2),
+            }),
+          ],
         )
       })
 
       await waitFor(() => expect(result.current.pendingSetLogs).toHaveLength(0))
+
+      await act(async () => {
+        resolvers.forEach((r) => r())
+        await Promise.all(dispatchPromises)
+      })
+    })
+
+    it('ignores replayed sync receipts after the matching pending logs are already cleared', async () => {
+      const resolvers: Array<() => void> = []
+      mockAddSetLog.mockImplementation(
+        () => new Promise<PendingSetLog>((r) => { resolvers.push(() => r(makePendingSetLog())) }),
+      )
+
+      queryClient.setQueryData(queryKeys.sessions.open(), buildSession())
+
+      const { result } = renderHook(
+        () => useWorkoutSessionMachine({ onComplete: vi.fn(), onForfeit: vi.fn() }),
+        { wrapper: Wrapper },
+      )
+
+      let dispatchPromises: Promise<void>[] = []
+      await act(async () => {
+        dispatchPromises = [
+          result.current.dispatch({ type: 'LOG_SET', exerciseId: 'ex-1', setNumber: 1, weight: 80, reps: 5, unit: 'kg' }),
+        ]
+        await Promise.resolve()
+      })
+
+      const receipt = makeSyncReceipt({
+        clientSetLogId: result.current.pendingSetLogs[0].id,
+        data: {
+          exerciseId: 'ex-1',
+          setNumber: 1,
+          weight: 80,
+          reps: 5,
+        },
+        serverSetLog: buildSetLog(1),
+      })
+
+      await act(async () => {
+        queryClient.setQueryData(queryKeys.sessions.syncReceipts('session-1'), [receipt])
+      })
+
+      await waitFor(() => expect(result.current.pendingSetLogs).toHaveLength(0))
+
+      await act(async () => {
+        queryClient.setQueryData(queryKeys.sessions.syncReceipts('session-1'), [receipt])
+      })
+
+      expect(result.current.pendingSetLogs).toHaveLength(0)
 
       await act(async () => {
         resolvers.forEach((r) => r())
@@ -488,10 +612,8 @@ describe('useWorkoutSessionMachine', () => {
         await Promise.all(dispatchPromises)
       })
     })
-    it('clears pendingSetLogs after dispatch even when transport returns a queued (pending: true) result', async () => {
+    it('keeps pendingSetLogs after dispatch until an explicit receipt confirms the queued SetLog', async () => {
       // Simulates the offline case: transport resolves immediately with a queued PendingSetLog.
-      // The machine always appends the result to session.setLogs and increments setCount,
-      // so the local pending log added before the transport call is reconciled by the useEffect.
       mockAddSetLog.mockResolvedValue(makePendingSetLog({ setNumber: 1 }))
 
       queryClient.setQueryData(queryKeys.sessions.open(), buildSession())
@@ -512,12 +634,28 @@ describe('useWorkoutSessionMachine', () => {
         })
       })
 
-      // pendingSetLogs is empty because setCount was incremented by the dispatch itself
-      expect(result.current.pendingSetLogs).toHaveLength(0)
+      expect(result.current.pendingSetLogs).toHaveLength(1)
       // The queued log is tracked in session.setLogs until the server confirms it
       const session = queryClient.getQueryData<WorkoutSession>(queryKeys.sessions.open())
       expect(session?.setLogs).toHaveLength(1)
       expect(session?.setCount).toBe(1)
+
+      await act(async () => {
+        queryClient.setQueryData(queryKeys.sessions.syncReceipts('session-1'), [
+          makeSyncReceipt({
+            clientSetLogId: result.current.pendingSetLogs[0].id,
+            data: {
+              exerciseId: 'ex-1',
+              setNumber: 1,
+              weight: 80,
+              reps: 5,
+            },
+            serverSetLog: buildSetLog(1),
+          }),
+        ])
+      })
+
+      await waitFor(() => expect(result.current.pendingSetLogs).toHaveLength(0))
     })
   })
 })

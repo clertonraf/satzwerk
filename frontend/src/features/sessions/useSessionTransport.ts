@@ -76,8 +76,9 @@ export function createQueuedSetLogTransport({
 }: QueuedSetLogTransportDependencies): SetLogTransport {
   return {
     async addSetLog(sessionId, data) {
-      await enqueue({ type: 'add-set', sessionId, data })
-      return createQueuedSetLog(sessionId, data)
+      const queuedSetLog = createQueuedSetLog(sessionId, data)
+      await enqueue({ type: 'add-set', sessionId, data, clientSetLogId: queuedSetLog.id })
+      return queuedSetLog
     },
 
     async updateSetLog(sessionId, setLogId, data) {
