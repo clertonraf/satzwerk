@@ -6,10 +6,12 @@ import ExerciseSessionHistoryCard from '@/features/analytics/ExerciseSessionHist
 import { analyticsService } from '@/services/analyticsService'
 import { queryKeys } from '@/services/queryKeys'
 
+const TOP_EXERCISES_LIMIT = 20
+
 export default function AnalyticsPage() {
   const { data: topExercises, isLoading: topExercisesLoading } = useQuery({
-    queryKey: queryKeys.analytics.topExercises(20),
-    queryFn: () => analyticsService.topExercises(20),
+    queryKey: queryKeys.analytics.topExercises(TOP_EXERCISES_LIMIT),
+    queryFn: () => analyticsService.topExercises(TOP_EXERCISES_LIMIT),
   })
   const exercises = topExercises ?? []
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null)
@@ -21,7 +23,20 @@ export default function AnalyticsPage() {
     enabled: effectiveExerciseId !== null,
   })
 
-  if (topExercisesLoading) return null
+  if (topExercisesLoading)
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Analytics</h1>
+          <p className="text-sm text-muted-foreground">Inspect one Exercise at a time.</p>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="h-8 animate-pulse rounded bg-muted" />
+          </CardContent>
+        </Card>
+      </div>
+    )
 
   return (
     <div className="space-y-6">
