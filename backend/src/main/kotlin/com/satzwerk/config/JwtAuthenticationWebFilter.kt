@@ -48,9 +48,7 @@ class JwtAuthenticationWebFilter(
         }
     }
 
-    private fun Mono<Void>.withPatAuth(
-        pat: PersonalApiToken?,
-    ): Mono<Void> {
+    private fun Mono<Void>.withPatAuth(pat: PersonalApiToken?): Mono<Void> {
         pat ?: return this
         // PAT authorities are the raw scope strings only — no JWT_SESSION marker.
         val authorities = pat.scopes().map { SimpleGrantedAuthority(it) }

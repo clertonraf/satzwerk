@@ -2,7 +2,6 @@ package com.satzwerk.config
 
 import com.satzwerk.auth.JwtService
 import com.satzwerk.auth.PersonalApiToken
-import com.satzwerk.auth.PersonalApiTokenService
 import com.satzwerk.common.PersonalApiTokenRequestPrincipal
 import com.satzwerk.common.RequestContext
 import kotlinx.coroutines.reactor.awaitSingle
@@ -14,15 +13,15 @@ import org.mockito.kotlin.mock
 import org.springframework.http.HttpHeaders
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest
 import org.springframework.mock.web.server.MockServerWebExchange
-import org.springframework.web.reactive.function.server.ServerRequest
 import org.springframework.security.core.context.ReactiveSecurityContextHolder
+import org.springframework.web.reactive.function.server.ServerRequest
 import org.springframework.web.server.WebFilterChain
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 
 class JwtAuthenticationWebFilterTest {
     @Test
-    fun `personal api token authentication is visible to downstream request context`(): Unit {
+    fun `personal api token authentication is visible to downstream request context`() {
         val userId = UUID.randomUUID()
         val tokenId = UUID.randomUUID()
         val personalApiToken =
@@ -50,7 +49,8 @@ class JwtAuthenticationWebFilterTest {
         val chain =
             WebFilterChain { currentExchange ->
                 mono {
-                    val authentication = ReactiveSecurityContextHolder.getContext().map { it.authentication }.awaitSingle()
+                    val securityContext = ReactiveSecurityContextHolder.getContext().awaitSingle()
+                    val authentication = securityContext.authentication
                     val request =
                         mock<ServerRequest> {
                             on { principal() } doReturn mono { authentication }
