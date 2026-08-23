@@ -62,6 +62,9 @@ describe('AnalyticsPage', () => {
     expect(await screen.findByRole('heading', { name: 'Analytics' })).toBeInTheDocument()
     expect(await screen.findByText('Bench Press')).toBeInTheDocument()
     expect(await screen.findByText('Top set progression')).toBeInTheDocument()
+    expect(await screen.findByText('Estimated 1RM')).toBeInTheDocument()
+    expect(await screen.findByText('Recent sessions')).toBeInTheDocument()
+    expect(await screen.findByText('Push Day')).toBeInTheDocument()
     expect(await screen.findByText('85 kg × 6')).toBeInTheDocument()
   })
 
