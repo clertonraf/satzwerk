@@ -6,17 +6,25 @@ import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.DecimalNode
 import com.fasterxml.jackson.databind.node.JsonNodeFactory
 import com.fasterxml.jackson.databind.node.ObjectNode
+import com.satzwerk.auth.InsufficientScopeException
 import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ConflictException
+import com.satzwerk.common.ForbiddenException
+import com.satzwerk.common.NotFoundException
+import com.satzwerk.common.UnauthorizedException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.reactor.awaitSingleOrNull
 import org.springframework.data.annotation.Id
 import org.springframework.data.r2dbc.repository.Query
 import org.springframework.data.relational.core.mapping.Column
 import org.springframework.data.relational.core.mapping.Table
 import org.springframework.data.repository.kotlin.CoroutineCrudRepository
 import org.springframework.http.HttpStatus
+import org.springframework.r2dbc.core.DatabaseClient
+import org.springframework.stereotype.Repository
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.reactive.function.server.ServerRequest
 import org.springframework.web.reactive.function.server.ServerResponse
@@ -97,6 +105,15 @@ data class PublicWriteIdempotencyRecord(
     val createdAt: Instant = Instant.now(),
 )
 
+data class PublicWriteIdempotencyClaim(
+    val principalType: PublicWritePrincipalType,
+    val credentialId: UUID,
+    val requestMethod: String,
+    val requestPath: String,
+    val idempotencyKey: String,
+    val requestFingerprint: String,
+)
+
 @Table("public_write_audit")
 data class PublicWriteAuditEntry(
     @Id
@@ -126,48 +143,8 @@ data class PublicWriteAuditEntry(
 )
 
 interface PublicWriteIdempotencyRecordRepository :
-    CoroutineCrudRepository<PublicWriteIdempotencyRecord, UUID> {
-    @Query(
-        """
-        INSERT INTO public_write_idempotency_records (
-            principal_type,
-            credential_id,
-            request_method,
-            request_path,
-            idempotency_key,
-            request_fingerprint,
-            response_status,
-            response_body
-        )
-        VALUES (
-            :principalType,
-            :credentialId,
-            :requestMethod,
-            :requestPath,
-            :idempotencyKey,
-            '',
-            -1,
-            '__pending__'
-        )
-        ON CONFLICT (
-            principal_type,
-            credential_id,
-            request_method,
-            request_path,
-            idempotency_key
-        ) DO NOTHING
-        RETURNING id, principal_type, credential_id, request_method, request_path, idempotency_key,
-            request_fingerprint, response_status, response_body, created_at
-        """,
-    )
-    suspend fun claim(
-        principalType: PublicWritePrincipalType,
-        credentialId: UUID,
-        requestMethod: String,
-        requestPath: String,
-        idempotencyKey: String,
-    ): PublicWriteIdempotencyRecord?
-
+    CoroutineCrudRepository<PublicWriteIdempotencyRecord, UUID>,
+    PublicWriteIdempotencyRecordRepositoryCustom {
     suspend fun findByPrincipalTypeAndCredentialIdAndRequestMethodAndRequestPathAndIdempotencyKey(
         principalType: PublicWritePrincipalType,
         credentialId: UUID,
@@ -210,6 +187,71 @@ interface PublicWriteIdempotencyRecordRepository :
     ): PublicWriteIdempotencyRecord?
 }
 
+interface PublicWriteIdempotencyRecordRepositoryCustom {
+    suspend fun claim(claim: PublicWriteIdempotencyClaim): PublicWriteIdempotencyRecord?
+}
+
+@Repository
+class PublicWriteIdempotencyRecordRepositoryImpl(
+    private val databaseClient: DatabaseClient,
+) : PublicWriteIdempotencyRecordRepositoryCustom {
+    override suspend fun claim(claim: PublicWriteIdempotencyClaim): PublicWriteIdempotencyRecord? =
+        databaseClient
+            .sql(
+                """
+                INSERT INTO public_write_idempotency_records (
+                    principal_type,
+                    credential_id,
+                    request_method,
+                    request_path,
+                    idempotency_key,
+                    request_fingerprint,
+                    response_status,
+                    response_body
+                )
+                VALUES (
+                    :principalType,
+                    :credentialId,
+                    :requestMethod,
+                    :requestPath,
+                    :idempotencyKey,
+                    :requestFingerprint,
+                    -1,
+                    '__pending__'
+                )
+                ON CONFLICT (
+                    principal_type,
+                    credential_id,
+                    request_method,
+                    request_path,
+                    idempotency_key
+                ) DO NOTHING
+                RETURNING id, principal_type, credential_id, request_method, request_path, idempotency_key,
+                    request_fingerprint, response_status, response_body, created_at
+                """.trimIndent(),
+            ).bind("principalType", claim.principalType.name)
+            .bind("credentialId", claim.credentialId)
+            .bind("requestMethod", claim.requestMethod)
+            .bind("requestPath", claim.requestPath)
+            .bind("idempotencyKey", claim.idempotencyKey)
+            .bind("requestFingerprint", claim.requestFingerprint)
+            .map { row, _ ->
+                PublicWriteIdempotencyRecord(
+                    id = row.get("id", UUID::class.java),
+                    principalType = PublicWritePrincipalType.valueOf(row.get("principal_type", String::class.java)!!),
+                    credentialId = row.get("credential_id", UUID::class.java)!!,
+                    requestMethod = row.get("request_method", String::class.java)!!,
+                    requestPath = row.get("request_path", String::class.java)!!,
+                    idempotencyKey = row.get("idempotency_key", String::class.java)!!,
+                    requestFingerprint = row.get("request_fingerprint", String::class.java)!!,
+                    responseStatus = row.get("response_status", Integer::class.java)!!.toInt(),
+                    responseBody = row.get("response_body", String::class.java)!!,
+                    createdAt = row.get("created_at", Instant::class.java)!!,
+                )
+            }.one()
+            .awaitSingleOrNull()
+}
+
 interface PublicWriteAuditRepository : CoroutineCrudRepository<PublicWriteAuditEntry, UUID> {
     fun findAllByPrincipalTypeAndCredentialId(
         principalType: PublicWritePrincipalType,
@@ -227,9 +269,23 @@ interface PublicWriteAuditRepository : CoroutineCrudRepository<PublicWriteAuditE
 }
 
 @Service
+class PublicWriteAuditService(
+    private val publicWriteAuditRepository: PublicWriteAuditRepository,
+) {
+    suspend fun record(entry: PublicWriteAuditEntry) {
+        publicWriteAuditRepository.save(entry)
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    suspend fun recordFailure(entry: PublicWriteAuditEntry) {
+        publicWriteAuditRepository.save(entry)
+    }
+}
+
+@Service
 class PublicWritePolicyService(
     private val idempotencyRecordRepository: PublicWriteIdempotencyRecordRepository,
-    private val publicWriteAuditRepository: PublicWriteAuditRepository,
+    private val publicWriteAuditService: PublicWriteAuditService,
     private val objectMapper: ObjectMapper,
 ) {
     @Transactional
@@ -243,40 +299,45 @@ class PublicWritePolicyService(
         val metadata = buildRequestMetadata(publicWritePrincipal, request, requestFingerprintCodec)
         val claimedRecord =
             idempotencyRecordRepository.claim(
-                principalType = metadata.principalType,
-                credentialId = metadata.credentialId,
-                requestMethod = metadata.requestMethod,
-                requestPath = metadata.requestPath,
-                idempotencyKey = metadata.idempotencyKey,
+                PublicWriteIdempotencyClaim(
+                    principalType = metadata.principalType,
+                    credentialId = metadata.credentialId,
+                    requestMethod = metadata.requestMethod,
+                    requestPath = metadata.requestPath,
+                    idempotencyKey = metadata.idempotencyKey,
+                    requestFingerprint = metadata.requestFingerprint,
+                ),
             )
         if (claimedRecord == null) {
             val existing = awaitCompletedRecord(metadata)
-            recordAudit(metadata, existing.responseStatus)
+            publicWriteAuditService.record(buildAuditEntry(metadata, existing.responseStatus))
             return ServerResponse.status(existing.responseStatus)
                 .bodyValueAndAwait(objectMapper.readTree(existing.responseBody))
         }
 
         return runCatching {
-            val initializedRecord =
-                idempotencyRecordRepository.save(
-                    claimedRecord.copy(requestFingerprint = metadata.requestFingerprint),
-                )
             val responseBody = block(metadata.userId)
             val responseStatus = successStatus.value()
             val serializedResponse = objectMapper.writeValueAsString(responseBody)
 
             idempotencyRecordRepository.save(
-                initializedRecord.copy(
-                    requestFingerprint = metadata.requestFingerprint,
+                claimedRecord.copy(
                     responseStatus = responseStatus,
                     responseBody = serializedResponse,
                 ),
             )
-            recordAudit(metadata, responseStatus)
+            publicWriteAuditService.record(buildAuditEntry(metadata, responseStatus))
 
             ServerResponse.status(successStatus).bodyValueAndAwait(responseBody)
         }.getOrElse { failure ->
+            val auditFailure =
+                runCatching {
+                    publicWriteAuditService.recordFailure(
+                        buildAuditEntry(metadata, failure.toAuditResponseStatus()),
+                    )
+                }.exceptionOrNull()
             idempotencyRecordRepository.deleteById(requireNotNull(claimedRecord.id))
+            auditFailure?.let(failure::addSuppressed)
             throw failure
         }
     }
@@ -298,25 +359,21 @@ class PublicWritePolicyService(
         requestFingerprint = requestFingerprintCodec.encode(objectMapper),
     )
 
-    private suspend fun recordAudit(
+    private fun buildAuditEntry(
         metadata: PublicWriteRequestMetadata,
         responseStatus: Int,
-    ) {
-        publicWriteAuditRepository.save(
-            PublicWriteAuditEntry(
-                principalType = metadata.principalType,
-                credentialId = metadata.credentialId,
-                appId = metadata.appId,
-                grantId = metadata.grantId,
-                userId = metadata.userId,
-                grantedScopes = metadata.grantedScopes,
-                requestMethod = metadata.requestMethod,
-                requestPath = metadata.requestPath,
-                idempotencyKey = metadata.idempotencyKey,
-                responseStatus = responseStatus,
-            ),
-        )
-    }
+    ) = PublicWriteAuditEntry(
+        principalType = metadata.principalType,
+        credentialId = metadata.credentialId,
+        appId = metadata.appId,
+        grantId = metadata.grantId,
+        userId = metadata.userId,
+        grantedScopes = metadata.grantedScopes,
+        requestMethod = metadata.requestMethod,
+        requestPath = metadata.requestPath,
+        idempotencyKey = metadata.idempotencyKey,
+        responseStatus = responseStatus,
+    )
 
     private suspend fun awaitCompletedRecord(metadata: PublicWriteRequestMetadata): PublicWriteIdempotencyRecord {
         repeat(MAX_PENDING_RECORD_POLLS) {
@@ -346,12 +403,14 @@ private fun PublicWriteIdempotencyRecord.hasUnverifiableLegacyFingerprint(): Boo
         (requestFingerprint == LEGACY_NO_FINGERPRINT_SENTINEL || requestFingerprint.isBlank())
 
 private fun PublicWriteIdempotencyRecord.requireMatchingFingerprint(requestFingerprint: String) {
-    val pendingWithoutFingerprint =
-        responseStatus == PENDING_RESPONSE_STATUS && this.requestFingerprint.isBlank()
-    if (
-        hasUnverifiableLegacyFingerprint() ||
-        (!pendingWithoutFingerprint && this.requestFingerprint != requestFingerprint)
-    ) {
+    val isMismatch =
+        when {
+            hasUnverifiableLegacyFingerprint() -> true
+            responseStatus == PENDING_RESPONSE_STATUS ->
+                this.requestFingerprint.isNotBlank() && this.requestFingerprint != requestFingerprint
+            else -> this.requestFingerprint != requestFingerprint
+        }
+    if (isMismatch) {
         throw ConflictException(IDEMPOTENCY_PAYLOAD_MISMATCH_MESSAGE)
     }
 }
@@ -363,6 +422,16 @@ private fun requireIdempotencyKey(request: ServerRequest): String =
         ?: throw BadRequestException("$IDEMPOTENCY_HEADER header required")
 
 private fun Set<String>.asGrantedScopes(): String = toList().sorted().joinToString(" ")
+
+private fun Throwable.toAuditResponseStatus(): Int =
+    when (this) {
+        is ForbiddenException, is InsufficientScopeException -> HttpStatus.FORBIDDEN.value()
+        is NotFoundException -> HttpStatus.NOT_FOUND.value()
+        is BadRequestException -> HttpStatus.BAD_REQUEST.value()
+        is UnauthorizedException -> HttpStatus.UNAUTHORIZED.value()
+        is ConflictException -> HttpStatus.CONFLICT.value()
+        else -> HttpStatus.INTERNAL_SERVER_ERROR.value()
+    }
 
 private fun canonicalizeJson(node: JsonNode): JsonNode =
     when {

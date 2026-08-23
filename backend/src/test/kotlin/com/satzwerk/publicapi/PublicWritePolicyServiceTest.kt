@@ -20,13 +20,13 @@ import java.util.UUID
 
 class PublicWritePolicyServiceTest {
     @Test
-    fun `execute finalizes a claimed idempotency record before returning for a partner app`(): Unit =
+    fun `execute claims an idempotency record with the request fingerprint before returning for a partner app`(): Unit =
         runBlocking {
             val requestCodec = PublicWriteRequestFingerprintCodec.body(ExampleRequest(name = "Bench Press"))
             val claimedRecord = pendingRecord(id = UUID.randomUUID())
             val idempotencyRecordRepository =
                 mock<PublicWriteIdempotencyRecordRepository> {
-                    onBlocking { claim(any(), any(), any(), any(), any()) } doReturn claimedRecord
+                    onBlocking { claim(any()) } doReturn claimedRecord
                     onBlocking { save(any()) } doAnswer { invocation ->
                         invocation.arguments[0] as PublicWriteIdempotencyRecord
                     }
@@ -40,7 +40,7 @@ class PublicWritePolicyServiceTest {
             val service =
                 PublicWritePolicyService(
                     idempotencyRecordRepository = idempotencyRecordRepository,
-                    publicWriteAuditRepository = publicWriteAuditRepository,
+                    publicWriteAuditService = PublicWriteAuditService(publicWriteAuditRepository),
                     objectMapper = jacksonObjectMapper(),
                 )
 
@@ -57,7 +57,17 @@ class PublicWritePolicyServiceTest {
             assertEquals(HttpStatus.CREATED, response.statusCode())
             val savedRecord = argumentCaptor<PublicWriteIdempotencyRecord>()
             val savedAudit = argumentCaptor<PublicWriteAuditEntry>()
-            verify(idempotencyRecordRepository, org.mockito.kotlin.times(2)).save(savedRecord.capture())
+            verify(idempotencyRecordRepository).claim(
+                PublicWriteIdempotencyClaim(
+                    principalType = PublicWritePrincipalType.PARTNER_APP,
+                    credentialId = GRANT_ID,
+                    requestMethod = HttpMethod.POST.name(),
+                    requestPath = "/api/public/exercises",
+                    idempotencyKey = IDEMPOTENCY_KEY,
+                    requestFingerprint = """{"name":"Bench Press"}""",
+                ),
+            )
+            verify(idempotencyRecordRepository).save(savedRecord.capture())
             verify(publicWriteAuditRepository).save(savedAudit.capture())
             assertEquals(HttpStatus.CREATED.value(), savedRecord.lastValue.responseStatus)
             assertEquals("""{"name":"Bench Press"}""", savedRecord.lastValue.responseBody)
@@ -83,7 +93,7 @@ class PublicWritePolicyServiceTest {
                 )
             val idempotencyRecordRepository =
                 mock<PublicWriteIdempotencyRecordRepository> {
-                    onBlocking { claim(any(), any(), any(), any(), any()) } doReturn claimedRecord
+                    onBlocking { claim(any()) } doReturn claimedRecord
                     onBlocking { save(any()) } doAnswer { invocation ->
                         invocation.arguments[0] as PublicWriteIdempotencyRecord
                     }
@@ -97,7 +107,7 @@ class PublicWritePolicyServiceTest {
             val service =
                 PublicWritePolicyService(
                     idempotencyRecordRepository = idempotencyRecordRepository,
-                    publicWriteAuditRepository = publicWriteAuditRepository,
+                    publicWriteAuditService = PublicWriteAuditService(publicWriteAuditRepository),
                     objectMapper = jacksonObjectMapper(),
                 )
 
@@ -114,7 +124,7 @@ class PublicWritePolicyServiceTest {
             assertEquals(HttpStatus.CREATED, response.statusCode())
             val savedRecord = argumentCaptor<PublicWriteIdempotencyRecord>()
             val savedAudit = argumentCaptor<PublicWriteAuditEntry>()
-            verify(idempotencyRecordRepository, org.mockito.kotlin.times(2)).save(savedRecord.capture())
+            verify(idempotencyRecordRepository).save(savedRecord.capture())
             verify(publicWriteAuditRepository).save(savedAudit.capture())
             assertEquals(PublicWritePrincipalType.PERSONAL_API_TOKEN, savedRecord.lastValue.principalType)
             assertEquals(TOKEN_ID, savedRecord.lastValue.credentialId)
@@ -136,7 +146,7 @@ class PublicWritePolicyServiceTest {
                 )
             val idempotencyRecordRepository =
                 mock<PublicWriteIdempotencyRecordRepository> {
-                    onBlocking { claim(any(), any(), any(), any(), any()) } doReturn null
+                    onBlocking { claim(any()) } doReturn null
                     onBlocking {
                         findByPrincipalTypeAndCredentialIdAndRequestMethodAndRequestPathAndIdempotencyKey(
                             any(),
@@ -156,7 +166,7 @@ class PublicWritePolicyServiceTest {
             val service =
                 PublicWritePolicyService(
                     idempotencyRecordRepository = idempotencyRecordRepository,
-                    publicWriteAuditRepository = publicWriteAuditRepository,
+                    publicWriteAuditService = PublicWriteAuditService(publicWriteAuditRepository),
                     objectMapper = jacksonObjectMapper(),
                 )
 
@@ -192,7 +202,7 @@ class PublicWritePolicyServiceTest {
                 )
             val idempotencyRecordRepository =
                 mock<PublicWriteIdempotencyRecordRepository> {
-                    onBlocking { claim(any(), any(), any(), any(), any()) } doReturn null
+                    onBlocking { claim(any()) } doReturn null
                     onBlocking {
                         findByPrincipalTypeAndCredentialIdAndRequestMethodAndRequestPathAndIdempotencyKey(
                             any(),
@@ -212,7 +222,7 @@ class PublicWritePolicyServiceTest {
             val service =
                 PublicWritePolicyService(
                     idempotencyRecordRepository = idempotencyRecordRepository,
-                    publicWriteAuditRepository = publicWriteAuditRepository,
+                    publicWriteAuditService = PublicWriteAuditService(publicWriteAuditRepository),
                     objectMapper = jacksonObjectMapper(),
                 )
 
@@ -244,7 +254,7 @@ class PublicWritePolicyServiceTest {
                 )
             val idempotencyRecordRepository =
                 mock<PublicWriteIdempotencyRecordRepository> {
-                    onBlocking { claim(any(), any(), any(), any(), any()) } doReturn null
+                    onBlocking { claim(any()) } doReturn null
                     onBlocking {
                         findByPrincipalTypeAndCredentialIdAndRequestMethodAndRequestPathAndIdempotencyKey(
                             any(),
@@ -259,7 +269,7 @@ class PublicWritePolicyServiceTest {
             val service =
                 PublicWritePolicyService(
                     idempotencyRecordRepository = idempotencyRecordRepository,
-                    publicWriteAuditRepository = publicWriteAuditRepository,
+                    publicWriteAuditService = PublicWriteAuditService(publicWriteAuditRepository),
                     objectMapper = jacksonObjectMapper(),
                 )
 
@@ -294,7 +304,7 @@ class PublicWritePolicyServiceTest {
                 )
             val idempotencyRecordRepository =
                 mock<PublicWriteIdempotencyRecordRepository> {
-                    onBlocking { claim(any(), any(), any(), any(), any()) } doReturn null
+                    onBlocking { claim(any()) } doReturn null
                     onBlocking {
                         findByPrincipalTypeAndCredentialIdAndRequestMethodAndRequestPathAndIdempotencyKey(
                             any(),
@@ -309,7 +319,7 @@ class PublicWritePolicyServiceTest {
             val service =
                 PublicWritePolicyService(
                     idempotencyRecordRepository = idempotencyRecordRepository,
-                    publicWriteAuditRepository = publicWriteAuditRepository,
+                    publicWriteAuditService = PublicWriteAuditService(publicWriteAuditRepository),
                     objectMapper = jacksonObjectMapper(),
                 )
 
@@ -345,7 +355,7 @@ class PublicWritePolicyServiceTest {
                 )
             val idempotencyRecordRepository =
                 mock<PublicWriteIdempotencyRecordRepository> {
-                    onBlocking { claim(any(), any(), any(), any(), any()) } doReturn null
+                    onBlocking { claim(any()) } doReturn null
                     onBlocking {
                         findByPrincipalTypeAndCredentialIdAndRequestMethodAndRequestPathAndIdempotencyKey(
                             any(),
@@ -365,7 +375,7 @@ class PublicWritePolicyServiceTest {
             val service =
                 PublicWritePolicyService(
                     idempotencyRecordRepository = idempotencyRecordRepository,
-                    publicWriteAuditRepository = publicWriteAuditRepository,
+                    publicWriteAuditService = PublicWriteAuditService(publicWriteAuditRepository),
                     objectMapper = jacksonObjectMapper(),
                 )
 
@@ -400,7 +410,7 @@ class PublicWritePolicyServiceTest {
                 )
             val idempotencyRecordRepository =
                 mock<PublicWriteIdempotencyRecordRepository> {
-                    onBlocking { claim(any(), any(), any(), any(), any()) } doReturn null
+                    onBlocking { claim(any()) } doReturn null
                     onBlocking {
                         findByPrincipalTypeAndCredentialIdAndRequestMethodAndRequestPathAndIdempotencyKey(
                             any(),
@@ -415,7 +425,7 @@ class PublicWritePolicyServiceTest {
             val service =
                 PublicWritePolicyService(
                     idempotencyRecordRepository = idempotencyRecordRepository,
-                    publicWriteAuditRepository = publicWriteAuditRepository,
+                    publicWriteAuditService = PublicWriteAuditService(publicWriteAuditRepository),
                     objectMapper = jacksonObjectMapper(),
                 )
 
@@ -435,6 +445,59 @@ class PublicWritePolicyServiceTest {
 
             assertEquals("Idempotency-Key already used with a different payload", error.message)
             verify(publicWriteAuditRepository, never()).save(any())
+        }
+
+    @Test
+    fun `execute audits failed writes with the same request context and cleans up the claimed record`(): Unit =
+        runBlocking {
+            val requestCodec = PublicWriteRequestFingerprintCodec.body(ExampleRequest(name = "Bench Press"))
+            val claimedRecord = pendingRecord(id = UUID.randomUUID())
+            val idempotencyRecordRepository =
+                mock<PublicWriteIdempotencyRecordRepository> {
+                    onBlocking { claim(any()) } doReturn claimedRecord
+                }
+            val publicWriteAuditRepository =
+                mock<PublicWriteAuditRepository> {
+                    onBlocking { save(any()) } doAnswer { invocation ->
+                        invocation.arguments[0] as PublicWriteAuditEntry
+                    }
+                }
+            val service =
+                PublicWritePolicyService(
+                    idempotencyRecordRepository = idempotencyRecordRepository,
+                    publicWriteAuditService = PublicWriteAuditService(publicWriteAuditRepository),
+                    objectMapper = jacksonObjectMapper(),
+                )
+
+            val error =
+                org.junit.jupiter.api.assertThrows<ConflictException> {
+                    runBlocking {
+                        service.execute(
+                            partnerPrincipal(),
+                            request(),
+                            HttpStatus.CREATED,
+                            requestCodec,
+                        ) {
+                            throw ConflictException("Duplicate public write")
+                        }
+                    }
+                }
+
+            assertEquals("Duplicate public write", error.message)
+            val savedAudit = argumentCaptor<PublicWriteAuditEntry>()
+            verify(publicWriteAuditRepository).save(savedAudit.capture())
+            verify(idempotencyRecordRepository).deleteById(claimedRecord.id!!)
+            verify(idempotencyRecordRepository, never()).save(any())
+            assertEquals(PublicWritePrincipalType.PARTNER_APP, savedAudit.firstValue.principalType)
+            assertEquals(GRANT_ID, savedAudit.firstValue.credentialId)
+            assertEquals(APP_ID, savedAudit.firstValue.appId)
+            assertEquals(GRANT_ID, savedAudit.firstValue.grantId)
+            assertEquals(USER_ID, savedAudit.firstValue.userId)
+            assertEquals("exercises:write", savedAudit.firstValue.grantedScopes)
+            assertEquals(HttpMethod.POST.name(), savedAudit.firstValue.requestMethod)
+            assertEquals("/api/public/exercises", savedAudit.firstValue.requestPath)
+            assertEquals(IDEMPOTENCY_KEY, savedAudit.firstValue.idempotencyKey)
+            assertEquals(HttpStatus.CONFLICT.value(), savedAudit.firstValue.responseStatus)
         }
 
     private fun request(path: String = "/api/public/exercises"): ServerRequest {
