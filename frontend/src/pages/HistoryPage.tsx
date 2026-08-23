@@ -134,10 +134,10 @@ export default function HistoryPage() {
     queryKey: queryKeys.plans.all(),
     queryFn: () => planService.list(),
   })
-  const planDetailsQueries = useQueries({
+  const planStructureQueries = useQueries({
     queries: (plansQuery.data ?? []).map((plan) => ({
-      queryKey: queryKeys.plans.detail(plan.id),
-      queryFn: () => planService.get(plan.id),
+      queryKey: queryKeys.plans.structure(plan.id),
+      queryFn: () => planService.getStructure(plan.id),
     })),
   })
   const exercisesQuery = useQuery({
@@ -146,8 +146,12 @@ export default function HistoryPage() {
   })
 
   const planDetails = useMemo(
-    () => planDetailsQueries.flatMap((query) => (query.data ? [query.data] : [])),
-    [planDetailsQueries],
+    () =>
+      (plansQuery.data ?? []).flatMap((plan, index) => {
+        const structure = planStructureQueries[index]?.data
+        return structure ? [{ ...plan, groups: structure.groups }] : []
+      }),
+    [planStructureQueries, plansQuery.data],
   )
   const groupCatalog = useMemo(() => buildWorkoutGroupCatalog(planDetails), [planDetails])
   const exerciseMap = useMemo(
@@ -162,7 +166,7 @@ export default function HistoryPage() {
     return map
   }, [groupCatalog])
 
-  if (historyQuery.error || plansQuery.error || planDetailsQueries.some((query) => query.error)) {
+  if (historyQuery.error || plansQuery.error || planStructureQueries.some((query) => query.error)) {
     return <p className="text-sm text-destructive">Could not load workout history.</p>
   }
 

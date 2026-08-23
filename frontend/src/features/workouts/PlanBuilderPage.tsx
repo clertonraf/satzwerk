@@ -60,9 +60,14 @@ export default function PlanBuilderPage() {
     defaultValues: { title: '' },
   })
 
-  const { data: plan, isLoading } = useQuery({
-    queryKey: queryKeys.plans.detail(planId ?? ''),
-    queryFn: () => planService.get(planId!),
+  const metadataQuery = useQuery({
+    queryKey: queryKeys.plans.metadata(planId ?? ''),
+    queryFn: () => planService.getMetadata(planId!),
+    enabled: Boolean(planId),
+  })
+  const structureQuery = useQuery({
+    queryKey: queryKeys.plans.structure(planId ?? ''),
+    queryFn: () => planService.getStructure(planId!),
     enabled: Boolean(planId),
   })
   const { data: exerciseCatalog = [] } = useQuery({
@@ -70,11 +75,16 @@ export default function PlanBuilderPage() {
     queryFn: () => exerciseService.list(),
   })
 
-  const updatePlanMutation = usePlanDetailMutation(planId!, (name: string) => planService.update(planId!, name), () => setIsEditingName(false))
+  const updatePlanMutation = usePlanDetailMutation(planId!, (name: string) => planService.update(planId!, name), {
+    onSuccess: () => setIsEditingName(false),
+    scope: 'metadata',
+  })
 
-  const createGroupMutation = usePlanDetailMutation(planId!, (title: string) => workoutGroupService.create(planId!, title), () => {
-    setIsAddGroupOpen(false)
-    resetGroup({ title: '' })
+  const createGroupMutation = usePlanDetailMutation(planId!, (title: string) => workoutGroupService.create(planId!, title), {
+    onSuccess: () => {
+      setIsAddGroupOpen(false)
+      resetGroup({ title: '' })
+    },
   })
 
   const updateGroupMutation = usePlanDetailMutation(planId!, ({ groupId, title }: { groupId: string; title: string }) => workoutGroupService.update(planId!, groupId, title))
@@ -91,10 +101,12 @@ export default function PlanBuilderPage() {
     return <p className="text-sm text-muted-foreground">Workout plan not found.</p>
   }
 
-  if (isLoading || !plan) {
+  if (metadataQuery.isLoading || structureQuery.isLoading || !metadataQuery.data || !structureQuery.data) {
     return <p className="text-sm text-muted-foreground">Loading workout plan...</p>
   }
 
+  const plan = metadataQuery.data
+  const groups = structureQuery.data.groups
   const exerciseOptions = exerciseCatalog.map((exercise) => ({ id: exercise.id, name: exercise.name }))
 
   return (
@@ -136,11 +148,11 @@ export default function PlanBuilderPage() {
         </CardContent>
       </Card>
 
-      {plan.groups.length === 0 ? (
+      {groups.length === 0 ? (
         <p className="text-sm text-muted-foreground">No workout groups yet. Add your first group.</p>
       ) : (
         <div className="space-y-4">
-          {plan.groups
+          {groups
             .slice()
             .sort((left, right) => left.orderIndex - right.orderIndex)
             .map((group) => (
