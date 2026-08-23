@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import ExerciseProgressChart from '../ExerciseProgressChart'
+import { formatExerciseProgressTooltipValue } from '../exerciseProgressChartTooltip'
 import type { ExerciseProgressResponse } from '@/services/analyticsService'
 
 const makeProgress = (pointCount: number): ExerciseProgressResponse => ({
@@ -60,5 +61,13 @@ describe('ExerciseProgressChart', () => {
     render(<ExerciseProgressChart progress={makeProgress(3)} isLoading={false} />)
 
     expect(screen.getByText('Estimated 1RM')).toBeInTheDocument()
+  })
+
+  it('formats a missing Estimated 1RM tooltip value as not available', () => {
+    expect(formatExerciseProgressTooltipValue(null, 'Estimated 1RM')).toEqual(['Not available', 'Estimated 1RM'])
+  })
+
+  it('formats top-set tooltip values in kg', () => {
+    expect(formatExerciseProgressTooltipValue(85, 'Top set')).toEqual(['85 kg', 'Top set'])
   })
 })

@@ -1,6 +1,7 @@
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { ExerciseProgressResponse } from '@/services/analyticsService'
+import { formatExerciseProgressTooltipValue } from './exerciseProgressChartTooltip'
 
 interface ExerciseProgressChartProps {
   progress: ExerciseProgressResponse | null
@@ -50,9 +51,7 @@ export default function ExerciseProgressChart({ progress, isLoading }: ExerciseP
               <YAxis yAxisId="left" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={42} />
               <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={42} />
               <Tooltip
-                formatter={(value, name) =>
-                  name === 'Estimated 1RM' ? [`${value} kg`, 'Estimated 1RM'] : [`${value} kg`, 'Top set']
-                }
+                formatter={(value, name) => formatExerciseProgressTooltipValue(value, String(name))}
                 labelFormatter={(value) => `Session ${value}`}
               />
               <Legend />
