@@ -15,11 +15,13 @@ import { sessionService } from '@/services/sessionService'
 export interface SetLogTransport {
   addSetLog(sessionId: string, data: AddSetLogRequest): Promise<SetLogResult>
   updateSetLog(sessionId: string, setLogId: string, data: UpdateSetLogRequest): Promise<SetLogUpdate>
+  deleteSetLog(sessionId: string, setLogId: string): Promise<void>
 }
 
 interface OnlineSetLogTransportDependencies {
   addSetLog(sessionId: string, data: AddSetLogRequest): Promise<SetLog>
   updateSetLog(sessionId: string, setLogId: string, data: UpdateSetLogRequest): Promise<SetLog>
+  deleteSetLog(sessionId: string, setLogId: string): Promise<void>
 }
 
 interface QueuedSetLogTransportDependencies {
@@ -47,6 +49,7 @@ function createQueuedUpdateSetLog(data: UpdateSetLogRequest): SetLogUpdate {
 export function createOnlineSetLogTransport({
   addSetLog,
   updateSetLog,
+  deleteSetLog,
 }: OnlineSetLogTransportDependencies): SetLogTransport {
   return {
     async addSetLog(sessionId, data) {
@@ -60,6 +63,10 @@ export function createOnlineSetLogTransport({
         weight: updated.weight,
         reps: updated.reps,
       }
+    },
+
+    deleteSetLog(sessionId, setLogId) {
+      return deleteSetLog(sessionId, setLogId)
     },
   }
 }
@@ -76,6 +83,10 @@ export function createQueuedSetLogTransport({
     async updateSetLog(sessionId, setLogId, data) {
       await enqueue({ type: 'update-set', sessionId, setLogId, data })
       return createQueuedUpdateSetLog(data)
+    },
+
+    deleteSetLog(sessionId, setLogId) {
+      return enqueue({ type: 'delete-set', sessionId, setLogId }).then(() => undefined)
     },
   }
 }
@@ -100,10 +111,20 @@ export function useSessionTransport() {
     },
   })
 
+  const deleteSetLogMutation = useMutation({
+    mutationFn: ({ sessionId, setLogId }: { sessionId: string; setLogId: string }) =>
+      sessionService.deleteSetLog(sessionId, setLogId),
+    onSuccess: (_, { sessionId }) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sessions.referenceWeights(sessionId) })
+    },
+  })
+
   const onlineTransport = createOnlineSetLogTransport({
     addSetLog: async (sessionId, data) => addSetLogMutation.mutateAsync({ sessionId, data }),
     updateSetLog: async (sessionId, setLogId, data) =>
       updateSetLogMutation.mutateAsync({ sessionId, setLogId, data }),
+    deleteSetLog: async (sessionId, setLogId) =>
+      deleteSetLogMutation.mutateAsync({ sessionId, setLogId }),
   })
   const queuedTransport = createQueuedSetLogTransport({
     enqueue: offlineQueue.enqueue,
@@ -114,5 +135,6 @@ export function useSessionTransport() {
     transport,
     isAddPending: addSetLogMutation.isPending,
     isUpdatePending: updateSetLogMutation.isPending,
+    isDeletePending: deleteSetLogMutation.isPending,
   }
 }
