@@ -2,9 +2,12 @@ package com.satzwerk.export
 
 import com.satzwerk.PostgresTestContainer
 import com.satzwerk.auth.AuthResponse
+import com.satzwerk.medications.MedicationLogResponse
+import com.satzwerk.medications.MedicationResponse
 import com.satzwerk.workouts.ExerciseResponse
 import com.satzwerk.workouts.WorkoutGroupResponse
 import com.satzwerk.workouts.WorkoutPlanResponse
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -12,6 +15,7 @@ import org.springframework.http.MediaType
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.reactive.server.WebTestClient
 import java.math.BigDecimal
+import java.time.Instant
 import java.util.UUID
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -98,6 +102,108 @@ class ExportIntegrationTest : PostgresTestContainer() {
                 .jsonPath("$.importedWorkoutSessions").isEqualTo(1)
                 .jsonPath("$.importedSetLogs").isEqualTo(1)
                 .jsonPath("$.reusedExercises").isEqualTo(0)
+        }
+
+    @Test
+    fun `version 2 export round trips medications through import`(): Unit =
+        run {
+            val exportToken = registerAndLogin("med-src-${UUID.randomUUID()}@test.com", "password123", "MedSource")
+            val exerciseId = createExercise(exportToken, "Deadlift", "BACK")
+            val planId = createPlan(exportToken, "Power Plan")
+            activatePlan(exportToken, planId)
+            val groupId = createGroup(exportToken, planId, "Power Group", exerciseId)
+            val sessionId = startSession(exportToken, groupId)
+            addSetLog(exportToken, sessionId, exerciseId, BigDecimal("150.0"), 3)
+            completeSession(exportToken, sessionId)
+            val medicationId = createMedication(exportToken, "Creatine")
+            logMedicationDose(exportToken, medicationId, Instant.parse("2026-01-02T07:00:00Z"))
+
+            client
+                .get()
+                .uri("/api/export")
+                .header("Authorization", "Bearer $exportToken")
+                .exchange()
+                .expectStatus().isOk
+                .expectBody()
+                .jsonPath("$.version").isEqualTo(2)
+                .jsonPath("$.medications.length()").isEqualTo(1)
+                .jsonPath("$.medicationLogs.length()").isEqualTo(1)
+
+            val exportBody = fetchExport(exportToken)
+            val importToken = registerAndLogin("med-dst-${UUID.randomUUID()}@test.com", "password123", "MedDest")
+
+            client
+                .post()
+                .uri("/api/import")
+                .header("Authorization", "Bearer $importToken")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(exportBody)
+                .exchange()
+                .expectStatus().isOk
+                .expectBody()
+                .jsonPath("$.importedExercises").isEqualTo(1)
+                .jsonPath("$.importedWorkoutPlans").isEqualTo(1)
+                .jsonPath("$.importedWorkoutSessions").isEqualTo(1)
+                .jsonPath("$.importedSetLogs").isEqualTo(1)
+                .jsonPath("$.importedMedications").isEqualTo(1)
+                .jsonPath("$.importedMedicationLogs").isEqualTo(1)
+                .jsonPath("$.reusedMedications").isEqualTo(0)
+
+            val importedMedications = fetchMedications(importToken)
+            val importedLogs =
+                fetchMedicationLogs(
+                    importToken,
+                    importedMedications.single().id,
+                    from = "2026-01-01T00:00:00Z",
+                    to = "2026-01-03T00:00:00Z",
+                )
+
+            assertEquals("Creatine", importedMedications.single().name)
+            assertEquals(1, importedLogs.size)
+            assertEquals(true, importedLogs.single().taken)
+        }
+
+    @Test
+    fun `version 1 import uses legacy translator without medication fields`(): Unit =
+        run {
+            val exportToken = registerAndLogin("legacy-src-${UUID.randomUUID()}@test.com", "password123", "LegacySrc")
+            val exerciseId = createExercise(exportToken, "Row", "BACK")
+            val planId = createPlan(exportToken, "Row Plan")
+            activatePlan(exportToken, planId)
+            val groupId = createGroup(exportToken, planId, "Row Group", exerciseId)
+            val sessionId = startSession(exportToken, groupId)
+            addSetLog(exportToken, sessionId, exerciseId, BigDecimal("60.0"), 10)
+            completeSession(exportToken, sessionId)
+            createMedication(exportToken, "Creatine")
+
+            val exportBody = fetchExport(exportToken)
+            val legacyExportBody =
+                linkedMapOf<String, Any?>().apply {
+                    putAll(exportBody.entries.associate { it.key.toString() to it.value })
+                    this["version"] = 1
+                    remove("medications")
+                    remove("medicationLogs")
+                }
+            val importToken = registerAndLogin("legacy-dst-${UUID.randomUUID()}@test.com", "password123", "LegacyDst")
+
+            client
+                .post()
+                .uri("/api/import")
+                .header("Authorization", "Bearer $importToken")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(legacyExportBody)
+                .exchange()
+                .expectStatus().isOk
+                .expectBody()
+                .jsonPath("$.importedExercises").isEqualTo(1)
+                .jsonPath("$.importedWorkoutPlans").isEqualTo(1)
+                .jsonPath("$.importedWorkoutSessions").isEqualTo(1)
+                .jsonPath("$.importedSetLogs").isEqualTo(1)
+                .jsonPath("$.importedMedications").isEqualTo(0)
+                .jsonPath("$.importedMedicationLogs").isEqualTo(0)
+                .jsonPath("$.reusedMedications").isEqualTo(0)
+
+            assertEquals(0, fetchMedications(importToken).size)
         }
 
     @Test
@@ -325,4 +431,79 @@ class ExportIntegrationTest : PostgresTestContainer() {
             .exchange()
             .expectStatus().isOk
             .expectBody(Map::class.java).returnResult().responseBody!!
+
+    private fun createMedication(
+        token: String,
+        name: String,
+    ): UUID {
+        val response =
+            client
+                .post()
+                .uri("/api/medications")
+                .header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(
+                    mapOf(
+                        "name" to name,
+                        "dosageAmount" to BigDecimal("5.0"),
+                        "dosageUnit" to "G",
+                        "frequency" to mapOf("type" to "DAILY", "timesPerDay" to 1),
+                        "purpose" to "Recovery",
+                    ),
+                ).exchange()
+                .expectStatus().isOk
+                .expectBody(MedicationResponse::class.java).returnResult().responseBody!!
+        return response.id
+    }
+
+    private fun logMedicationDose(
+        token: String,
+        medicationId: UUID,
+        takenAt: Instant,
+    ) {
+        client.post().uri("/api/medications/$medicationId/logs")
+            .header("Authorization", "Bearer $token")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "takenAt" to takenAt.toString(),
+                    "taken" to true,
+                    "doseAmount" to BigDecimal("5.0"),
+                    "notes" to "Post workout",
+                ),
+            )
+            .exchange().expectStatus().isOk
+    }
+
+    private fun fetchMedications(token: String): List<MedicationResponse> =
+        client.get().uri("/api/medications")
+            .header("Authorization", "Bearer $token")
+            .exchange()
+            .expectStatus().isOk
+            .expectBodyList(MedicationResponse::class.java).returnResult().responseBody!!
+
+    private fun fetchMedicationLogs(
+        token: String,
+        medicationId: UUID,
+        from: String? = null,
+        to: String? = null,
+    ): List<MedicationLogResponse> =
+        client.get().uri(
+            buildString {
+                append("/api/medications/$medicationId/logs")
+                val queryParts =
+                    listOfNotNull(
+                        from?.let { "from=$it" },
+                        to?.let { "to=$it" },
+                    )
+                if (queryParts.isNotEmpty()) {
+                    append("?")
+                    append(queryParts.joinToString("&"))
+                }
+            },
+        )
+            .header("Authorization", "Bearer $token")
+            .exchange()
+            .expectStatus().isOk
+            .expectBodyList(MedicationLogResponse::class.java).returnResult().responseBody!!
 }

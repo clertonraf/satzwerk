@@ -1,5 +1,6 @@
 package com.satzwerk.export
 
+import com.fasterxml.jackson.databind.JsonNode
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.RequestContext
 import com.satzwerk.common.body
@@ -34,8 +35,8 @@ class ExportRouter {
                 POST("/import") { request ->
                     handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
                         val ctx = RequestContext(request)
-                        val dto = ctx.body<UserDataExportDto>()
-                        val summary = exportService.importForUser(ctx.userId(), dto)
+                        val exportBody = ctx.body<JsonNode>()
+                        val summary = exportService.importForUser(ctx.userId(), exportBody)
                         ServerResponse.ok().bodyValueAndAwait(summary)
                     }
                 }
