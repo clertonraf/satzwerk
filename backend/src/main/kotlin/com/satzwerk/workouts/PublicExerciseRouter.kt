@@ -5,6 +5,7 @@ import com.satzwerk.common.body
 import com.satzwerk.common.validateOrBadRequest
 import com.satzwerk.publicapi.PartnerWritePolicyService
 import com.satzwerk.publicapi.PartnerWritePrincipalValidationService
+import com.satzwerk.publicapi.PartnerWriteRequestFingerprintCodec
 import com.satzwerk.publicapi.PublicScope
 import com.satzwerk.publicapi.handlePublicScope
 import jakarta.validation.Validator
@@ -38,7 +39,7 @@ class PublicExerciseRouter {
                             partnerPrincipal,
                             request,
                             HttpStatus.CREATED,
-                            body,
+                            PartnerWriteRequestFingerprintCodec.body(body),
                         ) { userId ->
                             exerciseService.create(userId, body)
                         }
@@ -56,7 +57,7 @@ class PublicExerciseRouter {
                             partnerPrincipal,
                             request,
                             HttpStatus.OK,
-                            body,
+                            PartnerWriteRequestFingerprintCodec.body(body),
                         ) { userId ->
                             exerciseService.update(userId, exerciseId, body)
                         }

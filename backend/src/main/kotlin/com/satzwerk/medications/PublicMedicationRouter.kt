@@ -5,6 +5,7 @@ import com.satzwerk.common.body
 import com.satzwerk.common.validateOrBadRequest
 import com.satzwerk.publicapi.PartnerWritePolicyService
 import com.satzwerk.publicapi.PartnerWritePrincipalValidationService
+import com.satzwerk.publicapi.PartnerWriteRequestFingerprintCodec
 import com.satzwerk.publicapi.PublicScope
 import com.satzwerk.publicapi.handlePublicScope
 import jakarta.validation.Validator
@@ -44,7 +45,7 @@ class PublicMedicationRouter {
                             partnerPrincipal,
                             request,
                             HttpStatus.CREATED,
-                            body,
+                            PartnerWriteRequestFingerprintCodec.body(body),
                         ) { userId ->
                             medicationService.createMedication(userId, body)
                         }
@@ -68,7 +69,7 @@ class PublicMedicationRouter {
                             partnerPrincipal,
                             request,
                             HttpStatus.OK,
-                            body,
+                            PartnerWriteRequestFingerprintCodec.body(body),
                         ) { userId ->
                             medicationService.updateMedication(userId, id, body)
                         }
@@ -92,7 +93,7 @@ class PublicMedicationRouter {
                             partnerPrincipal,
                             request,
                             HttpStatus.CREATED,
-                            body,
+                            PartnerWriteRequestFingerprintCodec.body(body),
                         ) { userId ->
                             medicationService.logDose(userId, medicationId, body)
                         }
