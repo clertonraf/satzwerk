@@ -14,7 +14,7 @@ describe('offlineQueue.enqueue', () => {
     await offlineQueue.enqueue({
       type: 'add-set',
       sessionId: 's1',
-      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5 },
+      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5, rir: null },
     })
 
     const ops = await offlineQueue.getAll()
@@ -28,7 +28,7 @@ describe('offlineQueue.enqueue', () => {
       type: 'update-set',
       sessionId: 's1',
       setLogId: 'log-1',
-      data: { weight: 90, reps: 3 },
+      data: { weight: 90, reps: 3, rir: null },
     })
 
     const ops = await offlineQueue.getAll()
@@ -58,7 +58,7 @@ describe('offlineQueue.enqueue', () => {
     await offlineQueue.enqueue({
       type: 'add-set',
       sessionId: 's1',
-      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5 },
+      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5, rir: null },
     })
 
     const ops = await offlineQueue.getAll()
@@ -74,18 +74,19 @@ describe('offlineQueue.flush', () => {
       setNumber: 1,
       weight: 80,
       reps: 5,
+      rir: null,
       loggedAt: '2026-01-01T00:00:00Z',
     })
 
     await offlineQueue.enqueue({
       type: 'add-set',
       sessionId: 's1',
-      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5 },
+      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5, rir: null },
     })
 
     await offlineQueue.flush()
 
-    expect(addSetLogSpy).toHaveBeenCalledWith('s1', { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5 })
+    expect(addSetLogSpy).toHaveBeenCalledWith('s1', { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5, rir: null })
   })
 
   it('dispatches update-set ops to sessionService.updateSetLog', async () => {
@@ -95,6 +96,7 @@ describe('offlineQueue.flush', () => {
       setNumber: 1,
       weight: 90,
       reps: 3,
+      rir: null,
       loggedAt: '2026-01-01T00:00:00Z',
     })
 
@@ -102,12 +104,12 @@ describe('offlineQueue.flush', () => {
       type: 'update-set',
       sessionId: 's1',
       setLogId: 'log-1',
-      data: { weight: 90, reps: 3 },
+      data: { weight: 90, reps: 3, rir: null },
     })
 
     await offlineQueue.flush()
 
-    expect(updateSetLogSpy).toHaveBeenCalledWith('s1', 'log-1', { weight: 90, reps: 3 })
+    expect(updateSetLogSpy).toHaveBeenCalledWith('s1', 'log-1', { weight: 90, reps: 3, rir: null })
   })
 
   it('dispatches delete-set ops to sessionService.deleteSetLog', async () => {
@@ -133,13 +135,14 @@ describe('offlineQueue.flush', () => {
       setNumber: 1,
       weight: 80,
       reps: 5,
+      rir: null,
       loggedAt: '2026-01-01T00:00:00Z',
     })
 
     await offlineQueue.enqueue({
       type: 'add-set',
       sessionId: 's1',
-      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5 },
+      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5, rir: null },
     })
 
     await offlineQueue.flush()
@@ -160,13 +163,14 @@ describe('offlineQueue.flush', () => {
       setNumber: 1,
       weight: 80,
       reps: 5,
+      rir: null,
       loggedAt: '2026-01-01T00:00:00Z',
     })
 
     await offlineQueue.enqueue({
       type: 'add-set',
       sessionId: 's1',
-      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5 },
+      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5, rir: null },
     })
 
     const result = await offlineQueue.flush()
@@ -176,13 +180,14 @@ describe('offlineQueue.flush', () => {
           type: 'add-set',
           sessionId: 's1',
           clientSetLogId: null,
-          data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5 },
+          data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5, rir: null },
           serverSetLog: {
             id: 'log-1',
             exerciseId: 'e1',
             setNumber: 1,
             weight: 80,
             reps: 5,
+            rir: null,
             loggedAt: '2026-01-01T00:00:00Z',
           },
         }),
@@ -197,7 +202,7 @@ describe('offlineQueue.flush', () => {
     await offlineQueue.enqueue({
       type: 'add-set',
       sessionId: 's1',
-      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5 },
+      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5, rir: null },
     })
 
     const result = await offlineQueue.flush()
@@ -208,7 +213,7 @@ describe('offlineQueue.flush', () => {
           type: 'add-set',
           sessionId: 's1',
           clientSetLogId: null,
-          data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5 },
+          data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5, rir: null },
           exhausted: false,
         }),
       ],
@@ -226,7 +231,7 @@ describe('offlineQueue.flush', () => {
     await db.queuedOps.add({
       type: 'add-set',
       sessionId: 's1',
-      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5 },
+      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5, rir: null },
       queuedAt: Date.now(),
       retryCount: 3,
     } as Parameters<typeof db.queuedOps.add>[0])
@@ -241,7 +246,7 @@ describe('offlineQueue.flush', () => {
           type: 'add-set',
           sessionId: 's1',
           clientSetLogId: null,
-          data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5 },
+          data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5, rir: null },
           exhausted: true,
         }),
       ],
@@ -256,7 +261,7 @@ describe('offlineQueue.clear', () => {
     await offlineQueue.enqueue({
       type: 'add-set',
       sessionId: 's1',
-      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5 },
+      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5, rir: null },
     })
 
     await offlineQueue.clear()

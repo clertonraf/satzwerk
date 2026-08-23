@@ -60,6 +60,7 @@ function makePendingSetLog(overrides: Partial<PendingSetLog> = {}): PendingSetLo
     setNumber: 1,
     weight: 80,
     reps: 5,
+    rir: null,
     loggedAt: '2024-01-01T00:00:00Z',
     pending: true,
     ...overrides,
@@ -73,6 +74,7 @@ function buildSetLog(setNumber: number): WorkoutSession['setLogs'][number] {
     setNumber,
     weight: 80 + setNumber * 5,
     reps: 5,
+    rir: null,
     loggedAt: '2024-01-01T00:00:00Z',
   }
 }
@@ -88,6 +90,7 @@ function makeSyncReceipt(overrides: Partial<AddSetSyncReceipt> = {}): AddSetSync
       setNumber: 1,
       weight: 80,
       reps: 5,
+      rir: null,
     },
     serverSetLog: {
       id: 'log-1',
@@ -95,6 +98,7 @@ function makeSyncReceipt(overrides: Partial<AddSetSyncReceipt> = {}): AddSetSync
       setNumber: 1,
       weight: 80,
       reps: 5,
+      rir: null,
       loggedAt: '2024-01-01T00:00:00Z',
     },
     ...overrides,
@@ -354,6 +358,7 @@ describe('useWorkoutSessionMachine', () => {
         setNumber: 1,
         weight: 80,
         reps: 5,
+        rir: null,
         loggedAt: '2024-01-01T00:00:00Z',
       }
       const session = buildSession({ setLogs: [setLog], setCount: 1 })
@@ -436,6 +441,7 @@ describe('useWorkoutSessionMachine', () => {
                 setNumber: 3,
                 weight: 90,
                 reps: 5,
+                rir: null,
               },
               serverSetLog: buildSetLog(3),
             }),
@@ -447,6 +453,7 @@ describe('useWorkoutSessionMachine', () => {
                 setNumber: 1,
                 weight: 80,
                 reps: 5,
+                rir: null,
               },
               serverSetLog: buildSetLog(1),
             }),
@@ -500,6 +507,7 @@ describe('useWorkoutSessionMachine', () => {
                 setNumber: 1,
                 weight: 80,
                 reps: 5,
+                rir: null,
               },
               serverSetLog: buildSetLog(1),
             }),
@@ -511,6 +519,7 @@ describe('useWorkoutSessionMachine', () => {
                 setNumber: 2,
                 weight: 85,
                 reps: 5,
+                rir: null,
               },
               serverSetLog: buildSetLog(2),
             }),
@@ -554,6 +563,7 @@ describe('useWorkoutSessionMachine', () => {
           setNumber: 1,
           weight: 80,
           reps: 5,
+          rir: null,
         },
         serverSetLog: buildSetLog(1),
       })
@@ -649,6 +659,7 @@ describe('useWorkoutSessionMachine', () => {
               setNumber: 1,
               weight: 80,
               reps: 5,
+              rir: null,
             },
             serverSetLog: buildSetLog(1),
           }),

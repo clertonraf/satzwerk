@@ -35,8 +35,8 @@ interface ExerciseSectionProps {
   isUpdateSetPending: boolean
   isDeleteSetPending: boolean
   isOnline: boolean
-  onLogSet: (exerciseId: string, setNumber: number, weight: number, reps: number, unit: 'kg' | 'lb') => void
-  onUpdateSetLog: (setLogId: string, weight: number, reps: number, unit: 'kg' | 'lb') => Promise<void>
+  onLogSet: (exerciseId: string, setNumber: number, weight: number, reps: number, rir: number | null, unit: 'kg' | 'lb') => void
+  onUpdateSetLog: (setLogId: string, weight: number, reps: number, rir: number | null, unit: 'kg' | 'lb') => Promise<void>
   onDeleteSetLog: (setLogId: string) => void
   onSetExerciseUnit: (exerciseId: string, unit: 'kg' | 'lb') => void
 }
@@ -116,8 +116,9 @@ export default function ExerciseSection({
           variant="inline"
           defaultWeight={lastLog ? (exerciseUnit === 'kg' ? lastLog.weight : toPounds(lastLog.weight)) : undefined}
           defaultReps={lastLog?.reps}
-          onLog={({ reps, setNumber, weight }) => {
-            onLogSet(exercise.exerciseId, setNumber, weight, reps, exerciseUnit)
+          defaultRir={lastLog?.rir ?? (exercise.toFailure ? 0 : null)}
+          onLog={({ reps, rir, setNumber, weight }) => {
+            onLogSet(exercise.exerciseId, setNumber, weight, reps, rir, exerciseUnit)
           }}
         />
         {/* key uses the technique name, not the derived seconds, so that switching between
@@ -152,10 +153,11 @@ export default function ExerciseSection({
                       unit={exerciseUnit}
                       defaultWeight={exerciseUnit === 'kg' ? log.weight : toPounds(log.weight)}
                       defaultReps={log.reps}
+                      defaultRir={log.rir}
                       submitLabel="Save"
                       resetOnSubmit={false}
-                      onLog={({ weight, reps }) => {
-                        onUpdateSetLog(log.id, weight, reps, exerciseUnit)
+                      onLog={({ weight, reps, rir }) => {
+                        onUpdateSetLog(log.id, weight, reps, rir, exerciseUnit)
                           .then(() => setEditingSetLogId(null))
                           .catch(() => {
                             /* stay in edit mode so the user can retry */
@@ -167,6 +169,7 @@ export default function ExerciseSection({
                     <div className="flex items-center justify-between">
                       <span>
                         Set {log.setNumber}: {formatDisplayWeight(log.weight, exerciseUnit)} × {log.reps}
+                        {log.rir !== null ? ` · RiR ${log.rir}` : ''}
                         {log.pending ? <span className="ml-2 text-xs text-muted-foreground">(syncing…)</span> : null}
                       </span>
                       <span className="flex items-center gap-1">

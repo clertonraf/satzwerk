@@ -24,6 +24,12 @@ class ExportIntegrationTest : PostgresTestContainer() {
     @Autowired
     lateinit var client: WebTestClient
 
+    private data class SetLogMutation(
+        val weight: BigDecimal,
+        val reps: Int,
+        val rir: Int? = null,
+    )
+
     @Test
     fun `export returns all user data including exercises plans and sessions`(): Unit =
         run {
@@ -33,7 +39,7 @@ class ExportIntegrationTest : PostgresTestContainer() {
             activatePlan(token, planId)
             val groupId = createGroup(token, planId, "Leg Group", exerciseId)
             val sessionId = startSession(token, groupId)
-            addSetLog(token, sessionId, exerciseId, BigDecimal("100.0"), 5)
+            addSetLog(token, sessionId, exerciseId, SetLogMutation(weight = BigDecimal("100.0"), reps = 5, rir = 2))
             completeSession(token, sessionId)
 
             client
@@ -54,6 +60,7 @@ class ExportIntegrationTest : PostgresTestContainer() {
                 .jsonPath("$.workoutPlans[0].groups[0].exercises.length()").isEqualTo(1)
                 .jsonPath("$.workoutSessions.length()").isEqualTo(1)
                 .jsonPath("$.workoutSessions[0].setLogs.length()").isEqualTo(1)
+                .jsonPath("$.workoutSessions[0].setLogs[0].rir").isEqualTo(2)
         }
 
     @Test
@@ -81,7 +88,12 @@ class ExportIntegrationTest : PostgresTestContainer() {
             activatePlan(exportToken, planId)
             val groupId = createGroup(exportToken, planId, "Power Group", exerciseId)
             val sessionId = startSession(exportToken, groupId)
-            addSetLog(exportToken, sessionId, exerciseId, BigDecimal("150.0"), 3)
+            addSetLog(
+                exportToken,
+                sessionId,
+                exerciseId,
+                SetLogMutation(weight = BigDecimal("150.0"), reps = 3, rir = 2),
+            )
             completeSession(exportToken, sessionId)
 
             val exportBody = fetchExport(exportToken)
@@ -102,6 +114,11 @@ class ExportIntegrationTest : PostgresTestContainer() {
                 .jsonPath("$.importedWorkoutSessions").isEqualTo(1)
                 .jsonPath("$.importedSetLogs").isEqualTo(1)
                 .jsonPath("$.reusedExercises").isEqualTo(0)
+
+            val importedExport = fetchExport(importToken)
+            val importedSession = ((importedExport["workoutSessions"] as List<*>).single() as Map<*, *>)
+            val importedSetLog = ((importedSession["setLogs"] as List<*>).single() as Map<*, *>)
+            assertEquals(2, importedSetLog["rir"])
         }
 
     @Test
@@ -113,7 +130,12 @@ class ExportIntegrationTest : PostgresTestContainer() {
             activatePlan(exportToken, planId)
             val groupId = createGroup(exportToken, planId, "Power Group", exerciseId)
             val sessionId = startSession(exportToken, groupId)
-            addSetLog(exportToken, sessionId, exerciseId, BigDecimal("150.0"), 3)
+            addSetLog(
+                exportToken,
+                sessionId,
+                exerciseId,
+                SetLogMutation(weight = BigDecimal("150.0"), reps = 3),
+            )
             completeSession(exportToken, sessionId)
             val medicationId = createMedication(exportToken, "Creatine")
             logMedicationDose(exportToken, medicationId, Instant.parse("2026-01-02T07:00:00Z"))
@@ -172,7 +194,12 @@ class ExportIntegrationTest : PostgresTestContainer() {
             activatePlan(exportToken, planId)
             val groupId = createGroup(exportToken, planId, "Row Group", exerciseId)
             val sessionId = startSession(exportToken, groupId)
-            addSetLog(exportToken, sessionId, exerciseId, BigDecimal("60.0"), 10)
+            addSetLog(
+                exportToken,
+                sessionId,
+                exerciseId,
+                SetLogMutation(weight = BigDecimal("60.0"), reps = 10),
+            )
             completeSession(exportToken, sessionId)
             createMedication(exportToken, "Creatine")
 
@@ -215,7 +242,12 @@ class ExportIntegrationTest : PostgresTestContainer() {
             activatePlan(exportToken, planId)
             val groupId = createGroup(exportToken, planId, "Push Group", exerciseId)
             val sessionId = startSession(exportToken, groupId)
-            addSetLog(exportToken, sessionId, exerciseId, BigDecimal("80.0"), 8)
+            addSetLog(
+                exportToken,
+                sessionId,
+                exerciseId,
+                SetLogMutation(weight = BigDecimal("80.0"), reps = 8),
+            )
             completeSession(exportToken, sessionId)
 
             val exportBody = fetchExport(exportToken)
@@ -246,7 +278,12 @@ class ExportIntegrationTest : PostgresTestContainer() {
             activatePlan(srcToken, planId)
             val groupId = createGroup(srcToken, planId, "Row Group", exerciseId)
             val sessionId = startSession(srcToken, groupId)
-            addSetLog(srcToken, sessionId, exerciseId, BigDecimal("60.0"), 10)
+            addSetLog(
+                srcToken,
+                sessionId,
+                exerciseId,
+                SetLogMutation(weight = BigDecimal("60.0"), reps = 10),
+            )
             completeSession(srcToken, sessionId)
             val exportBody = fetchExport(srcToken)
 
@@ -402,14 +439,19 @@ class ExportIntegrationTest : PostgresTestContainer() {
         token: String,
         sessionId: UUID,
         exerciseId: UUID,
-        weight: BigDecimal,
-        reps: Int,
+        mutation: SetLogMutation,
     ) {
         client.post().uri("/api/sessions/$sessionId/set-logs")
             .header("Authorization", "Bearer $token")
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(
-                mapOf("exerciseId" to exerciseId, "setNumber" to 1, "weight" to weight, "reps" to reps),
+                mapOf(
+                    "exerciseId" to exerciseId,
+                    "setNumber" to 1,
+                    "weight" to mutation.weight,
+                    "reps" to mutation.reps,
+                    "rir" to mutation.rir,
+                ),
             )
             .exchange().expectStatus().isCreated
     }

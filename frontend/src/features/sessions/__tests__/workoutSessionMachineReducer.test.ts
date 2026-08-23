@@ -27,6 +27,7 @@ function makePendingSetLog(overrides: Partial<PendingSetLog> = {}): PendingSetLo
     setNumber: 1,
     weight: 80,
     reps: 5,
+    rir: null,
     loggedAt: '2024-01-01T00:00:00Z',
     pending: true,
     ...overrides,

@@ -1,11 +1,14 @@
 package com.satzwerk.sessions
 
 import jakarta.validation.constraints.DecimalMin
+import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotNull
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
+
+private const val MAX_RIR = 10L
 
 data class WorkoutSessionResponse(
     val id: UUID,
@@ -25,6 +28,7 @@ data class SetLogResponse(
     val setNumber: Int,
     val weight: BigDecimal,
     val reps: Int,
+    val rir: Int?,
     val loggedAt: Instant,
 )
 
@@ -42,6 +46,9 @@ data class AddSetLogRequest(
     val weight: BigDecimal,
     @field:Min(1)
     val reps: Int,
+    @field:Min(0)
+    @field:Max(MAX_RIR)
+    val rir: Int? = null,
 )
 
 data class UpdateSetLogRequest(
@@ -49,6 +56,9 @@ data class UpdateSetLogRequest(
     val weight: BigDecimal,
     @field:Min(1)
     val reps: Int,
+    @field:Min(0)
+    @field:Max(MAX_RIR)
+    val rir: Int? = null,
 )
 
 data class CompleteSessionRequest(

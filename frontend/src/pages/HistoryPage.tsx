@@ -110,6 +110,7 @@ function SessionHistoryItem({ session, groupTitle, planName, exerciseMap, totalT
                         {logs.map((log) => (
                           <p key={log.id} className="text-sm text-muted-foreground">
                             Set {log.setNumber} — {log.weight} kg × {log.reps} reps
+                            {log.rir !== null ? ` · RiR ${log.rir}` : ''}
                           </p>
                         ))}
                       </div>

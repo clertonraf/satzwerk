@@ -34,6 +34,12 @@ class PublicSessionWriteIntegrationTest : PostgresTestContainer() {
     @Autowired
     lateinit var partnerWriteAuditRepository: PartnerWriteAuditRepository
 
+    private data class SetLogMutation(
+        val weight: BigDecimal,
+        val reps: Int,
+        val rir: Int? = null,
+    )
+
     @Test
     fun `partner app with sessions write scope can start WorkoutSession`() {
         val token = registerAndLogin()
@@ -69,11 +75,24 @@ class PublicSessionWriteIntegrationTest : PostgresTestContainer() {
         val grant = grantAccess(token, registerApp(token).clientId)
 
         val session = startPublicSession(grant.accessToken, workoutGroupId, UUID.randomUUID().toString())
-        val setLog = addPublicSetLog(grant.accessToken, session.id, exerciseId, BigDecimal("140.0"), reps = 5)
-        val updated = updatePublicSetLog(grant.accessToken, session.id, setLog.id, BigDecimal("145.0"), reps = 4)
+        val setLog =
+            addPublicSetLog(
+                grant.accessToken,
+                session.id,
+                exerciseId,
+                SetLogMutation(weight = BigDecimal("140.0"), reps = 5, rir = 2),
+            )
+        val updated =
+            updatePublicSetLog(
+                grant.accessToken,
+                session.id,
+                setLog.id,
+                SetLogMutation(weight = BigDecimal("145.0"), reps = 4, rir = 1),
+            )
 
         assertEquals(BigDecimal("145.0"), updated.weight)
         assertEquals(4, updated.reps)
+        assertEquals(1, updated.rir)
     }
 
     @Test
@@ -182,8 +201,7 @@ class PublicSessionWriteIntegrationTest : PostgresTestContainer() {
         accessToken: String,
         sessionId: UUID,
         exerciseId: UUID,
-        weight: BigDecimal,
-        reps: Int,
+        mutation: SetLogMutation,
     ): SetLogResponse =
         client
             .post()
@@ -195,8 +213,9 @@ class PublicSessionWriteIntegrationTest : PostgresTestContainer() {
                 mapOf(
                     "exerciseId" to exerciseId,
                     "setNumber" to 1,
-                    "weight" to weight,
-                    "reps" to reps,
+                    "weight" to mutation.weight,
+                    "reps" to mutation.reps,
+                    "rir" to mutation.rir,
                 ),
             ).exchange()
             .expectStatus().isCreated
@@ -208,8 +227,7 @@ class PublicSessionWriteIntegrationTest : PostgresTestContainer() {
         accessToken: String,
         sessionId: UUID,
         setLogId: UUID,
-        weight: BigDecimal,
-        reps: Int,
+        mutation: SetLogMutation,
     ): SetLogResponse =
         client
             .patch()
@@ -217,7 +235,7 @@ class PublicSessionWriteIntegrationTest : PostgresTestContainer() {
             .header("X-App-Token", accessToken)
             .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue(mapOf("weight" to weight, "reps" to reps))
+            .bodyValue(mapOf("weight" to mutation.weight, "reps" to mutation.reps, "rir" to mutation.rir))
             .exchange()
             .expectStatus().isOk
             .returnResult<SetLogResponse>()
