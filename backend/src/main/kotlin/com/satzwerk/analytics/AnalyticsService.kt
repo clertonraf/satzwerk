@@ -1,5 +1,6 @@
 package com.satzwerk.analytics
 
+import com.satzwerk.common.NotFoundException
 import com.satzwerk.sessions.epley
 import org.springframework.stereotype.Service
 import java.time.LocalDate
@@ -102,7 +103,7 @@ class AnalyticsService(
         exerciseId: UUID,
     ): ExerciseProgressResponse {
         val rows = analyticsRepository.findExerciseProgress(userId, exerciseId)
-        require(rows.isNotEmpty()) { "exercise progress requires at least one completed session" }
+        if (rows.isEmpty()) throw NotFoundException("No completed sessions found for exercise $exerciseId")
         return ExerciseProgressResponse(
             exerciseId = exerciseId,
             exerciseName = rows.first().exerciseName,

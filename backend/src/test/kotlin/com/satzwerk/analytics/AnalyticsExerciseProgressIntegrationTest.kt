@@ -29,6 +29,18 @@ class AnalyticsExerciseProgressIntegrationTest : PostgresTestContainer() {
     lateinit var databaseClient: DatabaseClient
 
     @Test
+    fun `exercise progress returns 404 for exercise with no completed sessions`() {
+        val token = registerAndLogin()
+        val exerciseId = createExercise(token, "Overhead Press")
+
+        webTestClient.get()
+            .uri("/api/analytics/exercises/$exerciseId/progress")
+            .header(HttpHeaders.AUTHORIZATION, "Bearer $token")
+            .exchange()
+            .expectStatus().isNotFound
+    }
+
+    @Test
     fun `exercise progress returns top set, estimated one rep max, and session context`() {
         val token = registerAndLogin()
         val exerciseId = createExercise(token, "Bench Press")

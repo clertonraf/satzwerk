@@ -13,7 +13,7 @@ private const val ONE_RM_MAX_REPS = 37
 /** Estimates one-rep max using the Epley formula: weight × (1 + reps / 30). Result is rounded to 2 decimal places.
  *  Returns null when reps <= 0 or reps >= 37 (formula produces meaningless results outside this range).
  */
-internal fun epley(
+fun epley(
     weight: BigDecimal,
     reps: Int,
 ): BigDecimal? {
