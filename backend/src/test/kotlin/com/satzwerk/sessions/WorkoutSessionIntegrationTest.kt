@@ -254,6 +254,45 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
     }
 
     @Test
+    fun `add set log returns not found when session belongs to different user`() {
+        val session = startSession()
+        val otherToken = registerAndLogin("other-add-${UUID.randomUUID()}@test.com", "password123", "Other User")
+
+        client
+            .post()
+            .uri("/api/sessions/${session.id}/set-logs")
+            .header("Authorization", "Bearer $otherToken")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "exerciseId" to exerciseId,
+                    "setNumber" to 1,
+                    "weight" to BigDecimal("80.0"),
+                    "reps" to 5,
+                ),
+            ).exchange()
+            .expectStatus().isNotFound
+    }
+
+    @Test
+    fun `add set log returns not found when session does not exist`() {
+        client
+            .post()
+            .uri("/api/sessions/${UUID.randomUUID()}/set-logs")
+            .header("Authorization", "Bearer $authToken")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "exerciseId" to exerciseId,
+                    "setNumber" to 1,
+                    "weight" to BigDecimal("80.0"),
+                    "reps" to 5,
+                ),
+            ).exchange()
+            .expectStatus().isNotFound
+    }
+
+    @Test
     fun `discard session removes open session`() {
         val session = startSession()
         addSetLog(session.id, BigDecimal("80.0"))
@@ -371,6 +410,42 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
                 ),
             ).exchange()
             .expectStatus().isEqualTo(409)
+    }
+
+    @Test
+    fun `update set log returns not found when session belongs to different user`() {
+        val session = startSession()
+        val setLog = addSetLog(session.id, BigDecimal("80.0"))
+        val otherToken = registerAndLogin("other-update-${UUID.randomUUID()}@test.com", "password123", "Other User")
+
+        client
+            .patch()
+            .uri("/api/sessions/${session.id}/set-logs/${setLog.id}")
+            .header("Authorization", "Bearer $otherToken")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "weight" to BigDecimal("90.0"),
+                    "reps" to 8,
+                ),
+            ).exchange()
+            .expectStatus().isNotFound
+    }
+
+    @Test
+    fun `update set log returns not found when session does not exist`() {
+        client
+            .patch()
+            .uri("/api/sessions/${UUID.randomUUID()}/set-logs/${UUID.randomUUID()}")
+            .header("Authorization", "Bearer $authToken")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "weight" to BigDecimal("90.0"),
+                    "reps" to 8,
+                ),
+            ).exchange()
+            .expectStatus().isNotFound
     }
 
     @Test
@@ -842,6 +917,16 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
             .delete()
             .uri("/api/sessions/${session.id}/set-logs/${setLog.id}")
             .header("Authorization", "Bearer $otherToken")
+            .exchange()
+            .expectStatus().isNotFound
+    }
+
+    @Test
+    fun `delete set log returns not found when session does not exist`() {
+        client
+            .delete()
+            .uri("/api/sessions/${UUID.randomUUID()}/set-logs/${UUID.randomUUID()}")
+            .header("Authorization", "Bearer $authToken")
             .exchange()
             .expectStatus().isNotFound
     }
