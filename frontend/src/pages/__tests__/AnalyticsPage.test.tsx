@@ -112,6 +112,35 @@ describe('AnalyticsPage', () => {
     expect(screen.queryByRole('button')).toBeNull()
   })
 
+  it('falls back to first exercise when selectedExerciseId is not in the current topExercises list', async () => {
+    // Simulate: user had ex-1 selected, but topExercises refreshes and only returns ex-2.
+    // The component should show ex-2 as active (fallback to first) rather than ex-1.
+    vi.mocked(analyticsService.topExercises).mockResolvedValue([
+      { exerciseId: 'ex-2', exerciseName: 'Squat', setCount: 30 },
+    ])
+    vi.mocked(analyticsService.exerciseProgress).mockResolvedValue({
+      ...mockProgress,
+      exerciseId: 'ex-2',
+      exerciseName: 'Squat',
+    })
+
+    render(
+      <QueryClientWrapper>
+        <MemoryRouter>
+          <AnalyticsPage />
+        </MemoryRouter>
+      </QueryClientWrapper>,
+    )
+
+    // Only ex-2 should be rendered and it should be the active pill
+    const squatButton = await screen.findByRole('button', { name: 'Squat' })
+    expect(squatButton).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: 'Bench Press' })).toBeNull()
+    // Progress query should fire for ex-2, not a stale ex-1
+    expect(vi.mocked(analyticsService.exerciseProgress)).toHaveBeenCalledWith('ex-2')
+    expect(vi.mocked(analyticsService.exerciseProgress)).not.toHaveBeenCalledWith('ex-1')
+  })
+
   it('shows a loading message while exercise progress is being fetched', async () => {
     vi.mocked(analyticsService.topExercises).mockResolvedValue([
       { exerciseId: 'ex-1', exerciseName: 'Bench Press', setCount: 42 },

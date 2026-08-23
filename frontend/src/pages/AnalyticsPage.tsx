@@ -15,7 +15,8 @@ export default function AnalyticsPage() {
   })
   const exercises = topExercises ?? []
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null)
-  const effectiveExerciseId = selectedExerciseId ?? exercises[0]?.exerciseId ?? null
+  const selectedIsPresent = selectedExerciseId !== null && exercises.some((e) => e.exerciseId === selectedExerciseId)
+  const effectiveExerciseId = selectedIsPresent ? selectedExerciseId : (exercises[0]?.exerciseId ?? null)
 
   const progressQuery = useQuery({
     queryKey: queryKeys.analytics.exerciseProgress(effectiveExerciseId!),
