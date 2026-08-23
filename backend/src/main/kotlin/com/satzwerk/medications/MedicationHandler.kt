@@ -18,6 +18,7 @@ import java.time.format.DateTimeParseException
 private const val DEFAULT_LOG_WINDOW_SECONDS = 30L * 24 * 3600
 private const val DEFAULT_HEATMAP_WEEKS = 52
 private const val DEFAULT_JOURNAL_DAYS = 30L
+private const val SECONDS_PER_MINUTE = 60
 
 class MedicationHandler(
     private val medicationService: MedicationService,
@@ -67,7 +68,7 @@ class MedicationHandler(
     suspend fun getToday(request: ServerRequest): ServerResponse =
         handleErrors {
             val ctx = RequestContext(request)
-            ServerResponse.ok().bodyValueAndAwait(medicationService.getTodayScheduledDoses(ctx.userId()))
+            ServerResponse.ok().bodyValueAndAwait(medicationService.getTodayView(ctx.userId()))
         }
 
     suspend fun logDose(request: ServerRequest): ServerResponse =
@@ -146,6 +147,7 @@ internal suspend fun journalHandler(
     handleErrors {
         val ctx = RequestContext(request)
         val today = LocalDate.now(ZoneOffset.UTC)
+        val zoneOffset = parseZoneOffsetMinutes(request)
         val from =
             request.queryParam("from").map { value ->
                 try {
@@ -162,5 +164,20 @@ internal suspend fun journalHandler(
                     throw BadRequestException("Invalid to date: '$value'. Expected yyyy-MM-dd.")
                 }
             }.orElse(today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().minusNanos(1))
-        ServerResponse.ok().bodyValueAndAwait(medicationService.getJournalEntries(ctx.userId(), from, to))
+        ServerResponse.ok().bodyValueAndAwait(medicationService.getJournalView(ctx.userId(), from, to, zoneOffset))
     }
+
+private fun parseZoneOffsetMinutes(request: ServerRequest): ZoneOffset =
+    request.queryParam("timezoneOffsetMinutes").map { value ->
+        val offsetMinutes =
+            value.toIntOrNull()
+                ?: throw BadRequestException(
+                    "Invalid timezoneOffsetMinutes: '$value'. Expected an integer number of minutes.",
+                )
+        try {
+            // JS getTimezoneOffset() is UTC-local, so negate it to obtain the local ZoneOffset.
+            ZoneOffset.ofTotalSeconds(-offsetMinutes * SECONDS_PER_MINUTE)
+        } catch (_: IllegalArgumentException) {
+            throw BadRequestException("Invalid timezoneOffsetMinutes: '$value'. Expected a valid UTC offset.")
+        }
+    }.orElse(ZoneOffset.UTC)

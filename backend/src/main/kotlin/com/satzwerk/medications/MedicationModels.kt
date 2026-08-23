@@ -79,10 +79,29 @@ data class MedicationJournalEntryDto(
     val notes: String?,
 )
 
+data class MedicationJournalDayDto(
+    val date: String,
+    val entries: List<MedicationJournalEntryDto>,
+)
+
+data class MedicationJournalDto(
+    val days: List<MedicationJournalDayDto>,
+)
+
+data class MedicationOptionDto(
+    val id: UUID,
+    val name: String,
+)
+
 data class ScheduledDoseSummaryDto(
     val medication: MedicationResponse,
     val scheduledCount: Int,
     val logs: List<MedicationLogResponse>,
+)
+
+data class MedicationTodayDto(
+    val scheduledDoses: List<ScheduledDoseSummaryDto>,
+    val availableMedications: List<MedicationOptionDto>,
 )
 
 data class AdherenceHeatmapDayDto(

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { medicationsApi } from '@/services/medicationsApi'
+import { queryKeys } from '@/services/queryKeys'
 import type { Medication } from '../types'
 import MedicationsTab from '../MedicationsTab'
 
@@ -15,6 +16,7 @@ vi.mock('@/services/medicationsApi', () => ({
     deactivate: vi.fn(),
     getToday: vi.fn(),
     logDose: vi.fn(),
+    getJournal: vi.fn(),
     getAggregateHeatmap: vi.fn(),
     getPerMedicationAnalytics: vi.fn(),
   },
@@ -48,6 +50,7 @@ function renderTab() {
       </QueryClientProvider>
     </MemoryRouter>,
   )
+  return queryClient
 }
 
 describe('MedicationsTab', () => {
@@ -105,5 +108,26 @@ describe('MedicationsTab', () => {
         expect.objectContaining({ name: 'Magnesium', dosageAmount: 400 }),
       ),
     )
+  })
+
+  it('invalidates today and journal read models after creating a medication', async () => {
+    const user = userEvent.setup()
+    mockGetAll.mockResolvedValue([])
+    mockCreate.mockResolvedValue({ ...ACTIVE_MED, name: 'Magnesium', currentStreak: 0 })
+    const queryClient = renderTab()
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue()
+
+    await waitFor(() => screen.getByRole('button', { name: /add medication/i }))
+    await user.click(screen.getByRole('button', { name: /add medication/i }))
+    await user.type(screen.getByLabelText(/^name$/i), 'Magnesium')
+    await user.clear(screen.getByLabelText(/dosage amount/i))
+    await user.type(screen.getByLabelText(/dosage amount/i), '400')
+    await user.click(screen.getByRole('button', { name: /^add medication$/i }))
+
+    await waitFor(() =>
+      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.medications.all() }),
+    )
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.medications.today() })
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.medications.journal() })
   })
 })
