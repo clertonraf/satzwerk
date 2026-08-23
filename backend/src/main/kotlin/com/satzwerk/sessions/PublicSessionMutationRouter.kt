@@ -1,5 +1,6 @@
 package com.satzwerk.sessions
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.ForbiddenException
 import com.satzwerk.common.NotFoundException
@@ -23,6 +24,13 @@ private val publicSessionWriteErrors: Map<KClass<out Throwable>, HttpStatus> =
         ConflictException::class to HttpStatus.CONFLICT,
     )
 
+private data class PublicSessionMutationDependencies(
+    val partnerWritePolicyService: PartnerWritePolicyService,
+    val partnerWritePrincipalValidationService: PartnerWritePrincipalValidationService,
+    val validator: Validator,
+    val objectMapper: ObjectMapper,
+)
+
 @Configuration
 class PublicSessionMutationRouter(
     private val partnerWritePrincipalValidationService: PartnerWritePrincipalValidationService,
@@ -33,7 +41,15 @@ class PublicSessionMutationRouter(
         setLogService: SetLogService,
         partnerWritePolicyService: PartnerWritePolicyService,
         validator: Validator,
+        objectMapper: ObjectMapper,
     ) = coRouter {
+        val dependencies =
+            PublicSessionMutationDependencies(
+                partnerWritePolicyService = partnerWritePolicyService,
+                partnerWritePrincipalValidationService = partnerWritePrincipalValidationService,
+                validator = validator,
+                objectMapper = objectMapper,
+            )
         "/api/public/sessions".nest {
             publicSessionStartRoutes(
                 workoutSessionService,
@@ -44,9 +60,7 @@ class PublicSessionMutationRouter(
             publicSessionSetLogRoutes(
                 workoutSessionService,
                 setLogService,
-                partnerWritePolicyService,
-                partnerWritePrincipalValidationService,
-                validator,
+                dependencies,
             )
             publicSessionLifecycleRoutes(
                 workoutSessionService,
@@ -90,17 +104,15 @@ private fun CoRouterFunctionDsl.publicSessionStartRoutes(
 private fun CoRouterFunctionDsl.publicSessionSetLogRoutes(
     workoutSessionService: WorkoutSessionService,
     setLogService: SetLogService,
-    partnerWritePolicyService: PartnerWritePolicyService,
-    partnerWritePrincipalValidationService: PartnerWritePrincipalValidationService,
-    validator: Validator,
+    dependencies: PublicSessionMutationDependencies,
 ) {
     POST("/{id}/set-logs") { request ->
         handlePublicScope(request, PublicScope.SESSIONS_WRITE, extra = publicSessionWriteErrors) { ctx ->
-            val partnerPrincipal = partnerWritePrincipalValidationService.requireValidPrincipal(ctx)
+            val partnerPrincipal = dependencies.partnerWritePrincipalValidationService.requireValidPrincipal(ctx)
             val sessionId = ctx.pathId("id")
             val body = ctx.body<AddSetLogRequest>()
-            validateOrBadRequest(validator, body) {
-                partnerWritePolicyService.execute(
+            validateOrBadRequest(dependencies.validator, body) {
+                dependencies.partnerWritePolicyService.execute(
                     partnerPrincipal,
                     request,
                     HttpStatus.CREATED,
@@ -115,12 +127,12 @@ private fun CoRouterFunctionDsl.publicSessionSetLogRoutes(
 
     PATCH("/{id}/set-logs/{setLogId}") { request ->
         handlePublicScope(request, PublicScope.SESSIONS_WRITE, extra = publicSessionWriteErrors) { ctx ->
-            val partnerPrincipal = partnerWritePrincipalValidationService.requireValidPrincipal(ctx)
+            val partnerPrincipal = dependencies.partnerWritePrincipalValidationService.requireValidPrincipal(ctx)
             val sessionId = ctx.pathId("id")
             val setLogId = ctx.pathId("setLogId")
-            val body = ctx.body<UpdateSetLogRequest>()
-            validateOrBadRequest(validator, body) {
-                partnerWritePolicyService.execute(
+            val body = parseUpdateSetLogRequest(ctx.body(), dependencies.objectMapper)
+            validateOrBadRequest(dependencies.validator, body) {
+                dependencies.partnerWritePolicyService.execute(
                     partnerPrincipal,
                     request,
                     HttpStatus.OK,

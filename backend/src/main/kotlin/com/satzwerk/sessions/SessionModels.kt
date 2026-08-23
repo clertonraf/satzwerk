@@ -1,5 +1,10 @@
 package com.satzwerk.sessions
 
+import com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.core.JacksonException
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.satzwerk.common.BadRequestException
 import jakarta.validation.constraints.DecimalMin
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
@@ -59,11 +64,24 @@ data class UpdateSetLogRequest(
     @field:Min(0)
     @field:Max(MAX_RIR)
     val rir: Int? = null,
+    @JsonIgnore
+    val rirProvided: Boolean = false,
 )
 
 data class CompleteSessionRequest(
     val notes: String? = null,
 )
+
+internal fun parseUpdateSetLogRequest(
+    body: JsonNode,
+    objectMapper: ObjectMapper,
+): UpdateSetLogRequest =
+    try {
+        objectMapper.treeToValue(body, UpdateSetLogRequest::class.java)
+            .copy(rirProvided = body.has("rir"))
+    } catch (e: JacksonException) {
+        throw BadRequestException("Invalid request body: ${e.message ?: "malformed input"}", e)
+    }
 
 data class ExerciseReferenceWeights(
     val exerciseId: UUID,

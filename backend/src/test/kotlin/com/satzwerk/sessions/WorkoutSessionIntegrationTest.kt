@@ -33,6 +33,13 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
     private lateinit var workoutGroupId: UUID
     private lateinit var exerciseId: UUID
 
+    private data class SetLogUpdateMutation(
+        val weight: BigDecimal,
+        val reps: Int,
+        val rir: Int? = null,
+        val includeRir: Boolean = true,
+    )
+
     @BeforeEach
     fun setup() {
         val suffix = UUID.randomUUID()
@@ -404,6 +411,21 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
     }
 
     @Test
+    fun `update set log preserves rir when patch omits field`() {
+        val session = startSession()
+        val setLog = addSetLog(session.id, BigDecimal("80.0"), rir = 2)
+
+        val updated =
+            updateSetLog(
+                session.id,
+                setLog.id,
+                SetLogUpdateMutation(weight = BigDecimal("90.0"), reps = 8, includeRir = false),
+            )
+
+        assertEquals(2, updated.rir)
+    }
+
+    @Test
     fun `cannot update set log on completed session`() {
         val session = startSession()
         val setLog = addSetLog(session.id, BigDecimal("80.0"))
@@ -577,7 +599,7 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
 
         val secondSession = startSession()
         val setLog = addSetLog(secondSession.id, BigDecimal("80.0"), reps = 5)
-        updateSetLog(secondSession.id, setLog.id, BigDecimal("120.0"), reps = 5)
+        updateSetLog(secondSession.id, setLog.id, SetLogUpdateMutation(weight = BigDecimal("120.0"), reps = 5))
         completeSession(secondSession.id)
 
         client
@@ -600,7 +622,7 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
 
         val secondSession = startSession()
         val setLog = addSetLog(secondSession.id, BigDecimal("120.0"), reps = 5)
-        updateSetLog(secondSession.id, setLog.id, BigDecimal("80.0"), reps = 5)
+        updateSetLog(secondSession.id, setLog.id, SetLogUpdateMutation(weight = BigDecimal("80.0"), reps = 5))
         completeSession(secondSession.id)
 
         client
@@ -1103,9 +1125,7 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
     private fun updateSetLog(
         sessionId: UUID,
         setLogId: UUID,
-        weight: BigDecimal,
-        reps: Int,
-        rir: Int? = null,
+        mutation: SetLogUpdateMutation,
     ): SetLogResponse =
         client
             .patch()
@@ -1113,11 +1133,14 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
             .header("Authorization", "Bearer $authToken")
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(
-                mapOf(
-                    "weight" to weight,
-                    "reps" to reps,
-                    "rir" to rir,
-                ),
+                linkedMapOf<String, Any?>(
+                    "weight" to mutation.weight,
+                    "reps" to mutation.reps,
+                ).apply {
+                    if (mutation.includeRir) {
+                        put("rir", mutation.rir)
+                    }
+                },
             ).exchange()
             .expectStatus().isOk
             .expectBody(SetLogResponse::class.java)

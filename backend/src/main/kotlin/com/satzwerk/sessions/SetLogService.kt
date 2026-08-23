@@ -54,8 +54,9 @@ class SetLogService(
                 request.reps,
                 SetLogRef(requireNotNull(setLog.id), setLog.loggedAt),
             )
+        val rir = if (request.rirProvided) request.rir else setLog.rir
         return setLogRepository.save(
-            setLog.copy(weight = request.weight, reps = request.reps, rir = request.rir, isPr = isPr),
+            setLog.copy(weight = request.weight, reps = request.reps, rir = rir, isPr = isPr),
         )
             .toResponse()
     }

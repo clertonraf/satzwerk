@@ -96,6 +96,35 @@ class PublicSessionWriteIntegrationTest : PostgresTestContainer() {
     }
 
     @Test
+    fun `partner app patch preserves rir when field is omitted`() {
+        val token = registerAndLogin()
+        val exerciseId = createExercise(token, "Squat", "LEGS")
+        val planId = createPlan(token, "Leg Day")
+        activatePlan(token, planId)
+        val workoutGroupId = createGroup(token, planId, "Heavy Legs", exerciseId)
+        val grant = grantAccess(token, registerApp(token).clientId)
+
+        val session = startPublicSession(grant.accessToken, workoutGroupId, UUID.randomUUID().toString())
+        val setLog =
+            addPublicSetLog(
+                grant.accessToken,
+                session.id,
+                exerciseId,
+                SetLogMutation(weight = BigDecimal("140.0"), reps = 5, rir = 2),
+            )
+        val updated =
+            updatePublicSetLog(
+                grant.accessToken,
+                session.id,
+                setLog.id,
+                SetLogMutation(weight = BigDecimal("145.0"), reps = 4),
+                includeRir = false,
+            )
+
+        assertEquals(2, updated.rir)
+    }
+
+    @Test
     fun `partner app can complete WorkoutSession`() {
         val token = registerAndLogin()
         val exerciseId = createExercise(token, "Overhead Press", "SHOULDERS")
@@ -228,6 +257,7 @@ class PublicSessionWriteIntegrationTest : PostgresTestContainer() {
         sessionId: UUID,
         setLogId: UUID,
         mutation: SetLogMutation,
+        includeRir: Boolean = true,
     ): SetLogResponse =
         client
             .patch()
@@ -235,7 +265,16 @@ class PublicSessionWriteIntegrationTest : PostgresTestContainer() {
             .header("X-App-Token", accessToken)
             .header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue(mapOf("weight" to mutation.weight, "reps" to mutation.reps, "rir" to mutation.rir))
+            .bodyValue(
+                linkedMapOf<String, Any?>(
+                    "weight" to mutation.weight,
+                    "reps" to mutation.reps,
+                ).apply {
+                    if (includeRir) {
+                        put("rir", mutation.rir)
+                    }
+                },
+            )
             .exchange()
             .expectStatus().isOk
             .returnResult<SetLogResponse>()
