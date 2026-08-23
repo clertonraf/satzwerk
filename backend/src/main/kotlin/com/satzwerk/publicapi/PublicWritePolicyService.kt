@@ -328,8 +328,10 @@ class PublicWritePolicyService(
                         requestPath = metadata.requestPath,
                         idempotencyKey = metadata.idempotencyKey,
                     )
-            if (record != null && record.requestFingerprint.isNotBlank()) {
-                if (record.requestFingerprint != metadata.requestFingerprint) {
+            if (record != null) {
+                val pendingWithoutFingerprint =
+                    record.responseStatus == PENDING_RESPONSE_STATUS && record.requestFingerprint.isBlank()
+                if (!pendingWithoutFingerprint && record.requestFingerprint != metadata.requestFingerprint) {
                     throw ConflictException(IDEMPOTENCY_PAYLOAD_MISMATCH_MESSAGE)
                 }
             }

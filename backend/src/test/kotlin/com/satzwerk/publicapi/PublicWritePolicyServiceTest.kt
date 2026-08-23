@@ -282,6 +282,53 @@ class PublicWritePolicyServiceTest {
         }
 
     @Test
+    fun `execute rejects replay when a completed legacy record has a blank fingerprint`(): Unit =
+        runBlocking {
+            val completedRecord =
+                pendingRecord(id = UUID.randomUUID(), requestFingerprint = "").copy(
+                    responseStatus = HttpStatus.CREATED.value(),
+                    responseBody = """{"name":"Bench Press"}""",
+                )
+            val idempotencyRecordRepository =
+                mock<PublicWriteIdempotencyRecordRepository> {
+                    onBlocking { claim(any(), any(), any(), any(), any()) } doReturn null
+                    onBlocking {
+                        findByPrincipalTypeAndCredentialIdAndRequestMethodAndRequestPathAndIdempotencyKey(
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                        )
+                    } doReturn completedRecord
+                }
+            val publicWriteAuditRepository = mock<PublicWriteAuditRepository>()
+            val service =
+                PublicWritePolicyService(
+                    idempotencyRecordRepository = idempotencyRecordRepository,
+                    publicWriteAuditRepository = publicWriteAuditRepository,
+                    objectMapper = jacksonObjectMapper(),
+                )
+
+            val error =
+                org.junit.jupiter.api.assertThrows<ConflictException> {
+                    runBlocking {
+                        service.execute(
+                            partnerPrincipal(),
+                            request(),
+                            HttpStatus.CREATED,
+                            PublicWriteRequestFingerprintCodec.body(ExampleRequest(name = "Changed Bench")),
+                        ) {
+                            ExampleResponse(name = "Should not run")
+                        }
+                    }
+                }
+
+            assertEquals("Idempotency-Key already used with a different payload", error.message)
+            verify(publicWriteAuditRepository, never()).save(any())
+        }
+
+    @Test
     fun `execute replays a completed record for a stateless command`(): Unit =
         runBlocking {
             val completedRecord =
