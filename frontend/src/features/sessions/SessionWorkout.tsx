@@ -3,6 +3,7 @@ import { Progress } from '@/components/ui/progress'
 import ExerciseSection from '@/features/sessions/ExerciseSection'
 import { computeProgressIndicatorStyle, computeSetCompletionPercentage } from '@/features/sessions/sessionHelpers'
 import type { WorkoutGroupCatalogEntry } from '@/lib/domainBuilders'
+import type { AdvancedTechniqueMetadata } from '@/services/planService'
 import type { ExerciseReferenceWeights, PendingSetLog, SetLogResult, WorkoutSession } from '@/services/sessionService'
 import type { Exercise } from '@/services/exerciseService'
 
@@ -10,6 +11,7 @@ interface SessionWorkoutProps {
   session: WorkoutSession
   pendingSetLogs: PendingSetLog[]
   currentGroupEntry: WorkoutGroupCatalogEntry | undefined
+  advancedTechniques?: AdvancedTechniqueMetadata[]
   exercisesById: Map<string, Exercise>
   referenceWeightsMap: Map<string, ExerciseReferenceWeights>
   isReferenceWeightsLoading: boolean
@@ -33,6 +35,7 @@ export default function SessionWorkout({
   session,
   pendingSetLogs,
   currentGroupEntry,
+  advancedTechniques = [],
   exercisesById,
   referenceWeightsMap,
   isReferenceWeightsLoading,
@@ -83,6 +86,7 @@ export default function SessionWorkout({
               <ExerciseSection
                 key={exercise.id}
                 exercise={exercise}
+                advancedTechniques={advancedTechniques}
                 exerciseName={exerciseName}
                 exerciseUnit={exerciseUnit}
                 exerciseLogs={logsByExerciseId.get(exercise.exerciseId) ?? []}

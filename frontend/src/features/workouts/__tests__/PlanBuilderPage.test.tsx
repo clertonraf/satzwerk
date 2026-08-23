@@ -10,6 +10,7 @@ vi.mock('@/services/planService', () => ({
   planService: {
     getMetadata: vi.fn(),
     getStructure: vi.fn(),
+    getAdvancedTechniques: vi.fn(),
     update: vi.fn(),
   },
   workoutGroupService: {
@@ -56,6 +57,7 @@ describe('PlanBuilderPage', () => {
       ],
     })
     vi.mocked(exerciseService.list).mockResolvedValue([])
+    vi.mocked(planService.getAdvancedTechniques).mockResolvedValue([])
 
     render(
       <QueryClientWrapper>

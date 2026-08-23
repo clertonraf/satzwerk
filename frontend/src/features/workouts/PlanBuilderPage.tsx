@@ -74,6 +74,14 @@ export default function PlanBuilderPage() {
     queryKey: queryKeys.exercises.all(),
     queryFn: () => exerciseService.list(),
   })
+  const {
+    data: advancedTechniques = [],
+    isLoading: isAdvancedTechniquesLoading,
+    error: advancedTechniquesError,
+  } = useQuery({
+    queryKey: queryKeys.plans.advancedTechniques(),
+    queryFn: () => planService.getAdvancedTechniques(),
+  })
 
   const updatePlanMutation = usePlanDetailMutation(planId!, (name: string) => planService.update(planId!, name), {
     onSuccess: () => setIsEditingName(false),
@@ -101,7 +109,17 @@ export default function PlanBuilderPage() {
     return <p className="text-sm text-muted-foreground">Workout plan not found.</p>
   }
 
-  if (metadataQuery.isLoading || structureQuery.isLoading || !metadataQuery.data || !structureQuery.data) {
+  if (metadataQuery.error || structureQuery.error || advancedTechniquesError) {
+    return <p className="text-sm text-destructive">Could not load workout plan.</p>
+  }
+
+  if (
+    metadataQuery.isLoading ||
+    structureQuery.isLoading ||
+    isAdvancedTechniquesLoading ||
+    !metadataQuery.data ||
+    !structureQuery.data
+  ) {
     return <p className="text-sm text-muted-foreground">Loading workout plan...</p>
   }
 
@@ -160,6 +178,7 @@ export default function PlanBuilderPage() {
                 key={group.id}
                 planId={planId}
                 group={group}
+                advancedTechniques={advancedTechniques}
                 exerciseOptions={exerciseOptions}
                 onAddExercise={(groupId, data) => createExerciseMutation.mutateAsync({ groupId, data })}
                 onDeleteExercise={(groupId, exerciseId) => deleteExerciseMutation.mutateAsync({ groupId, exerciseId })}

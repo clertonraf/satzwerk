@@ -2,6 +2,7 @@ package com.satzwerk.workouts
 
 import com.satzwerk.PostgresTestContainer
 import com.satzwerk.auth.AuthResponse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -76,6 +77,48 @@ class WorkoutPlanIntegrationTest : PostgresTestContainer() {
             .jsonPath("$.id").isEqualTo(planId.toString())
             .jsonPath("$.name").isEqualTo("PPL")
             .jsonPath("$.groups.length()").isEqualTo(0)
+    }
+
+    @Test
+    fun `advanced technique metadata exposes backend owned labels descriptions and rest guidance`() {
+        client
+            .get()
+            .uri("/api/plans/advanced-techniques")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(5)
+            .jsonPath("$[0].value").isEqualTo("SST")
+            .jsonPath("$[0].label").isEqualTo("SST")
+            .jsonPath("$[0].description").value<String> { description ->
+                assertTrue(description.contains("drop the load", ignoreCase = true))
+            }
+            .jsonPath("$[0].restSeconds").isEqualTo(0)
+            .jsonPath("$[1].value").isEqualTo("REST_PAUSE")
+            .jsonPath("$[1].label").isEqualTo("REST PAUSE")
+            .jsonPath("$[1].description").value<String> { description ->
+                assertTrue(description.contains("15 to 20 seconds", ignoreCase = true))
+            }
+            .jsonPath("$[1].restSeconds").isEqualTo(20)
+            .jsonPath("$[2].value").isEqualTo("GVT")
+            .jsonPath("$[2].label").isEqualTo("GVT")
+            .jsonPath("$[2].description").value<String> { description ->
+                assertTrue(description.contains("10 sets of 10", ignoreCase = true))
+            }
+            .jsonPath("$[2].restSeconds").isEqualTo(60)
+            .jsonPath("$[3].value").isEqualTo("FST_7")
+            .jsonPath("$[3].label").isEqualTo("FST-7")
+            .jsonPath("$[3].description").value<String> { description ->
+                assertTrue(description.contains("7 high-intensity sets", ignoreCase = true))
+            }
+            .jsonPath("$[3].restSeconds").isEqualTo(30)
+            .jsonPath("$[4].value").isEqualTo("GIRONDA")
+            .jsonPath("$[4].label").isEqualTo("GIRONDA")
+            .jsonPath("$[4].description").value<String> { description ->
+                assertTrue(description.contains("8 sets of 8", ignoreCase = true))
+            }
+            .jsonPath("$[4].restSeconds").isEqualTo(30)
     }
 
     @Test

@@ -20,11 +20,12 @@ import { toPounds, setLogCompletionClass } from '@/features/sessions/sessionHelp
 import { getAdvancedTechniqueRestSeconds } from '@/features/workouts/advancedTechnique'
 import { cn } from '@/lib/utils'
 import { formatDisplayWeight } from '@/lib/unitFormatters'
+import type { AdvancedTechniqueMetadata, WorkoutExerciseSummary } from '@/services/planService'
 import type { ExerciseReferenceWeights, SetLogResult } from '@/services/sessionService'
-import type { WorkoutExerciseSummary } from '@/services/planService'
 
 interface ExerciseSectionProps {
   exercise: WorkoutExerciseSummary
+  advancedTechniques?: AdvancedTechniqueMetadata[]
   exerciseName: string
   exerciseUnit: 'kg' | 'lb'
   exerciseLogs: SetLogResult[]
@@ -42,6 +43,7 @@ interface ExerciseSectionProps {
 
 export default function ExerciseSection({
   exercise,
+  advancedTechniques = [],
   exerciseName,
   exerciseUnit,
   exerciseLogs,
@@ -60,7 +62,7 @@ export default function ExerciseSection({
   const [pendingDeleteSetLogId, setPendingDeleteSetLogId] = useState<string | null>(null)
   const pendingDeleteLog = pendingDeleteSetLogId ? exerciseLogs.find((l) => l.id === pendingDeleteSetLogId) : null
   const nextSetNumber = exerciseLogs.length + 1
-  const techniqueRestSeconds = getAdvancedTechniqueRestSeconds(exercise.advancedTechnique)
+  const techniqueRestSeconds = getAdvancedTechniqueRestSeconds(advancedTechniques, exercise.advancedTechnique)
   const lastLog = exerciseLogs.length > 0 ? exerciseLogs[exerciseLogs.length - 1] : undefined
 
   return (
@@ -74,7 +76,12 @@ export default function ExerciseSection({
                 ? `Target ${exercise.sets} sets until failure`
                 : `Target ${exercise.sets} sets × ${exercise.reps} reps`}
             </CardDescription>
-            {exercise.advancedTechnique ? <AdvancedTechniqueBadge technique={exercise.advancedTechnique} /> : null}
+            {exercise.advancedTechnique ? (
+              <AdvancedTechniqueBadge
+                advancedTechniques={advancedTechniques}
+                technique={exercise.advancedTechnique}
+              />
+            ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-1 rounded-lg border border-border p-1">
             <Button

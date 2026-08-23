@@ -13,10 +13,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { ADVANCED_TECHNIQUE_OPTIONS } from '@/features/workouts/advancedTechnique'
+import { buildAdvancedTechniqueOptions } from '@/features/workouts/advancedTechnique'
 import WorkoutExerciseRow from '@/features/workouts/WorkoutExerciseRow'
 import {
   workoutExerciseService,
+  type AdvancedTechniqueMetadata,
   type CreateWorkoutExerciseRequest,
   type UpdateWorkoutExerciseRequest,
   type WorkoutGroupDetail,
@@ -45,6 +46,7 @@ export interface ExerciseOption {
 export interface WorkoutGroupSectionProps {
   group: WorkoutGroupDetail
   planId: string
+  advancedTechniques?: AdvancedTechniqueMetadata[]
   exerciseOptions?: ExerciseOption[]
   onAddExercise?: (groupId: string, data: CreateWorkoutExerciseRequest) => void | Promise<unknown>
   onDeleteExercise: (groupId: string, exerciseId: string) => void | Promise<unknown>
@@ -69,6 +71,7 @@ function normalizeExerciseValues(values: ExerciseFormValues): CreateWorkoutExerc
 export default function WorkoutGroupSection({
   group,
   planId,
+  advancedTechniques = [],
   exerciseOptions = [],
   onAddExercise,
   onDeleteExercise,
@@ -120,6 +123,7 @@ export default function WorkoutGroupSection({
   const reorderMutation = usePlanDetailMutation(planId, ({ exerciseId, direction }: { exerciseId: string; direction: 'UP' | 'DOWN' }) =>
     workoutExerciseService.reorder(planId, group.id, exerciseId, direction)
   )
+  const advancedTechniqueOptions = buildAdvancedTechniqueOptions(advancedTechniques)
 
   const exercises = group.exercises.slice().sort((left, right) => left.orderIndex - right.orderIndex)
 
@@ -154,6 +158,7 @@ export default function WorkoutGroupSection({
             <WorkoutExerciseRow
               key={exercise.id}
               exercise={exercise}
+              advancedTechniques={advancedTechniques}
               isFirst={index === 0}
               isLast={index === exercises.length - 1}
               onDelete={(exerciseId) => onDeleteExercise(group.id, exerciseId)}
@@ -281,7 +286,7 @@ export default function WorkoutGroupSection({
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   {...registerExercise('advancedTechnique')}
                 >
-                  {ADVANCED_TECHNIQUE_OPTIONS.map((option) => (
+                  {advancedTechniqueOptions.map((option) => (
                     <option key={option.value || 'none'} value={option.value}>
                       {option.label}
                     </option>

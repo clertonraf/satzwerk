@@ -3,6 +3,7 @@ export const queryKeys = {
     all: () => ['plans'] as const,
     metadata: (id: string) => ['plans', 'metadata', id] as const,
     structure: (id: string) => ['plans', 'structure', id] as const,
+    advancedTechniques: () => ['advanced-techniques'] as const,
   },
   exercises: {
     all: () => ['exercises'] as const,
