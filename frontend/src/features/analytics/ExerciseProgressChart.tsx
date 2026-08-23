@@ -13,6 +13,7 @@ export default function ExerciseProgressChart({ progress, isLoading }: ExerciseP
     <div>
       <p className="text-sm font-medium">Top set progression</p>
       <p className="text-xs text-muted-foreground">{progress.exerciseName}</p>
+      <p className="text-xs text-muted-foreground">{progress.points.length} data point{progress.points.length !== 1 ? 's' : ''}</p>
     </div>
   )
 }
