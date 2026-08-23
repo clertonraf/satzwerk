@@ -11,32 +11,32 @@ data class UpsertMeasurementRequest(
     @field:NotNull
     val measurementDate: LocalDate,
     @field:DecimalMin("0.01")
-    val shoulders: BigDecimal? = null,
+    override val shoulders: BigDecimal? = null,
     @field:DecimalMin("0.01")
-    val chest: BigDecimal? = null,
+    override val chest: BigDecimal? = null,
     @field:DecimalMin("0.01")
-    val weightKg: BigDecimal? = null,
+    override val weightKg: BigDecimal? = null,
     @field:DecimalMin("0.01")
-    val rightBicep: BigDecimal? = null,
+    override val rightBicep: BigDecimal? = null,
     @field:DecimalMin("0.01")
-    val leftBicep: BigDecimal? = null,
+    override val leftBicep: BigDecimal? = null,
     @field:DecimalMin("0.01")
-    val rightForearm: BigDecimal? = null,
+    override val rightForearm: BigDecimal? = null,
     @field:DecimalMin("0.01")
-    val leftForearm: BigDecimal? = null,
+    override val leftForearm: BigDecimal? = null,
     @field:DecimalMin("0.01")
-    val abdomen: BigDecimal? = null,
+    override val abdomen: BigDecimal? = null,
     @field:DecimalMin("0.01")
-    val glutes: BigDecimal? = null,
+    override val glutes: BigDecimal? = null,
     @field:DecimalMin("0.01")
-    val rightThigh: BigDecimal? = null,
+    override val rightThigh: BigDecimal? = null,
     @field:DecimalMin("0.01")
-    val leftThigh: BigDecimal? = null,
+    override val leftThigh: BigDecimal? = null,
     @field:DecimalMin("0.01")
-    val rightCalf: BigDecimal? = null,
+    override val rightCalf: BigDecimal? = null,
     @field:DecimalMin("0.01")
-    val leftCalf: BigDecimal? = null,
-)
+    override val leftCalf: BigDecimal? = null,
+) : BodyMeasurementFieldSource
 
 data class MeasurementResponse(
     val id: UUID,
@@ -57,24 +57,3 @@ data class MeasurementResponse(
     val createdAt: Instant,
     val updatedAt: Instant,
 )
-
-fun BodyMeasurement.toResponse(): MeasurementResponse =
-    MeasurementResponse(
-        id = requireNotNull(id),
-        measurementDate = measurementDate,
-        shoulders = shoulders,
-        chest = chest,
-        weightKg = weightKg,
-        rightBicep = rightBicep,
-        leftBicep = leftBicep,
-        rightForearm = rightForearm,
-        leftForearm = leftForearm,
-        abdomen = abdomen,
-        glutes = glutes,
-        rightThigh = rightThigh,
-        leftThigh = leftThigh,
-        rightCalf = rightCalf,
-        leftCalf = leftCalf,
-        createdAt = createdAt,
-        updatedAt = updatedAt,
-    )

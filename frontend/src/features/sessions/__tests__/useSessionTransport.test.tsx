@@ -4,7 +4,11 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { offlineQueue } from '@/services/offlineQueue'
 import { sessionService } from '@/services/sessionService'
-import { useSessionTransport } from '../useSessionTransport'
+import {
+  createOnlineSetLogTransport,
+  createQueuedSetLogTransport,
+  useSessionTransport,
+} from '../useSessionTransport'
 
 vi.mock('@/services/sessionService', () => ({
   sessionService: {
@@ -27,76 +31,239 @@ vi.mock('@/hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }))
 
+const addSetLogRequest = {
+  exerciseId: 'exercise-1',
+  setNumber: 1,
+  weight: 80,
+  reps: 5,
+}
+
+const submittedSetLog = {
+  id: 'setlog-1',
+  exerciseId: 'exercise-1',
+  setNumber: 1,
+  weight: 80,
+  reps: 5,
+  loggedAt: '2026-01-01T00:00:00Z',
+}
+
 function makeWrapper(queryClient: QueryClient) {
   return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   )
 }
 
-describe('useSessionTransport — offline updateSetLog', () => {
+describe('createOnlineSetLogTransport', () => {
+  beforeEach(() => {
+    vi.mocked(sessionService.addSetLog).mockReset()
+    vi.mocked(sessionService.updateSetLog).mockReset()
+  })
+
+  it('submits addSetLog through the online adapter contract', async () => {
+    vi.mocked(sessionService.addSetLog).mockResolvedValue(submittedSetLog)
+
+    const transport = createOnlineSetLogTransport({
+      addSetLog: sessionService.addSetLog,
+      updateSetLog: sessionService.updateSetLog,
+    })
+
+    await expect(transport.addSetLog('session-1', addSetLogRequest)).resolves.toEqual({
+      ...submittedSetLog,
+      pending: false,
+    })
+
+    expect(sessionService.addSetLog).toHaveBeenCalledWith('session-1', addSetLogRequest)
+  })
+
+  it('submits updateSetLog through the online adapter contract', async () => {
+    vi.mocked(sessionService.updateSetLog).mockResolvedValue({
+      ...submittedSetLog,
+      weight: 82.5,
+      reps: 4,
+    })
+
+    const transport = createOnlineSetLogTransport({
+      addSetLog: sessionService.addSetLog,
+      updateSetLog: sessionService.updateSetLog,
+    })
+
+    await expect(
+      transport.updateSetLog('session-1', 'setlog-1', { weight: 82.5, reps: 4 }),
+    ).resolves.toEqual({
+      weight: 82.5,
+      reps: 4,
+    })
+
+    expect(sessionService.updateSetLog).toHaveBeenCalledWith('session-1', 'setlog-1', {
+      weight: 82.5,
+      reps: 4,
+    })
+  })
+})
+
+describe('createQueuedSetLogTransport', () => {
+  beforeEach(() => {
+    vi.mocked(offlineQueue.enqueue).mockReset()
+  })
+
+  it('queues addSetLog through the queued adapter contract', async () => {
+    vi.mocked(offlineQueue.enqueue).mockResolvedValue(1)
+
+    const transport = createQueuedSetLogTransport({
+      enqueue: offlineQueue.enqueue,
+    })
+
+    const queued = await transport.addSetLog('session-1', addSetLogRequest)
+
+    expect(offlineQueue.enqueue).toHaveBeenCalledWith({
+      type: 'add-set',
+      sessionId: 'session-1',
+      data: addSetLogRequest,
+    })
+    expect(queued).toMatchObject({
+      ...addSetLogRequest,
+      pending: true,
+    })
+    expect(queued.id).toMatch(/^queued-session-1-exercise-1-1-\d+$/)
+  })
+
+  it('queues updateSetLog through the queued adapter contract', async () => {
+    vi.mocked(offlineQueue.enqueue).mockResolvedValue(1)
+
+    const transport = createQueuedSetLogTransport({
+      enqueue: offlineQueue.enqueue,
+    })
+
+    await expect(
+      transport.updateSetLog('session-1', 'setlog-1', { weight: 82.5, reps: 4 }),
+    ).resolves.toEqual({
+      weight: 82.5,
+      reps: 4,
+    })
+
+    expect(offlineQueue.enqueue).toHaveBeenCalledWith({
+      type: 'update-set',
+      sessionId: 'session-1',
+      setLogId: 'setlog-1',
+      data: { weight: 82.5, reps: 4 },
+    })
+  })
+})
+
+describe('useSessionTransport', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
     vi.mocked(offlineQueue.enqueue).mockReset()
+    vi.mocked(sessionService.addSetLog).mockReset()
     vi.mocked(sessionService.updateSetLog).mockReset()
-    mockIsOnline = false
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   })
 
-  it('returns only weight and reps when offline — no exerciseId or setNumber', async () => {
+  it('uses the same caller contract to submit addSetLog online', async () => {
+    mockIsOnline = true
+    vi.mocked(sessionService.addSetLog).mockResolvedValue(submittedSetLog)
+
+    const { result } = renderHook(() => useSessionTransport(), {
+      wrapper: makeWrapper(queryClient),
+    })
+
+    await expect(
+      act(async () => result.current.transport.addSetLog('session-1', addSetLogRequest)),
+    ).resolves.toEqual({
+      ...submittedSetLog,
+      pending: false,
+    })
+
+    expect(sessionService.addSetLog).toHaveBeenCalledWith('session-1', addSetLogRequest)
+    expect(offlineQueue.enqueue).not.toHaveBeenCalled()
+  })
+
+  it('uses the same caller contract to submit addSetLog offline', async () => {
+    mockIsOnline = false
     vi.mocked(offlineQueue.enqueue).mockResolvedValue(1)
 
     const { result } = renderHook(() => useSessionTransport(), {
       wrapper: makeWrapper(queryClient),
     })
 
-    let update: { weight: number; reps: number } | undefined
+    let queued: unknown
+
     await act(async () => {
-      update = await result.current.transport.updateSetLog('session-1', 'setlog-42', {
-        weight: 75,
-        reps: 8,
+      queued = await result.current.transport.addSetLog('session-1', addSetLogRequest)
+    })
+
+    expect(offlineQueue.enqueue).toHaveBeenCalledWith({
+      type: 'add-set',
+      sessionId: 'session-1',
+      data: addSetLogRequest,
+    })
+    expect(sessionService.addSetLog).not.toHaveBeenCalled()
+    expect(queued).toMatchObject({
+      ...addSetLogRequest,
+      pending: true,
+    })
+  })
+
+  it('uses the same caller contract to update a SetLog online', async () => {
+    mockIsOnline = true
+    vi.mocked(sessionService.updateSetLog).mockResolvedValue({
+      ...submittedSetLog,
+      weight: 82.5,
+      reps: 4,
+    })
+
+    const { result } = renderHook(() => useSessionTransport(), {
+      wrapper: makeWrapper(queryClient),
+    })
+
+    let updated: unknown
+
+    await act(async () => {
+      updated = await result.current.transport.updateSetLog('session-1', 'setlog-1', {
+        weight: 82.5,
+        reps: 4,
       })
     })
 
-    expect(update).toEqual({ weight: 75, reps: 8 })
+    expect(sessionService.updateSetLog).toHaveBeenCalledWith('session-1', 'setlog-1', {
+      weight: 82.5,
+      reps: 4,
+    })
+    expect(offlineQueue.enqueue).not.toHaveBeenCalled()
+    expect(updated).toEqual({
+      weight: 82.5,
+      reps: 4,
+    })
   })
 
-  it('enqueues an update-set op when offline', async () => {
+  it('uses the same caller contract to update a SetLog offline', async () => {
+    mockIsOnline = false
     vi.mocked(offlineQueue.enqueue).mockResolvedValue(1)
 
     const { result } = renderHook(() => useSessionTransport(), {
       wrapper: makeWrapper(queryClient),
     })
 
+    let updated: unknown
+
     await act(async () => {
-      await result.current.transport.updateSetLog('session-1', 'setlog-42', {
-        weight: 75,
-        reps: 8,
+      updated = await result.current.transport.updateSetLog('session-1', 'setlog-1', {
+        weight: 82.5,
+        reps: 4,
       })
     })
 
     expect(offlineQueue.enqueue).toHaveBeenCalledWith({
       type: 'update-set',
       sessionId: 'session-1',
-      setLogId: 'setlog-42',
-      data: { weight: 75, reps: 8 },
+      setLogId: 'setlog-1',
+      data: { weight: 82.5, reps: 4 },
     })
-  })
-
-  it('does not call sessionService.updateSetLog when offline', async () => {
-    vi.mocked(offlineQueue.enqueue).mockResolvedValue(1)
-
-    const { result } = renderHook(() => useSessionTransport(), {
-      wrapper: makeWrapper(queryClient),
-    })
-
-    await act(async () => {
-      await result.current.transport.updateSetLog('session-1', 'setlog-42', {
-        weight: 75,
-        reps: 8,
-      })
-    })
-
     expect(sessionService.updateSetLog).not.toHaveBeenCalled()
+    expect(updated).toEqual({
+      weight: 82.5,
+      reps: 4,
+    })
   })
 })

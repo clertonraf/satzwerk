@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpStatus
 import org.springframework.web.reactive.function.server.CoRouterFunctionDsl
+import org.springframework.web.reactive.function.server.ServerRequest
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import org.springframework.web.reactive.function.server.buildAndAwait
@@ -71,21 +72,17 @@ private fun CoRouterFunctionDsl.sessionSetLogRoutes(
     validator: Validator,
 ) {
     POST("/{id}/set-logs") { request ->
-        handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
-            val ctx = RequestContext(request)
+        withOwnedOpenSession(request, workoutSessionService) { ctx, session ->
             val body = ctx.body<AddSetLogRequest>()
             validateOrBadRequest(validator, body) {
-                val session = workoutSessionService.requireOwnedOpenSession(ctx.userId(), ctx.pathId("id"))
                 ServerResponse.status(HttpStatus.CREATED).bodyValueAndAwait(setLogService.add(session, body))
             }
         }
     }
     PATCH("/{id}/set-logs/{setLogId}") { request ->
-        handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
-            val ctx = RequestContext(request)
+        withOwnedOpenSession(request, workoutSessionService) { ctx, session ->
             val body = ctx.body<UpdateSetLogRequest>()
             validateOrBadRequest(validator, body) {
-                val session = workoutSessionService.requireOwnedOpenSession(ctx.userId(), ctx.pathId("id"))
                 ServerResponse.ok().bodyValueAndAwait(
                     setLogService.update(session, ctx.pathId("setLogId"), body),
                 )
@@ -93,14 +90,22 @@ private fun CoRouterFunctionDsl.sessionSetLogRoutes(
         }
     }
     DELETE("/{id}/set-logs/{setLogId}") { request ->
-        handleErrors(extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) {
-            val ctx = RequestContext(request)
-            val session = workoutSessionService.requireOwnedOpenSession(ctx.userId(), ctx.pathId("id"))
+        withOwnedOpenSession(request, workoutSessionService) { ctx, session ->
             setLogService.delete(session, ctx.pathId("setLogId"))
             ServerResponse.noContent().buildAndAwait()
         }
     }
 }
+
+internal suspend fun withOwnedOpenSession(
+    request: ServerRequest,
+    workoutSessionService: WorkoutSessionService,
+    block: suspend (RequestContext, WorkoutSession) -> ServerResponse,
+): ServerResponse =
+    handleErrors(request, extra = mapOf(ConflictException::class to HttpStatus.CONFLICT)) { ctx ->
+        val session = workoutSessionService.requireOwnedOpenSession(ctx.userId(), ctx.pathId("id"))
+        block(ctx, session)
+    }
 
 private fun CoRouterFunctionDsl.sessionLifecycleRoutes(workoutSessionService: WorkoutSessionService) {
     POST("/{id}/complete") { request ->

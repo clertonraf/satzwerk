@@ -1,7 +1,8 @@
 export const queryKeys = {
   plans: {
     all: () => ['plans'] as const,
-    detail: (id: string) => ['plans', id] as const,
+    metadata: (id: string) => ['plans', 'metadata', id] as const,
+    structure: (id: string) => ['plans', 'structure', id] as const,
   },
   exercises: {
     all: () => ['exercises'] as const,

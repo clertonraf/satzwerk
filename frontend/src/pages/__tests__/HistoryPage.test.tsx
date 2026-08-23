@@ -18,7 +18,7 @@ vi.mock('@/services/sessionService', () => ({
 vi.mock('@/services/planService', () => ({
   planService: {
     list: vi.fn(),
-    get: vi.fn(),
+    getStructure: vi.fn(),
   },
 }))
 
@@ -122,7 +122,7 @@ describe('HistoryPage', () => {
     const setLogs = Array.from({ length: 12 }, (_, i) => makeSetLog(i))
     vi.mocked(sessionService.history).mockResolvedValue([makeSession({ setLogs })])
     vi.mocked(planService.list).mockResolvedValue([mockPlan])
-    vi.mocked(planService.get).mockResolvedValue(makePlanDetail(5))
+    vi.mocked(planService.getStructure).mockResolvedValue({ groups: makePlanDetail(5).groups })
     vi.mocked(exerciseService.list).mockResolvedValue([])
 
     render(
@@ -141,8 +141,7 @@ describe('HistoryPage', () => {
     const setLogs = Array.from({ length: 5 }, (_, i) => makeSetLog(i))
     vi.mocked(sessionService.history).mockResolvedValue([makeSession({ setLogs })])
     vi.mocked(planService.list).mockResolvedValue([mockPlan])
-    vi.mocked(planService.get).mockResolvedValue({
-      ...mockPlan,
+    vi.mocked(planService.getStructure).mockResolvedValue({
       groups: [{ id: GROUP_ID, title: 'Push Day', orderIndex: 0, exercises: [] }],
     })
     vi.mocked(exerciseService.list).mockResolvedValue([])
