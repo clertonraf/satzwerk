@@ -125,6 +125,28 @@ class RequestContextTest {
     }
 
     @Test
+    fun `principal throws for unsupported non-jwt credentials`() {
+        val userId = UUID.randomUUID()
+        val authentication =
+            UsernamePasswordAuthenticationToken(
+                userId.toString(),
+                "unexpected-credentials",
+                listOf(SimpleGrantedAuthority("analytics:read")),
+            )
+        `when`(request.principal()).thenReturn(Mono.just(authentication))
+
+        val ex =
+            assertThrows<IllegalStateException> {
+                runBlocking { ctx.principal() }
+            }
+
+        assertEquals(
+            "Unsupported authentication credentials for request principal: java.lang.String",
+            ex.message,
+        )
+    }
+
+    @Test
     fun `requirePartnerAppPrincipal rejects non-partner authentication`() {
         val userId = UUID.randomUUID()
         val authentication =
