@@ -194,6 +194,30 @@ describe('AnalyticsPage', () => {
     expect(screen.queryByText('Recent sessions')).toBeNull()
   })
 
+  it('renders progress error state when exerciseProgress query fails', async () => {
+    vi.mocked(analyticsService.topExercises).mockResolvedValue([
+      { exerciseId: 'ex-1', exerciseName: 'Bench Press', setCount: 42 },
+    ])
+    vi.mocked(analyticsService.exerciseProgress).mockRejectedValue(new Error('Network error'))
+
+    render(
+      <QueryClientWrapper>
+        <MemoryRouter>
+          <AnalyticsPage />
+        </MemoryRouter>
+      </QueryClientWrapper>,
+    )
+
+    await screen.findByRole('button', { name: 'Bench Press' })
+    expect(
+      await screen.findByText('Could not load progress for this Exercise. Please try again later.'),
+    ).toBeInTheDocument()
+    // Chart and history must not appear in an error state
+    expect(screen.queryByText('Top set progression')).toBeNull()
+    expect(screen.queryByText('Recent sessions')).toBeNull()
+    expect(screen.queryByText('No completed sessions for this Exercise yet.')).toBeNull()
+  })
+
   it('shows a loading message while exercise progress is being fetched', async () => {
     vi.mocked(analyticsService.topExercises).mockResolvedValue([
       { exerciseId: 'ex-1', exerciseName: 'Bench Press', setCount: 42 },

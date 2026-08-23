@@ -29,7 +29,7 @@ class AnalyticsExerciseProgressIntegrationTest : PostgresTestContainer() {
     lateinit var databaseClient: DatabaseClient
 
     @Test
-    fun `exercise progress returns 404 for exercise with no completed sessions`() {
+    fun `exercise progress returns 200 with empty points and recentSessions for exercise with no completed sessions`() {
         val token = registerAndLogin()
         val exerciseId = createExercise(token, "Overhead Press")
 
@@ -37,7 +37,12 @@ class AnalyticsExerciseProgressIntegrationTest : PostgresTestContainer() {
             .uri("/api/analytics/exercises/$exerciseId/progress")
             .header(HttpHeaders.AUTHORIZATION, "Bearer $token")
             .exchange()
-            .expectStatus().isNotFound
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.exerciseId").isEqualTo(exerciseId.toString())
+            .jsonPath("$.exerciseName").isEqualTo("Overhead Press")
+            .jsonPath("$.points").isEmpty
+            .jsonPath("$.recentSessions").isEmpty
     }
 
     @Test
@@ -74,6 +79,7 @@ class AnalyticsExerciseProgressIntegrationTest : PostgresTestContainer() {
             .jsonPath("$.points[0].topSetReps").isEqualTo(6)
             .jsonPath("$.points[0].estimatedOneRepMaxKg").isEqualTo(102.00)
             .jsonPath("$.recentSessions[0].sessionDate").isEqualTo("2026-08-01")
+            .jsonPath("$.recentSessions[0].topSetLabel").isEqualTo("85 kg × 6")
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

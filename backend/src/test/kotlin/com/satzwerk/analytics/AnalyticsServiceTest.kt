@@ -1,5 +1,6 @@
 package com.satzwerk.analytics
 
+import com.satzwerk.workouts.ExerciseRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -32,7 +33,7 @@ class AnalyticsServiceTest {
                 onBlocking { findDashboardSummary(any()) } doReturn summaryRow
                 onBlocking { findWorkoutDays(any()) } doReturn workoutDays
             }
-        return AnalyticsService(repo)
+        return AnalyticsService(repo, mock<ExerciseRepository>())
     }
 
     @Test
@@ -119,7 +120,7 @@ class AnalyticsServiceTest {
                     onBlocking { findWorkoutDays(any()) } doReturn emptyList()
                     onBlocking { findTopExercisesBySetCount(any(), any()) } doReturn rows
                 }
-            val result = AnalyticsService(repo).topExercises(userId, limit = 2)
+            val result = AnalyticsService(repo, mock<ExerciseRepository>()).topExercises(userId, limit = 2)
 
             assertEquals(2, result.size)
             assertEquals("Bench Press", result[0].exerciseName)
@@ -145,7 +146,7 @@ class AnalyticsServiceTest {
                     onBlocking { findWorkoutDays(any()) } doReturn emptyList()
                     onBlocking { findLeastExercisesBySetCount(any(), any()) } doReturn rows
                 }
-            val result = AnalyticsService(repo).leastExercises(userId, limit = 2)
+            val result = AnalyticsService(repo, mock<ExerciseRepository>()).leastExercises(userId, limit = 2)
 
             assertEquals(2, result.size)
             assertEquals("Calf Raises", result[0].exerciseName)

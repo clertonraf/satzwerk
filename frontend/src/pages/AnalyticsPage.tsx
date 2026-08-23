@@ -104,8 +104,18 @@ export default function AnalyticsPage() {
         </CardContent>
       </Card>
 
-      <ExerciseProgressChart progress={progressQuery.data ?? null} isLoading={progressQuery.isLoading} />
-      <ExerciseSessionHistoryCard progress={progressQuery.data ?? null} isLoading={progressQuery.isLoading} />
+      {progressQuery.isError ? (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-destructive">Could not load progress for this Exercise. Please try again later.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <ExerciseProgressChart progress={progressQuery.data ?? null} isLoading={progressQuery.isLoading} />
+          <ExerciseSessionHistoryCard progress={progressQuery.data ?? null} isLoading={progressQuery.isLoading} />
+        </>
+      )}
     </div>
   )
 }
