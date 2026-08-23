@@ -27,7 +27,7 @@ private fun parseDate(
 @Configuration
 class PublicAnalyticsRouter {
     @Bean
-    fun publicAnalyticsRoutes(analyticsService: AnalyticsService) =
+    fun publicAnalyticsRoutes(publicAnalyticsService: PublicAnalyticsService) =
         coRouter {
             "/api/public/analytics".nest {
                 /**
@@ -42,7 +42,7 @@ class PublicAnalyticsRouter {
                             ctx.queryParam("from")?.let { parseDate("from", it) }
                                 ?: today.minusMonths(DEFAULT_HEATMAP_MONTHS)
                         val to = ctx.queryParam("to")?.let { parseDate("to", it) } ?: today
-                        ServerResponse.ok().bodyValueAndAwait(analyticsService.heatmap(ctx.userId(), from, to))
+                        ServerResponse.ok().bodyValueAndAwait(publicAnalyticsService.heatmap(ctx.userId(), from, to))
                     }
                 }
             }
