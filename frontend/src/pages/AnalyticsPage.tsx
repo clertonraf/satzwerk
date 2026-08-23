@@ -6,7 +6,7 @@ import ExerciseSessionHistoryCard from '@/features/analytics/ExerciseSessionHist
 import { analyticsService } from '@/services/analyticsService'
 import { queryKeys } from '@/services/queryKeys'
 
-const TOP_EXERCISES_LIMIT = 20
+export const TOP_EXERCISES_LIMIT = 20
 
 export default function AnalyticsPage() {
   const { data: topExercises, isLoading: topExercisesLoading, isError: topExercisesError } = useQuery({

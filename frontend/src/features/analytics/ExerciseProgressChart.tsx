@@ -39,7 +39,7 @@ export default function ExerciseProgressChart({ progress, isLoading }: ExerciseP
             <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={42} />
             <Tooltip
               formatter={(value, name) =>
-                name === 'estimatedOneRepMaxKg' ? [`${value} kg`, 'Estimated 1RM'] : [`${value} kg`, 'Top set']
+                name === 'Estimated 1RM' ? [`${value} kg`, 'Estimated 1RM'] : [`${value} kg`, 'Top set']
               }
               labelFormatter={(value) => `Session ${value}`}
             />

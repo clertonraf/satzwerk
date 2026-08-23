@@ -4,11 +4,9 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { QueryClientWrapper } from '@/test/QueryClientWrapper'
-import AnalyticsPage from '../AnalyticsPage'
+import AnalyticsPage, { TOP_EXERCISES_LIMIT } from '../AnalyticsPage'
 import { analyticsService } from '@/services/analyticsService'
 import { queryKeys } from '@/services/queryKeys'
-
-const TOP_EXERCISES_LIMIT_TEST = 20
 
 vi.mock('@/services/analyticsService', () => ({
   analyticsService: {
@@ -146,7 +144,7 @@ describe('AnalyticsPage', () => {
     vi.mocked(analyticsService.exerciseProgress).mockReset()
     vi.mocked(analyticsService.exerciseProgress).mockResolvedValue(mockProgress)
     queryClient.setQueryData(
-      queryKeys.analytics.topExercises(TOP_EXERCISES_LIMIT_TEST),
+      queryKeys.analytics.topExercises(TOP_EXERCISES_LIMIT),
       [{ exerciseId: 'ex-1', exerciseName: 'Bench Press', setCount: 42 }],
     )
 
