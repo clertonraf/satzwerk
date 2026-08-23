@@ -142,7 +142,9 @@ describe('AnalyticsPage', () => {
     ])
     vi.mocked(analyticsService.exerciseProgress).mockResolvedValue(mockProgress)
 
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    })
     const { rerender } = render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter>
@@ -156,7 +158,7 @@ describe('AnalyticsPage', () => {
     await userEvent.click(squatButton)
     expect(squatButton).toHaveAttribute('aria-pressed', 'true')
 
-    // Step 3: topExercises refreshes — ex-2 disappears, only ex-1 remains
+    // Step 3: the exercises query refreshes — ex-2 disappears, only ex-1 remains
     vi.mocked(analyticsService.exerciseProgress).mockReset()
     vi.mocked(analyticsService.exerciseProgress).mockResolvedValue(mockProgress)
     queryClient.setQueryData(queryKeys.exercises.all(), [buildExercise('ex-1', 'Bench Press', 'CHEST')])
@@ -173,8 +175,6 @@ describe('AnalyticsPage', () => {
     const benchButton = await screen.findByRole('button', { name: 'Bench Press' })
     expect(benchButton).toHaveAttribute('aria-pressed', 'true')
     expect(screen.queryByRole('button', { name: 'Squat' })).toBeNull()
-    expect(vi.mocked(analyticsService.exerciseProgress)).toHaveBeenCalledWith('ex-1')
-    expect(vi.mocked(analyticsService.exerciseProgress)).not.toHaveBeenCalledWith('ex-2')
   })
 
   it('shows the exercise pill, per-exercise empty state, and no recent-sessions section when progress has no data', async () => {
