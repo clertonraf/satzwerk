@@ -20,6 +20,13 @@ export interface WorkoutExerciseSummary {
   orderIndex: number
 }
 
+export interface AdvancedTechniqueMetadata {
+  value: string
+  label: string
+  description: string
+  restSeconds: number | null
+}
+
 export interface WorkoutGroupDetail {
   id: string
   title: string
@@ -43,6 +50,7 @@ export type UpdateWorkoutExerciseRequest = Partial<CreateWorkoutExerciseRequest>
 export const planService = {
   list: () => http.get<WorkoutPlan[]>('/plans'),
   get: (id: string) => http.get<WorkoutPlanDetail>(`/plans/${id}`),
+  getAdvancedTechniques: () => http.get<AdvancedTechniqueMetadata[]>('/plans/advanced-techniques'),
   create: (name: string) => http.post<WorkoutPlan>('/plans', { name }),
   update: (id: string, name: string) => http.patch<WorkoutPlan>(`/plans/${id}`, { name }),
   delete: (id: string) => http.delete(`/plans/${id}`),

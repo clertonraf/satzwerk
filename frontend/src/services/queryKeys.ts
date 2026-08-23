@@ -2,6 +2,7 @@ export const queryKeys = {
   plans: {
     all: () => ['plans'] as const,
     detail: (id: string) => ['plans', id] as const,
+    advancedTechniques: () => ['advanced-techniques'] as const,
   },
   exercises: {
     all: () => ['exercises'] as const,

@@ -77,3 +77,11 @@ fun WorkoutExerciseWithName.toResponse(): WorkoutExerciseResponse =
         advancedTechnique = advancedTechnique,
         orderIndex = orderIndex,
     )
+
+fun AdvancedTechnique.toMetadataResponse(): AdvancedTechniqueMetadataResponse =
+    AdvancedTechniqueMetadataResponse(
+        value = name,
+        label = label,
+        description = description,
+        restSeconds = restSeconds,
+    )

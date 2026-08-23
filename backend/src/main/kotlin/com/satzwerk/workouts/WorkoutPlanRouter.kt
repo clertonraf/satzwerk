@@ -31,7 +31,9 @@ private val workoutPlanErrors: Map<KClass<out Throwable>, HttpStatus> =
     webClientErrors + mapOf(ConflictException::class to HttpStatus.CONFLICT)
 
 @Configuration
-class WorkoutPlanRouter {
+class WorkoutPlanRouter(
+    private val advancedTechniqueService: AdvancedTechniqueService,
+) {
     @Bean
     fun workoutPlanRoutes(
         workoutPlanService: WorkoutPlanService,
@@ -41,9 +43,20 @@ class WorkoutPlanRouter {
         validator: Validator,
     ) = coRouter {
         "/api/plans".nest {
+            planMetadataRoutes(advancedTechniqueService)
             planCrudRoutes(workoutPlanService, planImportService, validator)
             groupRoutes(workoutGroupService, validator)
             workoutExerciseRoutes(workoutExerciseService, validator)
+        }
+    }
+}
+
+private fun CoRouterFunctionDsl.planMetadataRoutes(advancedTechniqueService: AdvancedTechniqueService) {
+    GET("/advanced-techniques") { request ->
+        handleErrors(extra = workoutPlanErrors) {
+            val ctx = RequestContext(request)
+            ctx.userId()
+            ServerResponse.ok().bodyValueAndAwait(advancedTechniqueService.listMetadata())
         }
     }
 }

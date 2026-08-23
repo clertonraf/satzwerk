@@ -2,20 +2,25 @@ import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AdvancedTechniqueBadge from '../AdvancedTechniqueBadge'
+import { advancedTechniqueMetadataFixture } from '@/test/advancedTechniqueMetadata'
 
 describe('AdvancedTechniqueBadge', () => {
   it('renders nothing when technique is null', () => {
-    const { container } = render(<AdvancedTechniqueBadge technique={null} />)
+    const { container } = render(
+      <AdvancedTechniqueBadge advancedTechniques={advancedTechniqueMetadataFixture} technique={null} />
+    )
     expect(container).toBeEmptyDOMElement()
   })
 
   it('renders nothing when technique is undefined', () => {
-    const { container } = render(<AdvancedTechniqueBadge technique={undefined} />)
+    const { container } = render(
+      <AdvancedTechniqueBadge advancedTechniques={advancedTechniqueMetadataFixture} technique={undefined} />
+    )
     expect(container).toBeEmptyDOMElement()
   })
 
   it('renders a button with the technique label', () => {
-    render(<AdvancedTechniqueBadge technique="SST" />)
+    render(<AdvancedTechniqueBadge advancedTechniques={advancedTechniqueMetadataFixture} technique="SST" />)
     expect(screen.getByRole('button', { name: /SST/i })).toBeInTheDocument()
   })
 
@@ -26,13 +31,15 @@ describe('AdvancedTechniqueBadge', () => {
     ['FST_7', 'FST-7'],
     ['GIRONDA', 'GIRONDA'],
   ])('renders technique "%s" with label "%s"', async (technique, label) => {
-    render(<AdvancedTechniqueBadge technique={technique} />)
+    render(
+      <AdvancedTechniqueBadge advancedTechniques={advancedTechniqueMetadataFixture} technique={technique} />
+    )
     expect(screen.getByRole('button', { name: new RegExp(label, 'i') })).toBeInTheDocument()
   })
 
   it('opens a popover with the description when clicked', async () => {
     const user = userEvent.setup()
-    render(<AdvancedTechniqueBadge technique="GVT" />)
+    render(<AdvancedTechniqueBadge advancedTechniques={advancedTechniqueMetadataFixture} technique="GVT" />)
 
     await user.click(screen.getByRole('button', { name: /GVT/i }))
 
@@ -41,7 +48,7 @@ describe('AdvancedTechniqueBadge', () => {
 
   it('closes the popover when Escape is pressed', async () => {
     const user = userEvent.setup()
-    render(<AdvancedTechniqueBadge technique="GVT" />)
+    render(<AdvancedTechniqueBadge advancedTechniques={advancedTechniqueMetadataFixture} technique="GVT" />)
 
     await user.click(screen.getByRole('button', { name: /GVT/i }))
     expect(screen.getByText(/10 sets of 10/i)).toBeInTheDocument()
@@ -51,7 +58,12 @@ describe('AdvancedTechniqueBadge', () => {
   })
 
   it('renders a plain non-interactive badge for an unknown technique value', () => {
-    render(<AdvancedTechniqueBadge technique="UNKNOWN_FUTURE" />)
+    render(
+      <AdvancedTechniqueBadge
+        advancedTechniques={advancedTechniqueMetadataFixture}
+        technique="UNKNOWN_FUTURE"
+      />
+    )
 
     // Unknown technique: label is shown as a span, not a button (no popover)
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
@@ -60,7 +72,7 @@ describe('AdvancedTechniqueBadge', () => {
 
   it('can be activated by keyboard (Enter key)', async () => {
     const user = userEvent.setup()
-    render(<AdvancedTechniqueBadge technique="SST" />)
+    render(<AdvancedTechniqueBadge advancedTechniques={advancedTechniqueMetadataFixture} technique="SST" />)
 
     screen.getByRole('button', { name: /SST/i }).focus()
     await user.keyboard('{Enter}')

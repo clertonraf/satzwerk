@@ -1,13 +1,18 @@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { formatAdvancedTechnique, getAdvancedTechniqueDescription } from '@/features/workouts/advancedTechnique'
+import type { AdvancedTechniqueMetadata } from '@/services/planService'
 
 interface AdvancedTechniqueBadgeProps {
+  advancedTechniques?: AdvancedTechniqueMetadata[]
   technique: string | null | undefined
 }
 
-export default function AdvancedTechniqueBadge({ technique }: AdvancedTechniqueBadgeProps) {
-  const label = formatAdvancedTechnique(technique)
-  const description = getAdvancedTechniqueDescription(technique)
+export default function AdvancedTechniqueBadge({
+  advancedTechniques = [],
+  technique,
+}: AdvancedTechniqueBadgeProps) {
+  const label = formatAdvancedTechnique(advancedTechniques, technique)
+  const description = getAdvancedTechniqueDescription(advancedTechniques, technique)
 
   if (!label) {
     return null

@@ -6,15 +6,17 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import AdvancedTechniqueBadge from '@/features/sessions/AdvancedTechniqueBadge'
-import type { WorkoutGroupDetail } from '@/services/planService'
+import type { AdvancedTechniqueMetadata, WorkoutGroupDetail } from '@/services/planService'
 
 interface WorkoutGroupPreviewModalProps {
+  advancedTechniques?: AdvancedTechniqueMetadata[]
   group: WorkoutGroupDetail
   planName: string
   onClose: () => void
 }
 
 export default function WorkoutGroupPreviewModal({
+  advancedTechniques = [],
   group,
   planName,
   onClose,
@@ -45,7 +47,10 @@ export default function WorkoutGroupPreviewModal({
                     : `${exercise.sets} sets × ${exercise.reps} reps`}
                 </p>
                 {exercise.advancedTechnique ? (
-                  <AdvancedTechniqueBadge technique={exercise.advancedTechnique} />
+                  <AdvancedTechniqueBadge
+                    advancedTechniques={advancedTechniques}
+                    technique={exercise.advancedTechnique}
+                  />
                 ) : null}
               </li>
             ))}

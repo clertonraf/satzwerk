@@ -3,11 +3,8 @@ package com.satzwerk.workouts
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
-import jakarta.validation.constraints.Pattern
 import java.time.Instant
 import java.util.UUID
-
-private const val ADVANCED_TECHNIQUE_PATTERN = "SST|REST_PAUSE|GVT|FST_7|GIRONDA"
 
 data class WorkoutPlanResponse(
     val id: UUID,
@@ -33,6 +30,13 @@ data class WorkoutExerciseResponse(
     val toFailure: Boolean,
     val advancedTechnique: String?,
     val orderIndex: Int,
+)
+
+data class AdvancedTechniqueMetadataResponse(
+    val value: String,
+    val label: String,
+    val description: String,
+    val restSeconds: Int?,
 )
 
 data class WorkoutPlanDetailResponse(
@@ -81,7 +85,7 @@ data class CreateWorkoutExerciseRequest(
     val sets: Int,
     @field:Min(1)
     val reps: Int,
-    @field:Pattern(regexp = ADVANCED_TECHNIQUE_PATTERN)
+    @field:ValidAdvancedTechnique
     val advancedTechnique: String? = null,
     val orderIndex: Int = 0,
 )
@@ -91,7 +95,7 @@ data class UpdateWorkoutExerciseRequest(
     val sets: Int? = null,
     @field:Min(1)
     val reps: Int? = null,
-    @field:Pattern(regexp = ADVANCED_TECHNIQUE_PATTERN)
+    @field:ValidAdvancedTechnique
     val advancedTechnique: String? = null,
     val orderIndex: Int? = null,
 )
