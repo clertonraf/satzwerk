@@ -2,7 +2,6 @@ package com.satzwerk.measurements
 
 import com.satzwerk.common.NotFoundException
 import org.springframework.stereotype.Service
-import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
@@ -36,43 +35,3 @@ class MeasurementService(
         measurementRepository.deleteByUserIdAndMeasurementDate(userId, measurementDate)
     }
 }
-
-// Package-level private helpers keep upsert's cyclomatic complexity under the detekt threshold
-// by distributing the 13-field partial-merge and entity-creation logic into separate functions.
-
-private fun BodyMeasurement.mergeWith(request: UpsertMeasurementRequest): BodyMeasurement =
-    copy(
-        shoulders = request.shoulders ?: shoulders,
-        chest = request.chest ?: chest,
-        weightKg = request.weightKg ?: weightKg,
-        rightBicep = request.rightBicep ?: rightBicep,
-        leftBicep = request.leftBicep ?: leftBicep,
-        rightForearm = request.rightForearm ?: rightForearm,
-        leftForearm = request.leftForearm ?: leftForearm,
-        abdomen = request.abdomen ?: abdomen,
-        glutes = request.glutes ?: glutes,
-        rightThigh = request.rightThigh ?: rightThigh,
-        leftThigh = request.leftThigh ?: leftThigh,
-        rightCalf = request.rightCalf ?: rightCalf,
-        leftCalf = request.leftCalf ?: leftCalf,
-        updatedAt = Instant.now(),
-    )
-
-private fun UpsertMeasurementRequest.toEntity(userId: UUID): BodyMeasurement =
-    BodyMeasurement(
-        userId = userId,
-        measurementDate = measurementDate,
-        shoulders = shoulders,
-        chest = chest,
-        weightKg = weightKg,
-        rightBicep = rightBicep,
-        leftBicep = leftBicep,
-        rightForearm = rightForearm,
-        leftForearm = leftForearm,
-        abdomen = abdomen,
-        glutes = glutes,
-        rightThigh = rightThigh,
-        leftThigh = leftThigh,
-        rightCalf = rightCalf,
-        leftCalf = leftCalf,
-    )
