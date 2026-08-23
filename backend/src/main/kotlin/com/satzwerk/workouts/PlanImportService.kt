@@ -14,6 +14,7 @@ class PlanImportService(
     private val workoutGroupRepository: WorkoutGroupRepository,
     private val workoutExerciseRepository: WorkoutExerciseRepository,
     private val exerciseResolver: ExerciseResolver,
+    private val planImportParsingAdapters: PlanImportParsingAdapters,
 ) {
     @Transactional
     suspend fun import(
@@ -21,7 +22,7 @@ class PlanImportService(
         filePart: FilePart,
     ): WorkoutPlanResponse {
         val parsed = planParser.parse(filePart)
-        val planName = planNameFromFilename(filePart.filename())
+        val planName = planImportParsingAdapters.normalizeFilename(filePart.filename())
 
         val plan =
             workoutPlanRepository.save(
@@ -81,7 +82,7 @@ class PlanImportService(
                         sets = parsedExercise.sets,
                         reps = reps,
                         toFailure = toFailure,
-                        advancedTechnique = mapTechnique(parsedExercise.advancedTechnique),
+                        advancedTechnique = planImportParsingAdapters.parseTechnique(parsedExercise.advancedTechnique),
                         orderIndex = exerciseIndex,
                     )
                 }
@@ -95,15 +96,4 @@ class PlanImportService(
         } else {
             repsNode.asInt() to false
         }
-
-    internal fun mapTechnique(raw: String?): String? =
-        raw?.let {
-            AdvancedTechnique.fromParserString(it)?.name
-        }
-
-    internal fun planNameFromFilename(filename: String): String =
-        filename.substringBeforeLast(".")
-            .replace("_", " ")
-            .replace("-", " ")
-            .trim()
 }
