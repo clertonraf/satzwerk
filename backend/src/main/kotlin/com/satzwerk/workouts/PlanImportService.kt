@@ -45,7 +45,7 @@ class PlanImportService(
         val exerciseByNameLower = exerciseResolver.resolve(userId, nameToMuscleGroup)
         createGroupsAndExercises(planId, parsed, exerciseByNameLower)
 
-        return plan.toResponse()
+        return WorkoutPlanResponse.from(plan)
     }
 
     private suspend fun createGroupsAndExercises(

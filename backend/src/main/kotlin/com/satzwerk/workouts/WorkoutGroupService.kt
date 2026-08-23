@@ -22,7 +22,7 @@ class WorkoutGroupService(
                     title = request.title,
                     orderIndex = request.orderIndex,
                 ),
-            ).toResponse()
+            ).let(WorkoutGroupResponse::from)
     }
 
     suspend fun update(
@@ -39,7 +39,7 @@ class WorkoutGroupService(
                     orderIndex = request.orderIndex ?: existing.orderIndex,
                     updatedAt = Instant.now(),
                 ),
-            ).toResponse()
+            ).let(WorkoutGroupResponse::from)
     }
 
     suspend fun delete(

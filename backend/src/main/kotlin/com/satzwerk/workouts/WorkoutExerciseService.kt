@@ -34,7 +34,7 @@ class WorkoutExerciseService(
                     advancedTechnique = request.advancedTechnique,
                     orderIndex = request.orderIndex,
                 ),
-            ).toResponse(exercise.name)
+            ).let { WorkoutExerciseResponse.from(it, exercise.name) }
     }
 
     suspend fun update(
@@ -56,7 +56,7 @@ class WorkoutExerciseService(
                     orderIndex = request.orderIndex ?: existing.orderIndex,
                     updatedAt = Instant.now(),
                 ),
-            ).toResponse(exercise.name)
+            ).let { WorkoutExerciseResponse.from(it, exercise.name) }
     }
 
     suspend fun delete(

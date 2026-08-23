@@ -13,13 +13,34 @@ data class WorkoutPlanResponse(
     val isActive: Boolean,
     val createdAt: Instant,
     val updatedAt: Instant,
-)
+) {
+    companion object {
+        internal fun from(plan: WorkoutPlan): WorkoutPlanResponse =
+            WorkoutPlanResponse(
+                id = requireNotNull(plan.id),
+                name = plan.name,
+                source = plan.source,
+                isActive = plan.isActive,
+                createdAt = plan.createdAt,
+                updatedAt = plan.updatedAt,
+            )
+    }
+}
 
 data class WorkoutGroupResponse(
     val id: UUID,
     val title: String,
     val orderIndex: Int,
-)
+) {
+    companion object {
+        internal fun from(group: WorkoutGroup): WorkoutGroupResponse =
+            WorkoutGroupResponse(
+                id = requireNotNull(group.id),
+                title = group.title,
+                orderIndex = group.orderIndex,
+            )
+    }
+}
 
 data class WorkoutExerciseResponse(
     val id: UUID,
@@ -30,14 +51,41 @@ data class WorkoutExerciseResponse(
     val toFailure: Boolean,
     val advancedTechnique: String?,
     val orderIndex: Int,
-)
+) {
+    companion object {
+        internal fun from(
+            workoutExercise: WorkoutExercise,
+            exerciseName: String,
+        ): WorkoutExerciseResponse =
+            WorkoutExerciseResponse(
+                id = requireNotNull(workoutExercise.id),
+                exerciseId = workoutExercise.exerciseId,
+                exerciseName = exerciseName,
+                sets = workoutExercise.sets,
+                reps = workoutExercise.reps,
+                toFailure = workoutExercise.toFailure,
+                advancedTechnique = workoutExercise.advancedTechnique,
+                orderIndex = workoutExercise.orderIndex,
+            )
+    }
+}
 
 data class AdvancedTechniqueMetadataResponse(
     val value: String,
     val label: String,
     val description: String,
     val restSeconds: Int?,
-)
+) {
+    companion object {
+        internal fun from(advancedTechnique: AdvancedTechnique): AdvancedTechniqueMetadataResponse =
+            AdvancedTechniqueMetadataResponse(
+                value = advancedTechnique.name,
+                label = advancedTechnique.label,
+                description = advancedTechnique.description,
+                restSeconds = advancedTechnique.restSeconds,
+            )
+    }
+}
 
 data class WorkoutPlanDetailResponse(
     val id: UUID,
@@ -47,7 +95,33 @@ data class WorkoutPlanDetailResponse(
     val groups: List<WorkoutGroupDetailResponse>,
     val createdAt: Instant,
     val updatedAt: Instant,
-)
+) {
+    companion object {
+        internal fun from(
+            plan: WorkoutPlan,
+            groups: List<WorkoutGroup>,
+            exercisesByGroup: Map<UUID, List<WorkoutExerciseResponse>>,
+        ): WorkoutPlanDetailResponse =
+            WorkoutPlanDetailResponse(
+                id = requireNotNull(plan.id),
+                name = plan.name,
+                source = plan.source,
+                isActive = plan.isActive,
+                groups =
+                    groups.map { group ->
+                        val groupId = requireNotNull(group.id)
+                        WorkoutGroupDetailResponse(
+                            id = groupId,
+                            title = group.title,
+                            orderIndex = group.orderIndex,
+                            exercises = exercisesByGroup[groupId].orEmpty(),
+                        )
+                    },
+                createdAt = plan.createdAt,
+                updatedAt = plan.updatedAt,
+            )
+    }
+}
 
 data class WorkoutGroupDetailResponse(
     val id: UUID,
