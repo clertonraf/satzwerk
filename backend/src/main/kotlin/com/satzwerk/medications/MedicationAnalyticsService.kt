@@ -1,6 +1,5 @@
 package com.satzwerk.medications
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.stereotype.Service
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -21,9 +20,9 @@ fun computeAdherenceStreak(
     (0..STREAK_WINDOW_DAYS.toInt())
         .asSequence()
         .map { daysBack -> today.minusDays(daysBack.toLong()) }
-        .filter { day -> isDueToday(spec, day) }
+        .filter { day -> spec.isDueOn(day) }
         .takeWhile { day ->
-            val required = scheduledCountForToday(spec)
+            val required = spec.scheduledCountOn(day)
             val taken = logsByDay[day]?.count { it.taken } ?: 0
             taken >= required
         }
@@ -33,11 +32,11 @@ fun computeAdherenceStreak(
 class MedicationAnalyticsService(
     private val medicationRepository: MedicationRepository,
     private val medicationLogRepository: MedicationLogRepository,
-    private val objectMapper: ObjectMapper,
+    private val frequencySpecModule: FrequencySpecModule,
 ) {
     suspend fun getAdherenceStreak(medicationId: UUID): Int {
         val medication = medicationRepository.findById(medicationId) ?: return 0
-        val spec = deserializeFrequency(medication.frequency, objectMapper)
+        val spec = frequencySpecModule.deserialize(medication.frequency)
         val today = LocalDate.now(ZoneOffset.UTC)
         val from = today.minusDays(STREAK_WINDOW_DAYS).atStartOfDay(ZoneOffset.UTC).toInstant()
         val to = today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()
@@ -58,7 +57,7 @@ class MedicationAnalyticsService(
         val logsByMed = allLogs.groupBy { it.medicationId }
         return medications.associate { med ->
             val id = requireNotNull(med.id)
-            val spec = deserializeFrequency(med.frequency, objectMapper)
+            val spec = frequencySpecModule.deserialize(med.frequency)
             val logsByDay =
                 (logsByMed[id] ?: emptyList())
                     .groupBy { it.takenAt.atZone(ZoneOffset.UTC).toLocalDate() }
@@ -76,7 +75,7 @@ class MedicationAnalyticsService(
         val to = today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()
 
         val medications = medicationRepository.findByUserIdOrderByNameAsc(userId).filter { it.isActive }
-        val medicationSpecs = medications.map { med -> med to deserializeFrequency(med.frequency, objectMapper) }
+        val medicationSpecs = medications.map { med -> med to frequencySpecModule.deserialize(med.frequency) }
         val logs = medicationLogRepository.findByUserIdAndTakenAtBetweenOrderByTakenAtDesc(userId, from, to)
         val logsByDay = logs.groupBy { it.takenAt.atZone(ZoneOffset.UTC).toLocalDate() }
 
@@ -85,9 +84,7 @@ class MedicationAnalyticsService(
         while (!current.isAfter(today)) {
             val dayLogs = logsByDay[current] ?: emptyList()
             val scheduled =
-                medicationSpecs.sumOf { (_, spec) ->
-                    if (isDueToday(spec, current)) scheduledCountForToday(spec) else 0
-                }
+                medicationSpecs.sumOf { (_, spec) -> spec.scheduledCountOn(current) }
             val taken = dayLogs.count { it.taken }
             val ratio = if (scheduled > 0) taken.toDouble() / scheduled.toDouble() else 0.0
             days.add(
@@ -124,7 +121,7 @@ class MedicationAnalyticsService(
         val to = today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()
 
         val medication = requireOwnedMedication(medicationRepository, userId, medicationId)
-        val spec = deserializeFrequency(medication.frequency, objectMapper)
+        val spec = frequencySpecModule.deserialize(medication.frequency)
         val logs =
             medicationLogRepository.findByMedicationIdAndTakenAtBetweenOrderByTakenAtDesc(
                 medicationId,
@@ -136,7 +133,7 @@ class MedicationAnalyticsService(
         val days = mutableListOf<AdherenceHeatmapDayDto>()
         var current = startDate
         while (!current.isAfter(today)) {
-            val scheduled = if (isDueToday(spec, current)) scheduledCountForToday(spec) else 0
+            val scheduled = spec.scheduledCountOn(current)
             val dayLogs = logsByDay[current] ?: emptyList()
             val taken = dayLogs.count { it.taken }
             val ratio = if (scheduled > 0) taken.toDouble() / scheduled.toDouble() else 0.0

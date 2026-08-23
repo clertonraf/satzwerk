@@ -16,6 +16,7 @@ import java.util.UUID
 
 class MedicationAnalyticsServiceTest {
     private val objectMapper = ObjectMapper().findAndRegisterModules()
+    private val frequencySpecModule = FrequencySpecModule(objectMapper)
     private val userId = UUID.randomUUID()
     private val medicationId = UUID.randomUUID()
 
@@ -48,7 +49,7 @@ class MedicationAnalyticsServiceTest {
         runBlocking {
             val medRepo: MedicationRepository = mock { onBlocking { findById(any()) } doReturn null }
             val logRepo: MedicationLogRepository = mock()
-            val service = MedicationAnalyticsService(medRepo, logRepo, objectMapper)
+            val service = MedicationAnalyticsService(medRepo, logRepo, frequencySpecModule)
 
             assertEquals(0, service.getAdherenceStreak(medicationId))
         }
@@ -70,7 +71,7 @@ class MedicationAnalyticsServiceTest {
                 }
             val medRepo: MedicationRepository =
                 mock { onBlocking { findById(any()) } doReturn dailyMedication() }
-            val service = MedicationAnalyticsService(medRepo, logRepo, objectMapper)
+            val service = MedicationAnalyticsService(medRepo, logRepo, frequencySpecModule)
 
             assertEquals(3, service.getAdherenceStreak(medicationId))
         }
@@ -93,7 +94,7 @@ class MedicationAnalyticsServiceTest {
                 }
             val medRepo: MedicationRepository =
                 mock { onBlocking { findById(any()) } doReturn dailyMedication() }
-            val service = MedicationAnalyticsService(medRepo, logRepo, objectMapper)
+            val service = MedicationAnalyticsService(medRepo, logRepo, frequencySpecModule)
 
             // streak is 1 (only today), broken by the gap
             assertEquals(1, service.getAdherenceStreak(medicationId))
@@ -120,7 +121,7 @@ class MedicationAnalyticsServiceTest {
                 mock {
                     onBlocking { findByUserIdOrderByNameAsc(any()) } doReturn listOf(dailyMedication())
                 }
-            val service = MedicationAnalyticsService(medRepo, logRepo, objectMapper)
+            val service = MedicationAnalyticsService(medRepo, logRepo, frequencySpecModule)
 
             val result = service.getAggregateHeatmap(userId, 1)
 

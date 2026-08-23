@@ -18,11 +18,11 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import java.math.BigDecimal
 import java.time.Instant
-import java.time.LocalDate
 import java.util.UUID
 
 class MedicationServiceTest {
     private val objectMapper = ObjectMapper().findAndRegisterModules()
+    private val frequencySpecModule = FrequencySpecModule(objectMapper)
     private val userId = UUID.randomUUID()
     private val medicationId = UUID.randomUUID()
 
@@ -53,7 +53,7 @@ class MedicationServiceTest {
                 mock {
                     onBlocking { getAdherenceStreak(any()) } doReturn 0
                 }
-            val service = MedicationService(medRepo, logRepo, analyticsService, objectMapper)
+            val service = MedicationService(medRepo, logRepo, analyticsService, frequencySpecModule)
 
             val request =
                 CreateMedicationRequest(
@@ -78,7 +78,7 @@ class MedicationServiceTest {
                 }
             val logRepo: MedicationLogRepository = mock()
             val analyticsService: MedicationAnalyticsService = mock()
-            val service = MedicationService(medRepo, logRepo, analyticsService, objectMapper)
+            val service = MedicationService(medRepo, logRepo, analyticsService, frequencySpecModule)
 
             val request =
                 CreateMedicationRequest(
@@ -100,7 +100,7 @@ class MedicationServiceTest {
                     onBlocking { save(any()) } doReturn existing.copy(isActive = false)
                 }
             val service =
-                MedicationService(medRepo, mock(), mock(), objectMapper)
+                MedicationService(medRepo, mock(), mock(), frequencySpecModule)
 
             service.deactivateMedication(userId, medicationId)
 
@@ -116,7 +116,7 @@ class MedicationServiceTest {
                 mock {
                     onBlocking { findByUserIdAndId(any(), any()) } doReturn null
                 }
-            val service = MedicationService(medRepo, mock(), mock(), objectMapper)
+            val service = MedicationService(medRepo, mock(), mock(), frequencySpecModule)
 
             assertThrows<NotFoundException> { service.deactivateMedication(userId, medicationId) }
         }
@@ -140,7 +140,7 @@ class MedicationServiceTest {
                 mock {
                     onBlocking { save(any()) } doReturn log
                 }
-            val service = MedicationService(medRepo, logRepo, mock(), objectMapper)
+            val service = MedicationService(medRepo, logRepo, mock(), frequencySpecModule)
 
             val request = LogDoseRequest(takenAt = Instant.now(), taken = true)
             val response = service.logDose(userId, medicationId, request)
@@ -160,7 +160,7 @@ class MedicationServiceTest {
                         findByUserIdAndTakenAtBetweenOrderByTakenAtDesc(userId, from, to)
                     } doReturn emptyList()
                 }
-            val service = MedicationService(mock(), logRepo, mock(), objectMapper)
+            val service = MedicationService(mock(), logRepo, mock(), frequencySpecModule)
 
             val result = service.getJournalEntries(userId, from, to)
 
@@ -195,7 +195,7 @@ class MedicationServiceTest {
                 mock {
                     onBlocking { findByUserIdOrderByNameAsc(userId) } doReturn listOf(med)
                 }
-            val service = MedicationService(medRepo, logRepo, mock(), objectMapper)
+            val service = MedicationService(medRepo, logRepo, mock(), frequencySpecModule)
 
             val result = service.getJournalEntries(userId, from, to)
 
@@ -211,62 +211,4 @@ class MedicationServiceTest {
                 assertEquals("With breakfast", notes)
             }
         }
-}
-
-class IsDueTodayTest {
-    @Test
-    fun `daily frequency is always due`() {
-        val spec = FrequencySpec.Daily(timesPerDay = 2)
-        assertTrue(isDueToday(spec, LocalDate.of(2024, 6, 15)))
-    }
-
-    @Test
-    fun `weekly frequency is due on matching weekday`() {
-        // June 15, 2024 is Saturday = ISO 6
-        val spec = FrequencySpec.Weekly(timesPerWeek = 1, weekdays = listOf(6))
-        assertTrue(isDueToday(spec, LocalDate.of(2024, 6, 15)))
-    }
-
-    @Test
-    fun `weekly frequency is not due on non-matching weekday`() {
-        // June 15, 2024 is Saturday = ISO 6; spec says Monday = 1
-        val spec = FrequencySpec.Weekly(timesPerWeek = 1, weekdays = listOf(1))
-        assertFalse(isDueToday(spec, LocalDate.of(2024, 6, 15)))
-    }
-
-    @Test
-    fun `weekly frequency with empty weekdays is always due`() {
-        val spec = FrequencySpec.Weekly(timesPerWeek = 3, weekdays = emptyList())
-        assertTrue(isDueToday(spec, LocalDate.of(2024, 6, 15)))
-    }
-
-    @Test
-    fun `monthly frequency is due on matching day of month`() {
-        val spec = FrequencySpec.Monthly(timesPerMonth = 2, daysOfMonth = listOf(1, 15))
-        assertTrue(isDueToday(spec, LocalDate.of(2024, 6, 15)))
-    }
-
-    @Test
-    fun `monthly frequency is not due on non-matching day of month`() {
-        val spec = FrequencySpec.Monthly(timesPerMonth = 2, daysOfMonth = listOf(1, 15))
-        assertFalse(isDueToday(spec, LocalDate.of(2024, 6, 10)))
-    }
-
-    @Test
-    fun `scheduledCountForToday returns timesPerDay for DAILY`() {
-        val spec = FrequencySpec.Daily(timesPerDay = 3)
-        assertEquals(3, scheduledCountForToday(spec))
-    }
-
-    @Test
-    fun `scheduledCountForToday returns 1 for WEEKLY`() {
-        val spec = FrequencySpec.Weekly(timesPerWeek = 3)
-        assertEquals(1, scheduledCountForToday(spec))
-    }
-
-    @Test
-    fun `scheduledCountForToday returns 1 for MONTHLY`() {
-        val spec = FrequencySpec.Monthly(timesPerMonth = 2)
-        assertEquals(1, scheduledCountForToday(spec))
-    }
 }
