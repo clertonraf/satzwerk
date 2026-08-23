@@ -4,7 +4,6 @@ import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ForbiddenException
 import com.satzwerk.common.NotFoundException
 import org.springframework.stereotype.Service
-import java.security.SecureRandom
 import java.time.Instant
 import java.util.UUID
 
@@ -14,7 +13,7 @@ private const val RAW_TOKEN_RANDOM_BYTES = 16
 @Service
 class PersonalApiTokenService(
     private val repository: PersonalApiTokenRepository,
-    private val jwtService: JwtService,
+    private val tokenSecretService: TokenSecretService,
 ) {
     suspend fun create(
         userId: UUID,
@@ -34,7 +33,7 @@ class PersonalApiTokenService(
                 PersonalApiToken(
                     userId = userId,
                     name = name,
-                    tokenHash = jwtService.sha256(rawToken),
+                    tokenHash = tokenSecretService.hash(rawToken),
                     scopesRaw = scopes.distinct().sorted().joinToString(","),
                 ),
             )
@@ -60,7 +59,7 @@ class PersonalApiTokenService(
      * Returns null for unknown or revoked tokens (caller treats both as unauthenticated).
      */
     suspend fun resolve(rawToken: String): PersonalApiToken? {
-        val hash = jwtService.sha256(rawToken)
+        val hash = tokenSecretService.hash(rawToken)
         val token = repository.findByTokenHash(hash)
         return when {
             token == null || token.revokedAt != null -> null
@@ -68,12 +67,8 @@ class PersonalApiTokenService(
         }
     }
 
-    private fun buildRawToken(): String {
-        // satzwerk_<32 hex chars> — URL-safe, unambiguous prefix
-        val bytes = ByteArray(RAW_TOKEN_RANDOM_BYTES)
-        SecureRandom().nextBytes(bytes)
-        return "satzwerk_" + bytes.joinToString("") { "%02x".format(it) }
-    }
+    private fun buildRawToken(): String =
+        tokenSecretService.generateHexToken(RAW_TOKEN_RANDOM_BYTES, prefix = "satzwerk_")
 }
 
 private fun validateScopes(scopes: List<String>) {

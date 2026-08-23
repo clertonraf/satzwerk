@@ -1,5 +1,6 @@
 package com.satzwerk.partners
 
+import com.satzwerk.auth.TokenSecretService
 import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.ForbiddenException
@@ -8,8 +9,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
-import java.security.MessageDigest
-import java.security.SecureRandom
 import java.time.Instant
 import java.util.UUID
 
@@ -28,12 +27,13 @@ class PartnerAppService(
     private val partnerAppRepository: PartnerAppRepository,
     private val appGrantRepository: AppGrantRepository,
     private val passwordEncoder: PasswordEncoder,
+    private val tokenSecretService: TokenSecretService,
 ) {
     /** Register a new partner app. Returns the plain client secret once — never retrievable again. */
     suspend fun registerApp(request: RegisterPartnerAppRequest): PartnerAppRegistrationResponse {
         validateScopes(request.scopes)
         val clientId = "satzwerk_${UUID.randomUUID().toString().replace("-", "")}"
-        val plainSecret = generateSecret()
+        val plainSecret = tokenSecretService.generateHexToken(SECRET_BYTES)
         val app =
             partnerAppRepository.save(
                 PartnerApp(
@@ -80,14 +80,14 @@ class PartnerAppService(
             throw ConflictException("Access to app '${app.name}' already granted")
         }
 
-        val plainToken = generateSecret()
+        val plainToken = tokenSecretService.generateHexToken(SECRET_BYTES)
         val grant =
             appGrantRepository.save(
                 AppGrant(
                     appId = requireNotNull(app.id),
                     userId = userId,
                     grantedScopes = grantedScopes,
-                    accessTokenHash = sha256(plainToken),
+                    accessTokenHash = tokenSecretService.hash(plainToken),
                     // If re-granting after revocation, replace existing row
                     id = existing?.id,
                     grantedAt = Instant.now(),
@@ -154,7 +154,7 @@ class PartnerAppService(
      */
     suspend fun resolveActiveGrant(plainToken: String): AppGrant? =
         appGrantRepository
-            .findByAccessTokenHash(sha256(plainToken))
+            .findByAccessTokenHash(tokenSecretService.hash(plainToken))
             ?.takeIf { it.revokedAt == null }
 
     /**
@@ -213,18 +213,6 @@ internal fun String.normaliseScopes(): String =
     split(" ", ",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }.distinct().sorted().joinToString(" ")
 
 private const val SECRET_BYTES = 32
-
-private fun generateSecret(): String {
-    val bytes = ByteArray(SECRET_BYTES)
-    SecureRandom().nextBytes(bytes)
-    return bytes.joinToString("") { "%02x".format(it) }
-}
-
-internal fun sha256(raw: String): String =
-    MessageDigest
-        .getInstance("SHA-256")
-        .digest(raw.toByteArray(Charsets.UTF_8))
-        .joinToString("") { "%02x".format(it) }
 
 /**
  * Package-level guard: throws [ForbiddenException] if [grant] does not belong to [userId],
