@@ -1,15 +1,12 @@
 package com.satzwerk.workouts
 
-import com.satzwerk.auth.InsufficientScopeException
-import com.satzwerk.auth.TokenScope
 import com.satzwerk.common.ConflictException
-import com.satzwerk.common.RequestContext
 import com.satzwerk.common.body
-import com.satzwerk.common.handleErrors
 import com.satzwerk.common.requirePartnerPrincipal
-import com.satzwerk.common.requireScope
 import com.satzwerk.common.validateOrBadRequest
 import com.satzwerk.publicapi.PartnerWritePolicyService
+import com.satzwerk.publicapi.PublicScope
+import com.satzwerk.publicapi.handlePublicScope
 import jakarta.validation.Validator
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -19,7 +16,6 @@ import kotlin.reflect.KClass
 
 private val publicExerciseWriteErrors: Map<KClass<out Throwable>, HttpStatus> =
     mapOf(
-        InsufficientScopeException::class to HttpStatus.FORBIDDEN,
         ConflictException::class to HttpStatus.CONFLICT,
     )
 
@@ -33,10 +29,8 @@ class PublicExerciseRouter {
     ) = coRouter {
         "/api/public/exercises".nest {
             POST("") { request ->
-                handleErrors(extra = publicExerciseWriteErrors) {
+                handlePublicScope(request, PublicScope.EXERCISES_WRITE, extra = publicExerciseWriteErrors) { ctx ->
                     requirePartnerPrincipal(request)
-                    requireScope(request, TokenScope.EXERCISES_WRITE)
-                    val ctx = RequestContext(request)
                     val body = ctx.body<CreateExerciseRequest>()
                     validateOrBadRequest(validator, body) {
                         partnerWritePolicyService.execute(request, HttpStatus.CREATED, body) { userId ->
@@ -47,10 +41,8 @@ class PublicExerciseRouter {
             }
 
             PUT("/{id}") { request ->
-                handleErrors(extra = publicExerciseWriteErrors) {
+                handlePublicScope(request, PublicScope.EXERCISES_WRITE, extra = publicExerciseWriteErrors) { ctx ->
                     requirePartnerPrincipal(request)
-                    requireScope(request, TokenScope.EXERCISES_WRITE)
-                    val ctx = RequestContext(request)
                     val exerciseId = ctx.pathId("id")
                     val body = ctx.body<UpdateExerciseRequest>()
                     validateOrBadRequest(validator, body) {

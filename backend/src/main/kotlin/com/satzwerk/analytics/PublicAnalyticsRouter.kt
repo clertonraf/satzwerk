@@ -1,14 +1,10 @@
 package com.satzwerk.analytics
 
-import com.satzwerk.auth.InsufficientScopeException
-import com.satzwerk.auth.TokenScope
 import com.satzwerk.common.BadRequestException
-import com.satzwerk.common.RequestContext
-import com.satzwerk.common.handleErrors
-import com.satzwerk.common.requireScope
+import com.satzwerk.publicapi.PublicScope
+import com.satzwerk.publicapi.handlePublicScope
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.http.HttpStatus
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import org.springframework.web.reactive.function.server.coRouter
@@ -36,15 +32,11 @@ class PublicAnalyticsRouter {
             "/api/public/analytics".nest {
                 /**
                  * Public heatmap endpoint — tracer bullet for personal automation token access.
-                 * Requires a valid personal API token with the [TokenScope.ANALYTICS_READ] scope.
+                 * Requires a valid personal API token with the [PublicScope.ANALYTICS_READ] scope.
                  * Returns the same payload as the internal /api/analytics/heatmap.
                  */
                 GET("/heatmap") { request ->
-                    handleErrors(
-                        extra = mapOf(InsufficientScopeException::class to HttpStatus.FORBIDDEN),
-                    ) {
-                        requireScope(request, TokenScope.ANALYTICS_READ)
-                        val ctx = RequestContext(request)
+                    handlePublicScope(request, PublicScope.ANALYTICS_READ) { ctx ->
                         val today = LocalDate.now(ZoneOffset.UTC)
                         val from =
                             ctx.queryParam("from")?.let { parseDate("from", it) }
