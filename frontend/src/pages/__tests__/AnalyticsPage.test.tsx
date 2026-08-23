@@ -164,6 +164,28 @@ describe('AnalyticsPage', () => {
     expect(vi.mocked(analyticsService.exerciseProgress)).not.toHaveBeenCalledWith('ex-2')
   })
 
+  it('shows an empty state when the selected Exercise has no completed sessions', async () => {
+    vi.mocked(analyticsService.topExercises).mockResolvedValue([
+      { exerciseId: 'ex-1', exerciseName: 'Bench Press', setCount: 42 },
+    ])
+    vi.mocked(analyticsService.exerciseProgress).mockResolvedValue({
+      exerciseId: 'ex-1',
+      exerciseName: 'Bench Press',
+      points: [],
+      recentSessions: [],
+    })
+
+    render(
+      <QueryClientWrapper>
+        <MemoryRouter>
+          <AnalyticsPage />
+        </MemoryRouter>
+      </QueryClientWrapper>,
+    )
+
+    expect(await screen.findByText('No completed sessions for this Exercise yet.')).toBeInTheDocument()
+  })
+
   it('shows a loading message while exercise progress is being fetched', async () => {
     vi.mocked(analyticsService.topExercises).mockResolvedValue([
       { exerciseId: 'ex-1', exerciseName: 'Bench Press', setCount: 42 },
