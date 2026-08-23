@@ -4,6 +4,7 @@ import com.satzwerk.common.ConflictException
 import com.satzwerk.common.body
 import com.satzwerk.common.validateOrBadRequest
 import com.satzwerk.publicapi.PartnerWritePolicyService
+import com.satzwerk.publicapi.PartnerWritePrincipalValidationService
 import com.satzwerk.publicapi.PublicScope
 import com.satzwerk.publicapi.handlePublicScope
 import jakarta.validation.Validator
@@ -20,7 +21,9 @@ private val publicWorkoutPlanWriteErrors: Map<KClass<out Throwable>, HttpStatus>
     )
 
 @Configuration
-class PublicWorkoutPlanRouter {
+class PublicWorkoutPlanRouter(
+    private val partnerWritePrincipalValidationService: PartnerWritePrincipalValidationService,
+) {
     @Bean
     fun publicWorkoutPlanRoutes(
         workoutPlanService: WorkoutPlanService,
@@ -30,9 +33,24 @@ class PublicWorkoutPlanRouter {
         validator: Validator,
     ) = coRouter {
         "/api/public/plans".nest {
-            publicPlanCrudRoutes(workoutPlanService, partnerWritePolicyService, validator)
-            publicGroupRoutes(workoutGroupService, partnerWritePolicyService, validator)
-            publicWorkoutExerciseRoutes(workoutExerciseService, partnerWritePolicyService, validator)
+            publicPlanCrudRoutes(
+                workoutPlanService,
+                partnerWritePolicyService,
+                partnerWritePrincipalValidationService,
+                validator,
+            )
+            publicGroupRoutes(
+                workoutGroupService,
+                partnerWritePolicyService,
+                partnerWritePrincipalValidationService,
+                validator,
+            )
+            publicWorkoutExerciseRoutes(
+                workoutExerciseService,
+                partnerWritePolicyService,
+                partnerWritePrincipalValidationService,
+                validator,
+            )
         }
     }
 }
@@ -40,14 +58,20 @@ class PublicWorkoutPlanRouter {
 private fun CoRouterFunctionDsl.publicPlanCrudRoutes(
     workoutPlanService: WorkoutPlanService,
     partnerWritePolicyService: PartnerWritePolicyService,
+    partnerWritePrincipalValidationService: PartnerWritePrincipalValidationService,
     validator: Validator,
 ) {
     POST("") { request ->
         handlePublicScope(request, PublicScope.PLANS_WRITE, extra = publicWorkoutPlanWriteErrors) { ctx ->
-            ctx.requirePartnerAppPrincipal()
+            val partnerPrincipal = partnerWritePrincipalValidationService.requireValidPrincipal(ctx)
             val body = ctx.body<CreatePlanRequest>()
             validateOrBadRequest(validator, body) {
-                partnerWritePolicyService.execute(request, HttpStatus.CREATED, body) { userId ->
+                partnerWritePolicyService.execute(
+                    partnerPrincipal,
+                    request,
+                    HttpStatus.CREATED,
+                    body,
+                ) { userId ->
                     workoutPlanService.create(userId, body)
                 }
             }
@@ -56,11 +80,16 @@ private fun CoRouterFunctionDsl.publicPlanCrudRoutes(
 
     PUT("/{planId}") { request ->
         handlePublicScope(request, PublicScope.PLANS_WRITE, extra = publicWorkoutPlanWriteErrors) { ctx ->
-            ctx.requirePartnerAppPrincipal()
+            val partnerPrincipal = partnerWritePrincipalValidationService.requireValidPrincipal(ctx)
             val planId = ctx.pathId("planId")
             val body = ctx.body<UpdatePlanRequest>()
             validateOrBadRequest(validator, body) {
-                partnerWritePolicyService.execute(request, HttpStatus.OK, body) { userId ->
+                partnerWritePolicyService.execute(
+                    partnerPrincipal,
+                    request,
+                    HttpStatus.OK,
+                    body,
+                ) { userId ->
                     workoutPlanService.update(userId, planId, body)
                 }
             }
@@ -69,9 +98,9 @@ private fun CoRouterFunctionDsl.publicPlanCrudRoutes(
 
     POST("/{planId}/activate") { request ->
         handlePublicScope(request, PublicScope.PLANS_WRITE, extra = publicWorkoutPlanWriteErrors) { ctx ->
-            ctx.requirePartnerAppPrincipal()
+            val partnerPrincipal = partnerWritePrincipalValidationService.requireValidPrincipal(ctx)
             val planId = ctx.pathId("planId")
-            partnerWritePolicyService.execute(request, HttpStatus.OK) { userId ->
+            partnerWritePolicyService.execute(partnerPrincipal, request, HttpStatus.OK) { userId ->
                 workoutPlanService.activate(userId, planId)
                 workoutPlanService.getDetail(userId, planId)
             }
@@ -82,15 +111,21 @@ private fun CoRouterFunctionDsl.publicPlanCrudRoutes(
 private fun CoRouterFunctionDsl.publicGroupRoutes(
     workoutGroupService: WorkoutGroupService,
     partnerWritePolicyService: PartnerWritePolicyService,
+    partnerWritePrincipalValidationService: PartnerWritePrincipalValidationService,
     validator: Validator,
 ) {
     POST("/{planId}/groups") { request ->
         handlePublicScope(request, PublicScope.PLANS_WRITE, extra = publicWorkoutPlanWriteErrors) { ctx ->
-            ctx.requirePartnerAppPrincipal()
+            val partnerPrincipal = partnerWritePrincipalValidationService.requireValidPrincipal(ctx)
             val planId = ctx.pathId("planId")
             val body = ctx.body<CreateGroupRequest>()
             validateOrBadRequest(validator, body) {
-                partnerWritePolicyService.execute(request, HttpStatus.CREATED, body) { userId ->
+                partnerWritePolicyService.execute(
+                    partnerPrincipal,
+                    request,
+                    HttpStatus.CREATED,
+                    body,
+                ) { userId ->
                     workoutGroupService.create(userId, planId, body)
                 }
             }
@@ -99,12 +134,17 @@ private fun CoRouterFunctionDsl.publicGroupRoutes(
 
     PUT("/{planId}/groups/{groupId}") { request ->
         handlePublicScope(request, PublicScope.PLANS_WRITE, extra = publicWorkoutPlanWriteErrors) { ctx ->
-            ctx.requirePartnerAppPrincipal()
+            val partnerPrincipal = partnerWritePrincipalValidationService.requireValidPrincipal(ctx)
             val planId = ctx.pathId("planId")
             val groupId = ctx.pathId("groupId")
             val body = ctx.body<UpdateGroupRequest>()
             validateOrBadRequest(validator, body) {
-                partnerWritePolicyService.execute(request, HttpStatus.OK, body) { userId ->
+                partnerWritePolicyService.execute(
+                    partnerPrincipal,
+                    request,
+                    HttpStatus.OK,
+                    body,
+                ) { userId ->
                     workoutGroupService.update(userId, planId, groupId, body)
                 }
             }
@@ -115,16 +155,22 @@ private fun CoRouterFunctionDsl.publicGroupRoutes(
 private fun CoRouterFunctionDsl.publicWorkoutExerciseRoutes(
     workoutExerciseService: WorkoutExerciseService,
     partnerWritePolicyService: PartnerWritePolicyService,
+    partnerWritePrincipalValidationService: PartnerWritePrincipalValidationService,
     validator: Validator,
 ) {
     POST("/{planId}/groups/{groupId}/exercises") { request ->
         handlePublicScope(request, PublicScope.PLANS_WRITE, extra = publicWorkoutPlanWriteErrors) { ctx ->
-            ctx.requirePartnerAppPrincipal()
+            val partnerPrincipal = partnerWritePrincipalValidationService.requireValidPrincipal(ctx)
             val planId = ctx.pathId("planId")
             val groupId = ctx.pathId("groupId")
             val body = ctx.body<CreateWorkoutExerciseRequest>()
             validateOrBadRequest(validator, body) {
-                partnerWritePolicyService.execute(request, HttpStatus.CREATED, body) { userId ->
+                partnerWritePolicyService.execute(
+                    partnerPrincipal,
+                    request,
+                    HttpStatus.CREATED,
+                    body,
+                ) { userId ->
                     workoutExerciseService.create(userId, planId, groupId, body)
                 }
             }
@@ -133,13 +179,18 @@ private fun CoRouterFunctionDsl.publicWorkoutExerciseRoutes(
 
     PUT("/{planId}/groups/{groupId}/exercises/{exerciseId}") { request ->
         handlePublicScope(request, PublicScope.PLANS_WRITE, extra = publicWorkoutPlanWriteErrors) { ctx ->
-            ctx.requirePartnerAppPrincipal()
+            val partnerPrincipal = partnerWritePrincipalValidationService.requireValidPrincipal(ctx)
             val planId = ctx.pathId("planId")
             val groupId = ctx.pathId("groupId")
             val exerciseId = ctx.pathId("exerciseId")
             val body = ctx.body<UpdateWorkoutExerciseRequest>()
             validateOrBadRequest(validator, body) {
-                partnerWritePolicyService.execute(request, HttpStatus.OK, body) { userId ->
+                partnerWritePolicyService.execute(
+                    partnerPrincipal,
+                    request,
+                    HttpStatus.OK,
+                    body,
+                ) { userId ->
                     workoutExerciseService.update(userId, planId, groupId, exerciseId, body)
                 }
             }

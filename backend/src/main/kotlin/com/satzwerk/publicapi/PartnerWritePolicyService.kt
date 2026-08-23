@@ -8,10 +8,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ConflictException
-import com.satzwerk.common.UnauthorizedException
-import com.satzwerk.common.parseUuid
-import com.satzwerk.common.requirePartnerPrincipal
-import com.satzwerk.partners.PartnerAppService
+import com.satzwerk.common.PartnerAppRequestPrincipal
 import kotlinx.coroutines.delay
 import org.springframework.data.annotation.Id
 import org.springframework.data.r2dbc.repository.Query
@@ -28,7 +25,6 @@ import java.time.Instant
 import java.util.UUID
 
 private const val IDEMPOTENCY_HEADER = "Idempotency-Key"
-private const val APP_TOKEN_HEADER = "X-App-Token"
 private const val PENDING_RESPONSE_STATUS = -1
 private const val MAX_PENDING_RECORD_POLLS = 40
 private const val PENDING_RECORD_POLL_DELAY_MILLIS = 25L
@@ -144,28 +140,26 @@ class PartnerWritePolicyService(
     private val idempotencyRecordRepository: IdempotencyRecordRepository,
     private val partnerWriteAuditRepository: PartnerWriteAuditRepository,
     private val objectMapper: ObjectMapper,
-    private val partnerAppService: PartnerAppService,
 ) {
     @Transactional
     suspend fun <T : Any> execute(
+        partnerPrincipal: PartnerAppRequestPrincipal,
         request: ServerRequest,
         successStatus: HttpStatus,
         requestBody: Any? = null,
         block: suspend (UUID) -> T,
     ): ServerResponse {
-        val partnerPrincipal = requirePartnerPrincipal(request)
         val metadata =
             PartnerWriteRequestMetadata(
-                grantId = parseUuid(partnerPrincipal.grantId),
-                appId = parseUuid(partnerPrincipal.appId),
-                userId = parseUuid(partnerPrincipal.userId),
-                grantedScopes = partnerPrincipal.grantedScopes,
+                grantId = partnerPrincipal.grantId,
+                appId = partnerPrincipal.appId,
+                userId = partnerPrincipal.userId,
+                grantedScopes = partnerPrincipal.partnerPrincipal.grantedScopes,
                 requestMethod = request.method().name(),
                 requestPath = request.path(),
                 idempotencyKey = requireIdempotencyKey(request),
                 requestFingerprint = requestFingerprint(requestBody),
             )
-        requireFreshActiveGrant(request, metadata.grantId)
         val claimedRecord =
             idempotencyRecordRepository.claim(
                 grantId = metadata.grantId,
@@ -273,22 +267,5 @@ class PartnerWritePolicyService(
             delay(PENDING_RECORD_POLL_DELAY_MILLIS)
         }
         throw ConflictException("Idempotent request is still in progress")
-    }
-
-    private suspend fun requireFreshActiveGrant(
-        request: ServerRequest,
-        expectedGrantId: UUID,
-    ) {
-        val appToken =
-            request.headers().firstHeader(APP_TOKEN_HEADER)
-                ?.trim()
-                .orEmpty()
-        if (appToken.isBlank()) {
-            throw UnauthorizedException()
-        }
-        val activeGrantId = partnerAppService.resolveActiveGrant(appToken)?.id
-        if (activeGrantId == null || activeGrantId != expectedGrantId) {
-            throw UnauthorizedException()
-        }
     }
 }

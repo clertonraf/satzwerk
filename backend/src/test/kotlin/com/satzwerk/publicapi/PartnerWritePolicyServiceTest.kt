@@ -2,8 +2,7 @@ package com.satzwerk.publicapi
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.satzwerk.common.ConflictException
-import com.satzwerk.partners.AppGrant
-import com.satzwerk.partners.PartnerAppService
+import com.satzwerk.common.PartnerAppRequestPrincipal
 import com.satzwerk.partners.PartnerPrincipal
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -18,9 +17,7 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.web.reactive.function.server.ServerRequest
-import reactor.core.publisher.Mono
 import java.util.UUID
 
 class PartnerWritePolicyServiceTest {
@@ -41,20 +38,20 @@ class PartnerWritePolicyServiceTest {
                         invocation.arguments[0] as PartnerWriteAuditEntry
                     }
                 }
-            val partnerAppService =
-                mock<PartnerAppService> {
-                    onBlocking { resolveActiveGrant(APP_TOKEN) } doReturn activeGrant()
-                }
             val service =
                 PartnerWritePolicyService(
                     idempotencyRecordRepository = idempotencyRecordRepository,
                     partnerWriteAuditRepository = partnerWriteAuditRepository,
                     objectMapper = jacksonObjectMapper(),
-                    partnerAppService = partnerAppService,
                 )
 
             val response =
-                service.execute(request(), HttpStatus.CREATED, ExampleRequest(name = "Bench Press")) {
+                service.execute(
+                    partnerPrincipal(),
+                    request(),
+                    HttpStatus.CREATED,
+                    ExampleRequest(name = "Bench Press"),
+                ) {
                     ExampleResponse(name = "Bench Press")
                 }
 
@@ -95,21 +92,21 @@ class PartnerWritePolicyServiceTest {
                         invocation.arguments[0] as PartnerWriteAuditEntry
                     }
                 }
-            val partnerAppService =
-                mock<PartnerAppService> {
-                    onBlocking { resolveActiveGrant(APP_TOKEN) } doReturn activeGrant()
-                }
             val service =
                 PartnerWritePolicyService(
                     idempotencyRecordRepository = idempotencyRecordRepository,
                     partnerWriteAuditRepository = partnerWriteAuditRepository,
                     objectMapper = jacksonObjectMapper(),
-                    partnerAppService = partnerAppService,
                 )
 
             var executed = false
             val response =
-                service.execute(request(), HttpStatus.CREATED, ExampleRequest(name = "Bench Press")) {
+                service.execute(
+                    partnerPrincipal(),
+                    request(),
+                    HttpStatus.CREATED,
+                    ExampleRequest(name = "Bench Press"),
+                ) {
                     executed = true
                     ExampleResponse(name = "Should not run")
                 }
@@ -141,22 +138,22 @@ class PartnerWritePolicyServiceTest {
                     } doReturn completedRecord
                 }
             val partnerWriteAuditRepository = mock<PartnerWriteAuditRepository>()
-            val partnerAppService =
-                mock<PartnerAppService> {
-                    onBlocking { resolveActiveGrant(APP_TOKEN) } doReturn activeGrant()
-                }
             val service =
                 PartnerWritePolicyService(
                     idempotencyRecordRepository = idempotencyRecordRepository,
                     partnerWriteAuditRepository = partnerWriteAuditRepository,
                     objectMapper = jacksonObjectMapper(),
-                    partnerAppService = partnerAppService,
                 )
 
             val error =
                 org.junit.jupiter.api.assertThrows<ConflictException> {
                     runBlocking {
-                        service.execute(request(), HttpStatus.CREATED, ExampleRequest(name = "Changed Bench")) {
+                        service.execute(
+                            partnerPrincipal(),
+                            request(),
+                            HttpStatus.CREATED,
+                            ExampleRequest(name = "Changed Bench"),
+                        ) {
                             ExampleResponse(name = "Should not run")
                         }
                     }
@@ -170,35 +167,27 @@ class PartnerWritePolicyServiceTest {
         val headers =
             mock<ServerRequest.Headers> {
                 on { firstHeader("Idempotency-Key") } doReturn IDEMPOTENCY_KEY
-                on { firstHeader("X-App-Token") } doReturn APP_TOKEN
             }
-        val principal =
-            UsernamePasswordAuthenticationToken(
-                USER_ID.toString(),
+        return mock {
+            on { headers() } doReturn headers
+            on { method() } doReturn HttpMethod.POST
+            on { path() } doReturn "/api/public/exercises"
+        }
+    }
+
+    private fun partnerPrincipal() =
+        PartnerAppRequestPrincipal(
+            userId = USER_ID,
+            appId = APP_ID,
+            grantId = GRANT_ID,
+            scopes = setOf("exercises:write"),
+            partnerPrincipal =
                 PartnerPrincipal(
                     userId = USER_ID.toString(),
                     appId = APP_ID.toString(),
                     grantId = GRANT_ID.toString(),
                     grantedScopes = "exercises:write",
                 ),
-                emptyList(),
-            )
-
-        return mock {
-            on { headers() } doReturn headers
-            on { principal() } doReturn Mono.just(principal)
-            on { method() } doReturn HttpMethod.POST
-            on { path() } doReturn "/api/public/exercises"
-        }
-    }
-
-    private fun activeGrant() =
-        AppGrant(
-            id = GRANT_ID,
-            appId = APP_ID,
-            userId = USER_ID,
-            grantedScopes = "exercises:write",
-            accessTokenHash = "hashed-token",
         )
 
     private fun pendingRecord(id: UUID) =
@@ -221,7 +210,6 @@ class PartnerWritePolicyServiceTest {
         private val USER_ID: UUID = UUID.randomUUID()
         private val APP_ID: UUID = UUID.randomUUID()
         private val GRANT_ID: UUID = UUID.randomUUID()
-        private const val APP_TOKEN = "app-token"
         private const val IDEMPOTENCY_KEY = "idem-key"
     }
 }
