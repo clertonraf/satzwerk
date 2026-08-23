@@ -42,6 +42,28 @@ export interface TopExercise {
   setCount: number
 }
 
+export interface ExerciseProgressPoint {
+  sessionId: string
+  sessionDate: string
+  topSetWeightKg: number
+  topSetReps: number
+  estimatedOneRepMaxKg: number | null
+}
+
+export interface ExerciseProgressSessionSummary {
+  sessionId: string
+  sessionDate: string
+  workoutGroupTitle: string
+  topSetLabel: string
+}
+
+export interface ExerciseProgressResponse {
+  exerciseId: string
+  exerciseName: string
+  points: ExerciseProgressPoint[]
+  recentSessions: ExerciseProgressSessionSummary[]
+}
+
 export const analyticsService = {
   heatmap: (from?: string, to?: string) =>
     http.get<HeatmapEntry[]>('/analytics/heatmap', {
@@ -71,4 +93,7 @@ export const analyticsService = {
     http.get<TopExercise[]>('/analytics/least-exercises', {
       params: { ...(limit !== undefined && { limit }) },
     }),
+
+  exerciseProgress: (exerciseId: string) =>
+    http.get<ExerciseProgressResponse>(`/analytics/exercises/${exerciseId}/progress`),
 }

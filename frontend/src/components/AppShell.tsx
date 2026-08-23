@@ -1,5 +1,5 @@
 import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
-import { Dumbbell, Heart, Home, MoonStar, Settings, SunMedium } from 'lucide-react'
+import { Dumbbell, Heart, Home, LineChart, MoonStar, Settings, SunMedium } from 'lucide-react'
 import { NavLink, useLocation, useMatch } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -11,6 +11,7 @@ interface AppShellProps {
 const navigationItems = [
   { to: '/', label: 'Dashboard', icon: Home },
   { to: '/workouts', label: 'Workouts', icon: Dumbbell },
+  { to: '/analytics', label: 'Analytics', icon: LineChart },
   { to: '/health', label: 'Health', icon: Heart },
   { to: '/settings', label: 'Settings', icon: Settings },
 ] as const
