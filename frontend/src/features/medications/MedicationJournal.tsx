@@ -9,28 +9,8 @@ import type { MedicationJournalEntry } from './types'
 
 const DEFAULT_DAYS = 30
 
-function toLocalDateString(isoString: string): string {
-  const d = new Date(isoString)
-  // Use the local calendar date, not UTC — prevents midnight boundary mismatches
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
 function dateToQueryParam(date: Date): string {
-  return date.toISOString().slice(0, 10)
-}
-
-function groupByDate(entries: MedicationJournalEntry[]): Map<string, MedicationJournalEntry[]> {
-  const groups = new Map<string, MedicationJournalEntry[]>()
-  for (const entry of entries) {
-  const date = toLocalDateString(entry.takenAt)
-    const bucket = groups.get(date)
-    if (bucket) {
-      bucket.push(entry)
-    } else {
-      groups.set(date, [entry])
-    }
-  }
-  return groups
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 function formatDose(entry: MedicationJournalEntry): string {
@@ -44,14 +24,14 @@ export default function MedicationJournal() {
   const today = new Date()
   const from = dateToQueryParam(subDays(today, days))
   const to = dateToQueryParam(today)
+  const timezoneOffsetMinutes = new Date().getTimezoneOffset()
 
-  const { data: entries = [], isLoading } = useQuery({
-    queryKey: queryKeys.medications.journal(from, to),
-    queryFn: () => medicationsApi.getJournal(from, to),
+  const { data: journal, isLoading } = useQuery({
+    queryKey: queryKeys.medications.journalRange(from, to, timezoneOffsetMinutes),
+    queryFn: () => medicationsApi.getJournal(from, to, timezoneOffsetMinutes),
   })
 
-  const groups = groupByDate(entries)
-  const sortedDates = [...groups.keys()].sort((a, b) => b.localeCompare(a))
+  const daysView = journal?.days ?? []
 
   return (
     <section className="space-y-4">
@@ -59,17 +39,17 @@ export default function MedicationJournal() {
 
       {isLoading && <p className="text-sm text-muted-foreground">Loading journal…</p>}
 
-      {!isLoading && entries.length === 0 && (
+      {!isLoading && daysView.length === 0 && (
         <p className="text-sm text-muted-foreground">No medication logs in the last {days} days.</p>
       )}
 
-      {sortedDates.map((date) => (
+      {daysView.map(({ date, entries }) => (
         <div key={date}>
           <p className="mb-2 text-sm font-medium text-muted-foreground">
             {format(new Date(`${date}T12:00:00`), 'EEEE, MMMM d, yyyy')}
           </p>
           <ul className="space-y-2">
-            {(groups.get(date) ?? []).map((entry) => (
+            {entries.map((entry) => (
               <li key={entry.id} className="rounded-lg border border-border px-3 py-2 text-sm">
                 <div className="flex items-start justify-between gap-2">
                   <div className="space-y-0.5">

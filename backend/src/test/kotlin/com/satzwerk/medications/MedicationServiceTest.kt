@@ -18,6 +18,8 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import java.math.BigDecimal
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.UUID
 
 class MedicationServiceTest {
@@ -150,7 +152,7 @@ class MedicationServiceTest {
         }
 
     @Test
-    fun `getJournalEntries returns empty list when no logs exist`(): Unit =
+    fun `getJournalView returns empty days when no logs exist`(): Unit =
         runBlocking {
             val from = Instant.parse("2026-08-01T00:00:00Z")
             val to = Instant.parse("2026-08-31T23:59:59.999999999Z")
@@ -162,18 +164,18 @@ class MedicationServiceTest {
                 }
             val service = MedicationService(mock(), logRepo, mock(), frequencySpecModule)
 
-            val result = service.getJournalEntries(userId, from, to)
+            val result = service.getJournalView(userId, from, to, ZoneOffset.UTC)
 
-            assertTrue(result.isEmpty())
+            assertTrue(result.days.isEmpty())
         }
 
     @Test
-    fun `getJournalEntries maps log and medication fields to DTO`(): Unit =
+    fun `getJournalView groups entries by requested timezone day`(): Unit =
         runBlocking {
             val from = Instant.parse("2026-08-01T00:00:00Z")
             val to = Instant.parse("2026-08-31T23:59:59.999999999Z")
             val logId = UUID.randomUUID()
-            val takenAt = Instant.parse("2026-08-15T08:00:00Z")
+            val takenAt = Instant.parse("2026-08-15T23:30:00Z")
             val log =
                 MedicationLog(
                     id = logId,
@@ -197,10 +199,12 @@ class MedicationServiceTest {
                 }
             val service = MedicationService(medRepo, logRepo, mock(), frequencySpecModule)
 
-            val result = service.getJournalEntries(userId, from, to)
+            val result = service.getJournalView(userId, from, to, ZoneOffset.ofHours(2))
 
-            assertEquals(1, result.size)
-            with(result[0]) {
+            assertEquals(1, result.days.size)
+            assertEquals("2026-08-16", result.days[0].date)
+            assertEquals(1, result.days[0].entries.size)
+            with(result.days[0].entries[0]) {
                 assertEquals(logId, id)
                 assertEquals(medicationId, this.medicationId)
                 assertEquals("Vitamin D", medicationName)
@@ -210,5 +214,62 @@ class MedicationServiceTest {
                 assertEquals(DosageUnit.IU, dosageUnit)
                 assertEquals("With breakfast", notes)
             }
+        }
+
+    @Test
+    fun `getTodayView returns scheduled doses alongside manual logging options`(): Unit =
+        runBlocking {
+            val today = LocalDate.now(ZoneOffset.UTC)
+            val startOfDay = today.atStartOfDay(ZoneOffset.UTC).toInstant()
+            val endOfDay = today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()
+            val scheduledMedication = dailyMedication()
+            val extraMedication =
+                dailyMedication().copy(
+                    id = UUID.randomUUID(),
+                    name = "Magnesium",
+                    dosageAmount = BigDecimal("400.0000"),
+                )
+            val todaysLog =
+                MedicationLog(
+                    id = UUID.randomUUID(),
+                    medicationId = medicationId,
+                    userId = userId,
+                    takenAt = startOfDay.plusSeconds(3600),
+                    taken = true,
+                )
+            val medRepo: MedicationRepository =
+                mock {
+                    onBlocking { findByUserIdOrderByNameAsc(userId) } doReturn
+                        listOf(extraMedication, scheduledMedication)
+                }
+            val logRepo: MedicationLogRepository =
+                mock {
+                    onBlocking {
+                        findByMedicationIdAndTakenAtBetweenOrderByTakenAtDesc(medicationId, startOfDay, endOfDay)
+                    } doReturn listOf(todaysLog)
+                    onBlocking {
+                        findByMedicationIdAndTakenAtBetweenOrderByTakenAtDesc(
+                            requireNotNull(extraMedication.id),
+                            startOfDay,
+                            endOfDay,
+                        )
+                    } doReturn emptyList()
+                }
+            val analyticsService: MedicationAnalyticsService =
+                mock {
+                    onBlocking { getAdherenceStreaksBatch(any()) } doReturn
+                        mapOf(
+                            medicationId to 3,
+                            requireNotNull(extraMedication.id) to 1,
+                        )
+                }
+            val service = MedicationService(medRepo, logRepo, analyticsService, frequencySpecModule)
+
+            val result = service.getTodayView(userId)
+
+            assertEquals(listOf("Magnesium", "Vitamin D"), result.availableMedications.map { it.name })
+            assertEquals(2, result.scheduledDoses.size)
+            assertEquals("Vitamin D", result.scheduledDoses[1].medication.name)
+            assertEquals(1, result.scheduledDoses[1].logs.size)
         }
 }

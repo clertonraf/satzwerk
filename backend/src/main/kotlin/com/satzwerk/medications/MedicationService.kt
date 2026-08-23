@@ -111,58 +111,59 @@ class MedicationService(
             .map { it.toResponse() }
     }
 
-    suspend fun getJournalEntries(
+    suspend fun getJournalView(
         userId: UUID,
         from: Instant,
         to: Instant,
-    ): List<MedicationJournalEntryDto> {
+        zoneOffset: ZoneOffset,
+    ): MedicationJournalDto {
         val logs = medicationLogRepository.findByUserIdAndTakenAtBetweenOrderByTakenAtDesc(userId, from, to)
-        if (logs.isEmpty()) return emptyList()
+        if (logs.isEmpty()) return MedicationJournalDto(days = emptyList())
         val medicationsById =
             medicationRepository.findByUserIdOrderByNameAsc(userId).associateBy { requireNotNull(it.id) }
-        return logs.map { log ->
-            val med =
-                medicationsById[log.medicationId]
-                    ?: error(
-                        "Medication ${log.medicationId} not found for log ${log.id} — FK invariant violation",
-                    )
-            MedicationJournalEntryDto(
-                id = requireNotNull(log.id),
-                medicationId = log.medicationId,
-                medicationName = med.name,
-                takenAt = log.takenAt,
-                taken = log.taken,
-                doseAmount = log.doseAmount,
-                dosageAmount = med.dosageAmount,
-                dosageUnit = DosageUnit.valueOf(med.dosageUnit),
-                notes = log.notes,
-            )
-        }
+        val groupedEntries =
+            logs
+                .map { log -> toMedicationJournalEntry(log, medicationsById) }
+                .groupBy { entry -> entry.takenAt.atOffset(zoneOffset).toLocalDate().toString() }
+        return MedicationJournalDto(
+            days = groupedEntries.map { (date, entries) -> MedicationJournalDayDto(date = date, entries = entries) },
+        )
     }
 
-    suspend fun getTodayScheduledDoses(userId: UUID): List<ScheduledDoseSummaryDto> {
+    suspend fun getTodayView(userId: UUID): MedicationTodayDto {
         val today = LocalDate.now(ZoneOffset.UTC)
         val startOfDay = today.atStartOfDay(ZoneOffset.UTC).toInstant()
         val endOfDay = today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()
-
-        return medicationRepository.findByUserIdOrderByNameAsc(userId)
-            .filter { it.isActive }
-            .map { med -> med to frequencySpecModule.deserialize(med.frequency) }
-            .filter { (_, frequencySpec) -> frequencySpec.isDueOn(today) }
-            .map { (med, frequencySpec) ->
-                val logs =
-                    medicationLogRepository.findByMedicationIdAndTakenAtBetweenOrderByTakenAtDesc(
-                        requireNotNull(med.id),
-                        startOfDay,
-                        endOfDay,
+        val medications = medicationRepository.findByUserIdOrderByNameAsc(userId).filter { it.isActive }
+        val streaks = medicationAnalyticsService.getAdherenceStreaksBatch(medications)
+        val scheduledDoses =
+            medications
+                .map { med -> med to frequencySpecModule.deserialize(med.frequency) }
+                .filter { (_, frequencySpec) -> frequencySpec.isDueOn(today) }
+                .map { (med, frequencySpec) ->
+                    val medicationId = requireNotNull(med.id)
+                    val logs =
+                        medicationLogRepository.findByMedicationIdAndTakenAtBetweenOrderByTakenAtDesc(
+                            medicationId,
+                            startOfDay,
+                            endOfDay,
+                        )
+                    ScheduledDoseSummaryDto(
+                        medication = toMedicationResponse(med, frequencySpecModule, streaks[medicationId] ?: 0),
+                        scheduledCount = frequencySpec.scheduledCountOn(today),
+                        logs = logs.map { it.toResponse() },
                     )
-                val streak = medicationAnalyticsService.getAdherenceStreak(requireNotNull(med.id))
-                ScheduledDoseSummaryDto(
-                    medication = toMedicationResponse(med, frequencySpecModule, streak),
-                    scheduledCount = frequencySpec.scheduledCountOn(today),
-                    logs = logs.map { it.toResponse() },
-                )
-            }
+                }
+        return MedicationTodayDto(
+            scheduledDoses = scheduledDoses,
+            availableMedications =
+                medications.map { med ->
+                    MedicationOptionDto(
+                        id = requireNotNull(med.id),
+                        name = med.name,
+                    )
+                },
+        )
     }
 }
 
@@ -188,3 +189,25 @@ fun toMedicationResponse(
         createdAt = med.createdAt,
         currentStreak = streak,
     )
+
+private fun toMedicationJournalEntry(
+    log: MedicationLog,
+    medicationsById: Map<UUID, Medication>,
+): MedicationJournalEntryDto {
+    val med =
+        medicationsById[log.medicationId]
+            ?: error(
+                "Medication ${log.medicationId} not found for log ${log.id} — FK invariant violation",
+            )
+    return MedicationJournalEntryDto(
+        id = requireNotNull(log.id),
+        medicationId = log.medicationId,
+        medicationName = med.name,
+        takenAt = log.takenAt,
+        taken = log.taken,
+        doseAmount = log.doseAmount,
+        dosageAmount = med.dosageAmount,
+        dosageUnit = DosageUnit.valueOf(med.dosageUnit),
+        notes = log.notes,
+    )
+}

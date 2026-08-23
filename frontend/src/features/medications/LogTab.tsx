@@ -26,14 +26,9 @@ export default function LogTab() {
   const [manualNotes, setManualNotes] = useState('')
   const [manualError, setManualError] = useState<string | null>(null)
 
-  const { data: scheduledDoses = [], isLoading } = useQuery({
+  const { data: todayView, isLoading } = useQuery({
     queryKey: queryKeys.medications.today(),
     queryFn: () => medicationsApi.getToday(),
-  })
-
-  const { data: allMedications = [] } = useQuery({
-    queryKey: queryKeys.medications.all(),
-    queryFn: () => medicationsApi.getAll(),
   })
 
   const logMutation = useMutation({
@@ -42,6 +37,7 @@ export default function LogTab() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.medications.today() })
       void queryClient.invalidateQueries({ queryKey: queryKeys.medications.all() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.medications.journal() })
     },
   })
 
@@ -51,6 +47,7 @@ export default function LogTab() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.medications.today() })
       void queryClient.invalidateQueries({ queryKey: queryKeys.medications.all() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.medications.journal() })
       setShowManualForm(false)
       setManualMedId('')
       setManualDose('')
@@ -83,7 +80,8 @@ export default function LogTab() {
     manualLogMutation.mutate({ medicationId: manualMedId, payload })
   }
 
-  const activeMedications = allMedications.filter((m) => m.isActive)
+  const scheduledDoses = todayView?.scheduledDoses ?? []
+  const availableMedications = todayView?.availableMedications ?? []
 
   return (
     <div className="space-y-4">
@@ -126,8 +124,8 @@ export default function LogTab() {
                       <SelectValue placeholder="Select medication…" />
                     </SelectTrigger>
                     <SelectContent>
-                      {activeMedications.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                      {availableMedications.map((medication) => (
+                        <SelectItem key={medication.id} value={medication.id}>{medication.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

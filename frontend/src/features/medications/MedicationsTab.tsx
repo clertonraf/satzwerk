@@ -89,6 +89,8 @@ export default function MedicationsTab() {
     mutationFn: (payload: CreateMedicationPayload) => medicationsApi.create(payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.medications.all() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.medications.today() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.medications.journal() })
       resetForm()
     },
     onError: (err: { response?: { status?: number } }) => {
@@ -104,6 +106,8 @@ export default function MedicationsTab() {
     mutationFn: (payload: UpdateMedicationPayload) => medicationsApi.update(payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.medications.all() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.medications.today() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.medications.journal() })
       resetForm()
     },
     onError: () => setFormError('Failed to update medication. Please try again.'),
@@ -111,7 +115,11 @@ export default function MedicationsTab() {
 
   const deactivateMutation = useMutation({
     mutationFn: (id: string) => medicationsApi.deactivate(id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.medications.all() }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.medications.all() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.medications.today() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.medications.journal() })
+    },
   })
 
   function resetForm() {

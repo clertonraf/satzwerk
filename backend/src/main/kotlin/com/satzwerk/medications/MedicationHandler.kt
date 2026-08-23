@@ -18,6 +18,7 @@ import java.time.format.DateTimeParseException
 private const val DEFAULT_LOG_WINDOW_SECONDS = 30L * 24 * 3600
 private const val DEFAULT_HEATMAP_WEEKS = 52
 private const val DEFAULT_JOURNAL_DAYS = 30L
+private const val SECONDS_PER_MINUTE = 60
 
 class MedicationHandler(
     private val medicationService: MedicationService,
@@ -67,7 +68,7 @@ class MedicationHandler(
     suspend fun getToday(request: ServerRequest): ServerResponse =
         handleErrors {
             val ctx = RequestContext(request)
-            ServerResponse.ok().bodyValueAndAwait(medicationService.getTodayScheduledDoses(ctx.userId()))
+            ServerResponse.ok().bodyValueAndAwait(medicationService.getTodayView(ctx.userId()))
         }
 
     suspend fun logDose(request: ServerRequest): ServerResponse =
@@ -145,22 +146,48 @@ internal suspend fun journalHandler(
 ): ServerResponse =
     handleErrors {
         val ctx = RequestContext(request)
-        val today = LocalDate.now(ZoneOffset.UTC)
+        val zoneOffset = parseZoneOffsetMinutes(request)
+        val today = LocalDate.now(zoneOffset)
         val from =
             request.queryParam("from").map { value ->
                 try {
-                    LocalDate.parse(value).atStartOfDay(ZoneOffset.UTC).toInstant()
+                    parseLocalDateStart(value, zoneOffset)
                 } catch (_: DateTimeParseException) {
                     throw BadRequestException("Invalid from date: '$value'. Expected yyyy-MM-dd.")
                 }
-            }.orElse(today.minusDays(DEFAULT_JOURNAL_DAYS).atStartOfDay(ZoneOffset.UTC).toInstant())
+            }.orElse(parseLocalDateStart(today.minusDays(DEFAULT_JOURNAL_DAYS).toString(), zoneOffset))
         val to =
             request.queryParam("to").map { value ->
                 try {
-                    LocalDate.parse(value).plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().minusNanos(1)
+                    parseLocalDateEnd(value, zoneOffset)
                 } catch (_: DateTimeParseException) {
                     throw BadRequestException("Invalid to date: '$value'. Expected yyyy-MM-dd.")
                 }
-            }.orElse(today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().minusNanos(1))
-        ServerResponse.ok().bodyValueAndAwait(medicationService.getJournalEntries(ctx.userId(), from, to))
+            }.orElse(parseLocalDateEnd(today.toString(), zoneOffset))
+        ServerResponse.ok().bodyValueAndAwait(medicationService.getJournalView(ctx.userId(), from, to, zoneOffset))
     }
+
+private fun parseZoneOffsetMinutes(request: ServerRequest): ZoneOffset =
+    request.queryParam("timezoneOffsetMinutes").map { value ->
+        val offsetMinutes =
+            value.toIntOrNull()
+                ?: throw BadRequestException(
+                    "Invalid timezoneOffsetMinutes: '$value'. Expected an integer number of minutes.",
+                )
+        try {
+            // JS getTimezoneOffset() is UTC-local, so negate it to obtain the local ZoneOffset.
+            ZoneOffset.ofTotalSeconds(-offsetMinutes * SECONDS_PER_MINUTE)
+        } catch (_: IllegalArgumentException) {
+            throw BadRequestException("Invalid timezoneOffsetMinutes: '$value'. Expected a valid UTC offset.")
+        }
+    }.orElse(ZoneOffset.UTC)
+
+private fun parseLocalDateStart(
+    value: String,
+    zoneOffset: ZoneOffset,
+): Instant = LocalDate.parse(value).atStartOfDay().atOffset(zoneOffset).toInstant()
+
+private fun parseLocalDateEnd(
+    value: String,
+    zoneOffset: ZoneOffset,
+): Instant = LocalDate.parse(value).plusDays(1).atStartOfDay().atOffset(zoneOffset).toInstant().minusNanos(1)

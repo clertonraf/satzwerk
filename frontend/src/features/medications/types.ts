@@ -26,6 +26,11 @@ export interface MedicationLog {
   notes: string | null
 }
 
+export interface MedicationOption {
+  id: string
+  name: string
+}
+
 export interface MedicationJournalEntry {
   id: string
   medicationId: string
@@ -38,10 +43,24 @@ export interface MedicationJournalEntry {
   notes: string | null
 }
 
+export interface MedicationJournalDay {
+  date: string
+  entries: MedicationJournalEntry[]
+}
+
+export interface MedicationJournalView {
+  days: MedicationJournalDay[]
+}
+
 export interface ScheduledDose {
   medication: Medication
   scheduledCount: number
   logs: MedicationLog[]
+}
+
+export interface MedicationTodayView {
+  scheduledDoses: ScheduledDose[]
+  availableMedications: MedicationOption[]
 }
 
 export interface AdherenceHeatmapDay {

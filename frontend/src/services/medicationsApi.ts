@@ -4,11 +4,11 @@ import type {
   BarChartGranularity,
   CreateMedicationPayload,
   LogDosePayload,
+  MedicationJournalView,
   Medication,
-  MedicationJournalEntry,
   MedicationLog,
+  MedicationTodayView,
   PerMedicationAnalytics,
-  ScheduledDose,
   UpdateMedicationPayload,
 } from '@/features/medications/types'
 
@@ -27,7 +27,7 @@ export const medicationsApi = {
 
   deactivate: (id: string): Promise<void> => http.delete(`/medications/${id}`),
 
-  getToday: (): Promise<ScheduledDose[]> => http.get<ScheduledDose[]>('/medications/today'),
+  getToday: (): Promise<MedicationTodayView> => http.get<MedicationTodayView>('/medications/today'),
 
   logDose: (medicationId: string, payload: LogDosePayload): Promise<MedicationLog> =>
     http.post<MedicationLog>(`/medications/${medicationId}/logs`, payload),
@@ -37,9 +37,9 @@ export const medicationsApi = {
     return http.get<MedicationLog[]>(`/medications/${medicationId}/logs?${params.toString()}`)
   },
 
-  getJournal: (from: string, to: string): Promise<MedicationJournalEntry[]> => {
-    const params = new URLSearchParams({ from, to })
-    return http.get<MedicationJournalEntry[]>(`/medications/logs?${params.toString()}`)
+  getJournal: (from: string, to: string, timezoneOffsetMinutes: number): Promise<MedicationJournalView> => {
+    const params = new URLSearchParams({ from, to, timezoneOffsetMinutes: String(timezoneOffsetMinutes) })
+    return http.get<MedicationJournalView>(`/medications/logs?${params.toString()}`)
   },
 
   getAggregateHeatmap: (weeks = 52): Promise<AdherenceHeatmap> =>
