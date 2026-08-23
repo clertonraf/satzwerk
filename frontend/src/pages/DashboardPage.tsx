@@ -156,6 +156,9 @@ export default function DashboardPage() {
         <Button asChild variant="outline">
           <Link to="/workouts/history">View history</Link>
         </Button>
+        <Button asChild variant="outline">
+          <Link to="/analytics">View analytics</Link>
+        </Button>
       </div>
     </div>
   )

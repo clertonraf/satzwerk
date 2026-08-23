@@ -201,6 +201,60 @@ class AnalyticsRepository(
         limit: Int = DEFAULT_TOP_EXERCISES_LIMIT,
     ): List<TopExerciseRow> = findExercisesBySetCount(userId, limit, ascending = true)
 
+    suspend fun findExerciseProgress(
+        userId: UUID,
+        exerciseId: UUID,
+    ): List<ExerciseProgressRow> =
+        databaseClient
+            .sql(
+                """
+                WITH ranked_sets AS (
+                    SELECT
+                        ws.id AS session_id,
+                        DATE(ws.completed_at AT TIME ZONE 'UTC') AS session_date,
+                        ws.completed_at AS session_completed_at,
+                        wg.title AS workout_group_title,
+                        sl.exercise_id,
+                        e.name AS exercise_name,
+                        sl.weight AS top_set_weight_kg,
+                        sl.reps AS top_set_reps,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY ws.id, sl.exercise_id
+                            ORDER BY sl.weight DESC, sl.reps DESC, sl.logged_at DESC, sl.id DESC
+                        ) AS rank_in_session
+                    FROM set_logs sl
+                    JOIN workout_sessions ws ON sl.workout_session_id = ws.id
+                    JOIN workout_groups wg ON ws.workout_group_id = wg.id
+                    JOIN exercises e ON sl.exercise_id = e.id AND e.user_id = :userId
+                    WHERE ws.user_id = :userId
+                      AND ws.completed_at IS NOT NULL
+                      AND sl.exercise_id = :exerciseId
+                )
+                SELECT *
+                FROM ranked_sets
+                WHERE rank_in_session = 1
+                ORDER BY session_date ASC, session_completed_at ASC, session_id ASC
+                """.trimIndent(),
+            )
+            .bind("userId", userId)
+            .bind("exerciseId", exerciseId)
+            .map { row, _ ->
+                ExerciseProgressRow(
+                    sessionId = row.get("session_id", UUID::class.java)!!,
+                    sessionDate = row.get("session_date", LocalDate::class.java)!!,
+                    workoutGroupTitle = row.get("workout_group_title", String::class.java)!!,
+                    exerciseId = row.get("exercise_id", UUID::class.java)!!,
+                    exerciseName = row.get("exercise_name", String::class.java)!!,
+                    topSetWeightKg = row.get("top_set_weight_kg", BigDecimal::class.java)!!,
+                    topSetReps =
+                        requireNotNull(
+                            row.get("top_set_reps", Integer::class.java)?.toInt(),
+                        ) { "top_set_reps must not be null" },
+                )
+            }.all()
+            .asFlow()
+            .toList()
+
     private suspend fun findExercisesBySetCount(
         userId: UUID,
         limit: Int,
@@ -263,4 +317,14 @@ data class TopExerciseRow(
     val exerciseId: UUID,
     val exerciseName: String,
     val setCount: Int,
+)
+
+data class ExerciseProgressRow(
+    val sessionId: UUID,
+    val sessionDate: LocalDate,
+    val workoutGroupTitle: String,
+    val exerciseId: UUID,
+    val exerciseName: String,
+    val topSetWeightKg: BigDecimal,
+    val topSetReps: Int,
 )

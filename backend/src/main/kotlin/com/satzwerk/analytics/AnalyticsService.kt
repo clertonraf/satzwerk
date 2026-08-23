@@ -1,5 +1,8 @@
 package com.satzwerk.analytics
 
+import com.satzwerk.common.NotFoundException
+import com.satzwerk.sessions.epley
+import com.satzwerk.workouts.ExerciseRepository
 import org.springframework.stereotype.Service
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -8,10 +11,12 @@ import java.util.UUID
 private const val DEFAULT_PR_LIMIT = 5
 private const val DEFAULT_TOP_EXERCISES_LIMIT = 5
 private const val DEFAULT_TREND_WEEKS = 8
+private const val RECENT_SESSIONS_LIMIT = 5
 
 @Service
 class AnalyticsService(
     private val analyticsRepository: AnalyticsRepository,
+    private val exerciseRepository: ExerciseRepository,
 ) {
     suspend fun heatmap(
         userId: UUID,
@@ -94,6 +99,48 @@ class AnalyticsService(
                 setCount = row.setCount,
             )
         }
+
+    suspend fun exerciseProgress(
+        userId: UUID,
+        exerciseId: UUID,
+    ): ExerciseProgressResponse {
+        val rows = analyticsRepository.findExerciseProgress(userId, exerciseId)
+        if (rows.isEmpty()) {
+            val exercise =
+                exerciseRepository.findByIdAndUserId(exerciseId, userId)
+                    ?: throw NotFoundException("Exercise $exerciseId not found")
+            return ExerciseProgressResponse(
+                exerciseId = exerciseId,
+                exerciseName = exercise.name,
+                points = emptyList(),
+                recentSessions = emptyList(),
+            )
+        }
+        return ExerciseProgressResponse(
+            exerciseId = exerciseId,
+            exerciseName = rows.first().exerciseName,
+            points =
+                rows.map { row ->
+                    ExerciseProgressPoint(
+                        sessionId = row.sessionId,
+                        sessionDate = row.sessionDate,
+                        topSetWeightKg = row.topSetWeightKg,
+                        topSetReps = row.topSetReps,
+                        estimatedOneRepMaxKg = epley(row.topSetWeightKg, row.topSetReps),
+                    )
+                },
+            recentSessions =
+                rows.takeLast(RECENT_SESSIONS_LIMIT).reversed().map { row ->
+                    ExerciseProgressSessionSummary(
+                        sessionId = row.sessionId,
+                        sessionDate = row.sessionDate,
+                        workoutGroupTitle = row.workoutGroupTitle,
+                        topSetLabel =
+                            "${row.topSetWeightKg.stripTrailingZeros().toPlainString()} kg × ${row.topSetReps}",
+                    )
+                },
+        )
+    }
 }
 
 /**

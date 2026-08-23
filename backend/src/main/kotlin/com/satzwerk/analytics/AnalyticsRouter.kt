@@ -126,6 +126,14 @@ class AnalyticsRouter {
                         ServerResponse.ok().bodyValueAndAwait(analyticsService.leastExercises(ctx.userId(), limit))
                     }
                 }
+                GET("/exercises/{exerciseId}/progress") { request ->
+                    handleErrors {
+                        val ctx = RequestContext(request)
+                        ServerResponse.ok().bodyValueAndAwait(
+                            analyticsService.exerciseProgress(ctx.userId(), ctx.pathId("exerciseId")),
+                        )
+                    }
+                }
             }
         }
 }
