@@ -12,8 +12,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { ADVANCED_TECHNIQUE_OPTIONS, formatAdvancedTechnique } from '@/features/workouts/advancedTechnique'
-import type { UpdateWorkoutExerciseRequest, WorkoutExerciseSummary } from '@/services/planService'
+import {
+  buildAdvancedTechniqueOptions,
+  formatAdvancedTechnique,
+} from '@/features/workouts/advancedTechnique'
+import type {
+  AdvancedTechniqueMetadata,
+  UpdateWorkoutExerciseRequest,
+  WorkoutExerciseSummary,
+} from '@/services/planService'
 
 const schema = z.object({
   sets: z.number().int().min(1, 'Sets must be at least 1'),
@@ -25,6 +32,7 @@ type WorkoutExerciseFormValues = z.infer<typeof schema>
 
 interface WorkoutExerciseRowProps {
   exercise: WorkoutExerciseSummary
+  advancedTechniques?: AdvancedTechniqueMetadata[]
   isFirst: boolean
   isLast: boolean
   onDelete?: (exerciseId: string) => void | Promise<unknown>
@@ -43,6 +51,7 @@ function normalizeValues(values: WorkoutExerciseFormValues): UpdateWorkoutExerci
 
 export default function WorkoutExerciseRow({
   exercise,
+  advancedTechniques = [],
   isFirst,
   isLast,
   onDelete,
@@ -65,7 +74,8 @@ export default function WorkoutExerciseRow({
     },
   })
 
-  const advancedTechniqueLabel = formatAdvancedTechnique(exercise.advancedTechnique)
+  const advancedTechniqueLabel = formatAdvancedTechnique(advancedTechniques, exercise.advancedTechnique)
+  const advancedTechniqueOptions = buildAdvancedTechniqueOptions(advancedTechniques)
 
   function handleEditOpen() {
     reset({
@@ -160,7 +170,7 @@ export default function WorkoutExerciseRow({
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 {...register('advancedTechnique')}
               >
-                {ADVANCED_TECHNIQUE_OPTIONS.map((option) => (
+                {advancedTechniqueOptions.map((option) => (
                   <option key={option.value || 'none'} value={option.value}>
                     {option.label}
                   </option>

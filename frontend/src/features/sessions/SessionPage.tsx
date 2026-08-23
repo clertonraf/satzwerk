@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import ForfeitSessionModal from '@/features/sessions/ForfeitSessionModal'
@@ -10,7 +11,8 @@ import { formatSessionDate } from '@/features/sessions/sessionHelpers'
 import { useSessionQueries } from '@/features/sessions/useSessionQueries'
 import { useWorkoutSessionMachine } from '@/features/sessions/useWorkoutSessionMachine'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
-import type { WorkoutGroupDetail } from '@/services/planService'
+import { planService, type WorkoutGroupDetail } from '@/services/planService'
+import { queryKeys } from '@/services/queryKeys'
 
 export default function SessionPage() {
   const navigate = useNavigate()
@@ -40,6 +42,14 @@ export default function SessionPage() {
     sessionId: undefined,
     units: {},
   })
+  const {
+    data: advancedTechniques = [],
+    isLoading: isAdvancedTechniquesLoading,
+    error: advancedTechniquesError,
+  } = useQuery({
+    queryKey: queryKeys.plans.advancedTechniques(),
+    queryFn: () => planService.getAdvancedTechniques(),
+  })
   // Derive per-exercise units scoped to the current session — automatically
   // resets to {} when session?.id changes (new session or session ended).
   const exerciseUnits = unitState.sessionId === session?.id ? unitState.units : {}
@@ -66,11 +76,11 @@ export default function SessionPage() {
 
   const currentGroupEntry = session ? groupCatalog[session.workoutGroupId] : undefined
 
-  if (queryError) {
+  if (queryError || advancedTechniquesError) {
     return <p className="text-sm text-destructive">Could not load workout session data.</p>
   }
 
-  if (!session && isSessionLoading) {
+  if (isAdvancedTechniquesLoading || (!session && isSessionLoading)) {
     return <p className="text-sm text-muted-foreground">Loading workout session...</p>
   }
 
@@ -95,6 +105,7 @@ export default function SessionPage() {
 
       {previewGroup ? (
         <WorkoutGroupPreviewModal
+          advancedTechniques={advancedTechniques}
           group={previewGroup.group}
           planName={previewGroup.planName}
           onClose={() => setPreviewGroup(null)}
@@ -135,6 +146,7 @@ export default function SessionPage() {
               session={session}
               pendingSetLogs={pendingSetLogs}
               currentGroupEntry={currentGroupEntry}
+              advancedTechniques={advancedTechniques}
               exercisesById={exercisesById}
               referenceWeightsMap={referenceWeightsMap}
               isReferenceWeightsLoading={isReferenceWeightsLoading}

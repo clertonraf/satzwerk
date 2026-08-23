@@ -20,6 +20,13 @@ export interface WorkoutExerciseSummary {
   orderIndex: number
 }
 
+export interface AdvancedTechniqueMetadata {
+  value: string
+  label: string
+  description: string
+  restSeconds: number | null
+}
+
 export interface WorkoutGroupDetail {
   id: string
   title: string
@@ -64,6 +71,7 @@ function toWorkoutPlanStructure(plan: WorkoutPlanDetail): WorkoutPlanStructure {
 export const planService = {
   list: () => http.get<WorkoutPlan[]>('/plans'),
   get: (id: string) => http.get<WorkoutPlanDetail>(`/plans/${id}`),
+  getAdvancedTechniques: () => http.get<AdvancedTechniqueMetadata[]>('/plans/advanced-techniques'),
   getMetadata: async (id: string) => toWorkoutPlanMetadata(await http.get<WorkoutPlanDetail>(`/plans/${id}`)),
   getStructure: async (id: string) => toWorkoutPlanStructure(await http.get<WorkoutPlanDetail>(`/plans/${id}`)),
   create: (name: string) => http.post<WorkoutPlan>('/plans', { name }),

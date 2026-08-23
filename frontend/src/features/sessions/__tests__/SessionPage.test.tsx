@@ -5,6 +5,8 @@ import { MemoryRouter } from 'react-router-dom'
 import SessionPage from '../SessionPage'
 import { QueryClientWrapper } from '@/test/QueryClientWrapper'
 import { exerciseService } from '@/services/exerciseService'
+import { advancedTechniqueMetadataFixture } from '@/test/advancedTechniqueMetadata'
+import { planService } from '@/services/planService'
 import type { WorkoutPlanDetail } from '@/services/planService'
 import { sessionService } from '@/services/sessionService'
 import { useWorkoutSessionMachine } from '@/features/sessions/useWorkoutSessionMachine'
@@ -24,6 +26,18 @@ vi.mock('@/services/exerciseService', () => ({
     list: vi.fn(),
   },
 }))
+
+vi.mock('@/services/planService', async () => {
+  const actual = await vi.importActual<typeof import('@/services/planService')>('@/services/planService')
+
+  return {
+    ...actual,
+    planService: {
+      ...actual.planService,
+      getAdvancedTechniques: vi.fn(),
+    },
+  }
+})
 
 vi.mock('@/features/sessions/useWorkoutSessionMachine', () => ({
   useWorkoutSessionMachine: vi.fn(),
@@ -84,6 +98,7 @@ describe('SessionPage', () => {
     vi.mocked(useWorkoutSessionMachine).mockReturnValue(defaultWorkoutSessionState)
     vi.mocked(useOnlineStatus).mockReturnValue(true)
     vi.mocked(exerciseService.list).mockResolvedValue([])
+    vi.mocked(planService.getAdvancedTechniques).mockResolvedValue(advancedTechniqueMetadataFixture)
     vi.mocked(sessionService.history).mockResolvedValue([])
     vi.mocked(sessionService.getReferenceWeights).mockResolvedValue([])
     vi.mocked(sessionService.getStartOptions).mockResolvedValue(buildWorkoutPlanDetail())
@@ -102,6 +117,15 @@ describe('SessionPage', () => {
 
     expect(await screen.findByText('Loading workout groups...')).toBeInTheDocument()
     expect(sessionService.getStartOptions).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows loading state while advanced technique metadata is loading', async () => {
+    vi.mocked(planService.getAdvancedTechniques).mockImplementation(() => new Promise(() => undefined))
+
+    renderPage()
+
+    expect(await screen.findByText('Loading workout session...')).toBeInTheDocument()
+    expect(planService.getAdvancedTechniques).toHaveBeenCalledTimes(1)
   })
 
   it('shows no-active-plan message when start-options returns null', async () => {

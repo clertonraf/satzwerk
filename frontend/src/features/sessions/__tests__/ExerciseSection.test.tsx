@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import ExerciseSection from '../ExerciseSection'
 import type { PendingSetLog, SubmittedSetLog } from '@/services/sessionService'
 import { formatDisplayWeight } from '@/lib/unitFormatters'
+import { advancedTechniqueMetadataFixture } from '@/test/advancedTechniqueMetadata'
 
 const makeExercise = () => ({
   id: 'we-1',
@@ -53,6 +54,7 @@ const defaultProps = {
   onUpdateSetLog: vi.fn(),
   onDeleteSetLog: vi.fn(),
   onSetExerciseUnit: vi.fn(),
+  advancedTechniques: advancedTechniqueMetadataFixture,
 }
 
 function renderSection(props = {}) {
