@@ -6,7 +6,7 @@ interface ExerciseSessionHistoryCardProps {
 }
 
 export default function ExerciseSessionHistoryCard({ progress, isLoading }: ExerciseSessionHistoryCardProps) {
-  if (isLoading) return null
+  if (isLoading) return <p className="text-sm text-muted-foreground">Loading history…</p>
   if (!progress) return null
 
   return (
