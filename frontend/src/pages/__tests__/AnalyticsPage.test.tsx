@@ -164,7 +164,7 @@ describe('AnalyticsPage', () => {
     expect(vi.mocked(analyticsService.exerciseProgress)).not.toHaveBeenCalledWith('ex-2')
   })
 
-  it('shows an empty state when the selected Exercise has no completed sessions', async () => {
+  it('shows the exercise pill, per-exercise empty state, and no recent-sessions section when progress has no data', async () => {
     vi.mocked(analyticsService.topExercises).mockResolvedValue([
       { exerciseId: 'ex-1', exerciseName: 'Bench Press', setCount: 42 },
     ])
@@ -183,7 +183,15 @@ describe('AnalyticsPage', () => {
       </QueryClientWrapper>,
     )
 
+    // Exercise pill is still rendered and marked as selected
+    const pill = await screen.findByRole('button', { name: 'Bench Press' })
+    expect(pill).toHaveAttribute('aria-pressed', 'true')
+
+    // Per-exercise empty-state message is shown
     expect(await screen.findByText('No completed sessions for this Exercise yet.')).toBeInTheDocument()
+
+    // Recent-sessions section is absent — heading and any session rows must not exist
+    expect(screen.queryByText('Recent sessions')).toBeNull()
   })
 
   it('shows a loading message while exercise progress is being fetched', async () => {
