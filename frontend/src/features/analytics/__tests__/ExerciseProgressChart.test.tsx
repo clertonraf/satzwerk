@@ -6,13 +6,16 @@ import type { ExerciseProgressResponse } from '@/services/analyticsService'
 const makeProgress = (pointCount: number): ExerciseProgressResponse => ({
   exerciseId: 'ex-1',
   exerciseName: 'Bench Press',
-  points: Array.from({ length: pointCount }, (_, i) => ({
-    sessionId: `session-${i + 1}`,
-    sessionDate: `2026-0${(i % 9) + 1}-01`,
-    topSetWeightKg: 80 + i * 2.5,
-    topSetReps: 5,
-    estimatedOneRepMaxKg: 95 + i * 3,
-  })),
+  points: Array.from({ length: pointCount }, (_, i) => {
+    const month = String((i % 12) + 1).padStart(2, '0')
+    return {
+      sessionId: `session-${i + 1}`,
+      sessionDate: `2026-${month}-01`,
+      topSetWeightKg: 80 + i * 2.5,
+      topSetReps: 5,
+      estimatedOneRepMaxKg: 95 + i * 3,
+    }
+  }),
   recentSessions: [],
 })
 
@@ -51,5 +54,11 @@ describe('ExerciseProgressChart', () => {
     render(<ExerciseProgressChart progress={makeProgress(2)} isLoading={false} />)
 
     expect(screen.queryByText('Loading progress…')).not.toBeInTheDocument()
+  })
+
+  it('renders Estimated 1RM label when data is present', () => {
+    render(<ExerciseProgressChart progress={makeProgress(3)} isLoading={false} />)
+
+    expect(screen.getByText('Estimated 1RM')).toBeInTheDocument()
   })
 })
