@@ -14,7 +14,9 @@ import com.satzwerk.workouts.Exercise
 import com.satzwerk.workouts.ExerciseRepository
 import com.satzwerk.workouts.WorkoutExercise
 import com.satzwerk.workouts.WorkoutGroup
+import com.satzwerk.workouts.WorkoutGroupExportData
 import com.satzwerk.workouts.WorkoutPlan
+import com.satzwerk.workouts.WorkoutPlanExportData
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
@@ -29,7 +31,7 @@ private data class ExerciseImportResult(
 class ExportService(
     private val userRepository: UserRepository,
     private val exerciseRepository: ExerciseRepository,
-    private val workoutDataPort: WorkoutDataPort,
+    private val workoutDeps: ExportWorkoutDeps,
     private val medicationRepository: MedicationRepository,
     private val medicationLogRepository: MedicationLogRepository,
     private val objectMapper: ObjectMapper,
@@ -81,7 +83,7 @@ class ExportService(
     }
 
     private suspend fun checkImportPreconditions(userId: UUID) {
-        if (workoutDataPort.findOpenSession(userId) != null) {
+        if (workoutDeps.workoutReadPort.findOpenSession(userId) != null) {
             throw ConflictException("You have an open workout session. Complete or discard it before importing.")
         }
     }
@@ -132,7 +134,7 @@ class ExportService(
                     )
                 }
             groupIdMap.putAll(
-                workoutDataPort.importPlanWithGroups(toNewWorkoutPlan(userId, exportedPlan), groupSpecs),
+                workoutDeps.workoutImportPort.importPlanWithGroups(toNewWorkoutPlan(userId, exportedPlan), groupSpecs),
             )
         }
         return groupIdMap to plans.size
@@ -157,7 +159,7 @@ class ExportService(
                     toNewSetLog(UUID(0, 0), mappedId, exportedSetLog)
                 }
             setLogCount +=
-                workoutDataPort.importSessionWithSetLogs(
+                workoutDeps.workoutImportPort.importSessionWithSetLogs(
                     toNewWorkoutSession(userId, mappedGroupId, exportedSession),
                     setLogs,
                 )
@@ -166,36 +168,31 @@ class ExportService(
     }
 
     private suspend fun exportPlans(userId: UUID): List<ExportWorkoutPlanDto> =
-        workoutDataPort.findAllPlans(userId).map { plan ->
-            val groups = workoutDataPort.findGroupsForPlan(requireNotNull(plan.id))
-            ExportWorkoutPlanDto(
-                id = requireNotNull(plan.id),
-                name = plan.name,
-                source = plan.source,
-                isActive = plan.isActive,
-                activatedAt = plan.activatedAt,
-                createdAt = plan.createdAt,
-                groups = groups.map { group -> exportGroup(group) },
-            )
-        }
+        workoutDeps.workoutReadPort.findExportPlans(userId).map { exportPlan(it) }
 
-    private suspend fun exportGroup(group: WorkoutGroup): ExportWorkoutGroupDto {
-        val workoutExercises = workoutDataPort.findExercisesForGroup(requireNotNull(group.id))
-        return ExportWorkoutGroupDto(
-            id = requireNotNull(group.id),
-            title = group.title,
-            orderIndex = group.orderIndex,
-            exercises = workoutExercises.map(::toExportWorkoutExerciseDto),
+    private fun exportPlan(exportData: WorkoutPlanExportData): ExportWorkoutPlanDto =
+        ExportWorkoutPlanDto(
+            id = requireNotNull(exportData.plan.id),
+            name = exportData.plan.name,
+            source = exportData.plan.source,
+            isActive = exportData.plan.isActive,
+            activatedAt = exportData.plan.activatedAt,
+            createdAt = exportData.plan.createdAt,
+            groups = exportData.groups.map(::exportGroup),
         )
-    }
 
-    private suspend fun exportSessions(userId: UUID): List<ExportWorkoutSessionDto> {
-        val sessions = workoutDataPort.findAllSessions(userId)
-        val logsBySession = workoutDataPort.findSetLogsBySessionIds(sessions.mapNotNull { it.id })
-        return sessions.map { session ->
-            toExportSessionDto(session, logsBySession[session.id] ?: emptyList())
+    private fun exportGroup(exportData: WorkoutGroupExportData): ExportWorkoutGroupDto =
+        ExportWorkoutGroupDto(
+            id = requireNotNull(exportData.group.id),
+            title = exportData.group.title,
+            orderIndex = exportData.group.orderIndex,
+            exercises = exportData.exercises.map(::toExportWorkoutExerciseDto),
+        )
+
+    private suspend fun exportSessions(userId: UUID): List<ExportWorkoutSessionDto> =
+        workoutDeps.workoutReadPort.findExportSessions(userId).map { exportData ->
+            toExportSessionDto(exportData.session, exportData.setLogs)
         }
-    }
 }
 
 // --- Top-level factory helpers (do not count towards ExportService function limit) ---
