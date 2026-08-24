@@ -5,14 +5,23 @@ ALTER TABLE public_write_idempotency_records
     RENAME COLUMN grant_id TO credential_id;
 
 ALTER TABLE public_write_idempotency_records
-    ADD COLUMN principal_type TEXT;
+    ADD COLUMN principal_type TEXT,
+    ADD COLUMN app_id UUID REFERENCES partner_apps(id) ON DELETE CASCADE,
+    ADD COLUMN grant_id UUID REFERENCES app_grants(id) ON DELETE CASCADE,
+    ADD COLUMN user_id UUID REFERENCES users(id) ON DELETE CASCADE;
 
 UPDATE public_write_idempotency_records
-SET principal_type = 'PARTNER_APP'
-WHERE principal_type IS NULL;
+SET principal_type = 'PARTNER_APP',
+    app_id = app_grants.app_id,
+    grant_id = app_grants.id,
+    user_id = app_grants.user_id
+FROM app_grants
+WHERE public_write_idempotency_records.credential_id = app_grants.id
+  AND public_write_idempotency_records.principal_type IS NULL;
 
 ALTER TABLE public_write_idempotency_records
-    ALTER COLUMN principal_type SET NOT NULL;
+    ALTER COLUMN principal_type SET NOT NULL,
+    ALTER COLUMN user_id SET NOT NULL;
 
 UPDATE public_write_idempotency_records
 SET request_fingerprint = '__legacy_no_fingerprint__'

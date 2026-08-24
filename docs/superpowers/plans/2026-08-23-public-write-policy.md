@@ -594,7 +594,7 @@ git add \
   backend/src/main/kotlin/com/satzwerk/publicapi/PartnerWritePolicyService.kt \
   backend/src/main/kotlin/com/satzwerk/publicapi/PublicWritePolicyService.kt \
   backend/src/test/kotlin/com/satzwerk/publicapi/PublicWritePolicyServiceTest.kt \
-  backend/src/main/resources/db/migration/V20__generalize_public_write_policy.sql
+  backend/src/main/resources/db/migration/V21__generalize_public_write_policy.sql
 git commit -m "refactor(publicapi): generalize public write policy storage
 
 Rename the partner-only public write policy and schema to neutral public-write

@@ -12,7 +12,7 @@ import java.util.UUID
 
 class PublicWritePolicyMigrationTest : PostgresTestContainer() {
     @Test
-    fun `V20 migrates legacy idempotency uniqueness to the new principal and credential key`() {
+    fun `V21 migrates legacy idempotency uniqueness to the new principal and credential key`() {
         val schema = randomSchema()
 
         createSchema(schema)
@@ -22,7 +22,7 @@ class PublicWritePolicyMigrationTest : PostgresTestContainer() {
     }
 
     @Test
-    fun `V20 upgrades legacy partner-write rows into public write tables with backfilled identity fields`() {
+    fun `V21 upgrades legacy partner-write rows into public write tables with backfilled identity fields`() {
         val fixture = LegacyPartnerWriteFixture()
 
         createSchema(fixture.schema)
@@ -253,7 +253,8 @@ class PublicWritePolicyMigrationTest : PostgresTestContainer() {
         val records =
             connection.prepareStatement(
                 """
-                SELECT id, principal_type, credential_id, request_fingerprint, response_status
+                SELECT id, principal_type, credential_id, app_id, grant_id, user_id, request_fingerprint,
+                    response_status
                 FROM public_write_idempotency_records
                 WHERE id IN (?, ?)
                 ORDER BY idempotency_key
@@ -269,6 +270,9 @@ class PublicWritePolicyMigrationTest : PostgresTestContainer() {
                                     listOf(
                                         resultSet.getString("principal_type"),
                                         resultSet.getObject("credential_id", UUID::class.java).toString(),
+                                        resultSet.getObject("app_id", UUID::class.java)?.toString(),
+                                        resultSet.getObject("grant_id", UUID::class.java)?.toString(),
+                                        resultSet.getObject("user_id", UUID::class.java)?.toString(),
                                         resultSet.getString("request_fingerprint"),
                                         resultSet.getInt("response_status").toString(),
                                     ),
@@ -282,13 +286,24 @@ class PublicWritePolicyMigrationTest : PostgresTestContainer() {
             listOf(
                 "PARTNER_APP",
                 fixture.grantId.toString(),
+                fixture.appId.toString(),
+                fixture.grantId.toString(),
+                fixture.userId.toString(),
                 "__legacy_no_fingerprint__",
                 "201",
             ),
             records[fixture.completedRecordId],
         )
         assertEquals(
-            listOf("PARTNER_APP", fixture.grantId.toString(), "", "-1"),
+            listOf(
+                "PARTNER_APP",
+                fixture.grantId.toString(),
+                fixture.appId.toString(),
+                fixture.grantId.toString(),
+                fixture.userId.toString(),
+                "",
+                "-1",
+            ),
             records[fixture.pendingRecordId],
         )
     }

@@ -37,36 +37,17 @@ class PublicWritePolicyServiceTest {
                         invocation.arguments[0] as PublicWriteAuditEntry
                     }
                 }
-            val service =
-                PublicWritePolicyService(
-                    idempotencyRecordRepository = idempotencyRecordRepository,
-                    publicWriteAuditService = PublicWriteAuditService(publicWriteAuditRepository),
-                    objectMapper = jacksonObjectMapper(),
-                )
+            val service = policyService(idempotencyRecordRepository, publicWriteAuditRepository)
 
             val response =
-                service.execute(
-                    partnerPrincipal(),
-                    request(),
-                    HttpStatus.CREATED,
-                    requestCodec,
-                ) {
+                executeCreatedResponse(service, partnerPrincipal(), requestCodec) {
                     ExampleResponse(name = "Bench Press")
                 }
 
             assertEquals(HttpStatus.CREATED, response.statusCode())
             val savedRecord = argumentCaptor<PublicWriteIdempotencyRecord>()
             val savedAudit = argumentCaptor<PublicWriteAuditEntry>()
-            verify(idempotencyRecordRepository).claim(
-                PublicWriteIdempotencyClaim(
-                    principalType = PublicWritePrincipalType.PARTNER_APP,
-                    credentialId = GRANT_ID,
-                    requestMethod = HttpMethod.POST.name(),
-                    requestPath = "/api/public/exercises",
-                    idempotencyKey = IDEMPOTENCY_KEY,
-                    requestFingerprint = """{"name":"Bench Press"}""",
-                ),
-            )
+            verify(idempotencyRecordRepository).claim(expectedClaim(partnerPrincipal()))
             verify(idempotencyRecordRepository).save(savedRecord.capture())
             verify(publicWriteAuditRepository).save(savedAudit.capture())
             assertEquals(HttpStatus.CREATED.value(), savedRecord.lastValue.responseStatus)
@@ -74,6 +55,9 @@ class PublicWritePolicyServiceTest {
             assertEquals("""{"name":"Bench Press"}""", savedRecord.lastValue.requestFingerprint)
             assertEquals(PublicWritePrincipalType.PARTNER_APP, savedRecord.lastValue.principalType)
             assertEquals(GRANT_ID, savedRecord.lastValue.credentialId)
+            assertEquals(APP_ID, savedRecord.lastValue.appId)
+            assertEquals(GRANT_ID, savedRecord.lastValue.grantId)
+            assertEquals(USER_ID, savedRecord.lastValue.userId)
             assertEquals(PublicWritePrincipalType.PARTNER_APP, savedAudit.firstValue.principalType)
             assertEquals(GRANT_ID, savedAudit.firstValue.credentialId)
             assertEquals(APP_ID, savedAudit.firstValue.appId)
@@ -104,30 +88,24 @@ class PublicWritePolicyServiceTest {
                         invocation.arguments[0] as PublicWriteAuditEntry
                     }
                 }
-            val service =
-                PublicWritePolicyService(
-                    idempotencyRecordRepository = idempotencyRecordRepository,
-                    publicWriteAuditService = PublicWriteAuditService(publicWriteAuditRepository),
-                    objectMapper = jacksonObjectMapper(),
-                )
+            val service = policyService(idempotencyRecordRepository, publicWriteAuditRepository)
 
             val response =
-                service.execute(
-                    personalApiTokenPrincipal(),
-                    request(),
-                    HttpStatus.CREATED,
-                    requestCodec,
-                ) {
+                executeCreatedResponse(service, personalApiTokenPrincipal(), requestCodec) {
                     ExampleResponse(name = "Bench Press")
                 }
 
             assertEquals(HttpStatus.CREATED, response.statusCode())
             val savedRecord = argumentCaptor<PublicWriteIdempotencyRecord>()
             val savedAudit = argumentCaptor<PublicWriteAuditEntry>()
+            verify(idempotencyRecordRepository).claim(expectedClaim(personalApiTokenPrincipal()))
             verify(idempotencyRecordRepository).save(savedRecord.capture())
             verify(publicWriteAuditRepository).save(savedAudit.capture())
             assertEquals(PublicWritePrincipalType.PERSONAL_API_TOKEN, savedRecord.lastValue.principalType)
             assertEquals(TOKEN_ID, savedRecord.lastValue.credentialId)
+            assertEquals(null, savedRecord.lastValue.appId)
+            assertEquals(null, savedRecord.lastValue.grantId)
+            assertEquals(USER_ID, savedRecord.lastValue.userId)
             assertEquals(PublicWritePrincipalType.PERSONAL_API_TOKEN, savedAudit.firstValue.principalType)
             assertEquals(TOKEN_ID, savedAudit.firstValue.credentialId)
             assertEquals(null, savedAudit.firstValue.appId)
@@ -530,6 +508,35 @@ class PublicWritePolicyServiceTest {
             scopes = setOf("exercises:write"),
         )
 
+    private fun policyService(
+        idempotencyRecordRepository: PublicWriteIdempotencyRecordRepository,
+        publicWriteAuditRepository: PublicWriteAuditRepository,
+    ) = PublicWritePolicyService(
+        idempotencyRecordRepository = idempotencyRecordRepository,
+        publicWriteAuditService = PublicWriteAuditService(publicWriteAuditRepository),
+        objectMapper = jacksonObjectMapper(),
+    )
+
+    private suspend fun executeCreatedResponse(
+        service: PublicWritePolicyService,
+        principal: PublicWritePrincipal,
+        requestCodec: PublicWriteRequestFingerprintCodec,
+        block: suspend () -> ExampleResponse,
+    ) = service.execute(principal, request(), HttpStatus.CREATED, requestCodec) { block() }
+
+    private fun expectedClaim(principal: PublicWritePrincipal) =
+        PublicWriteIdempotencyClaim(
+            principalType = principal.principalType,
+            credentialId = principal.credentialId,
+            appId = principal.appId,
+            grantId = principal.grantId,
+            userId = principal.userId,
+            requestMethod = HttpMethod.POST.name(),
+            requestPath = "/api/public/exercises",
+            idempotencyKey = IDEMPOTENCY_KEY,
+            requestFingerprint = """{"name":"Bench Press"}""",
+        )
+
     private fun pendingRecord(
         id: UUID,
         principalType: PublicWritePrincipalType = PublicWritePrincipalType.PARTNER_APP,
@@ -540,6 +547,9 @@ class PublicWritePolicyServiceTest {
         id = id,
         principalType = principalType,
         credentialId = credentialId,
+        appId = if (principalType == PublicWritePrincipalType.PARTNER_APP) APP_ID else null,
+        grantId = if (principalType == PublicWritePrincipalType.PARTNER_APP) GRANT_ID else null,
+        userId = USER_ID,
         requestMethod = HttpMethod.POST.name(),
         requestPath = requestPath,
         idempotencyKey = IDEMPOTENCY_KEY,
