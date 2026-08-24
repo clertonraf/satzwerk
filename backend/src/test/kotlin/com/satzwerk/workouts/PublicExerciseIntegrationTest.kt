@@ -2,10 +2,13 @@ package com.satzwerk.workouts
 
 import com.satzwerk.PostgresTestContainer
 import com.satzwerk.auth.AuthResponse
+import com.satzwerk.auth.CreatedPersonalApiTokenResponse
 import com.satzwerk.partners.AppGrantResponse
 import com.satzwerk.partners.PartnerAppRegistrationResponse
-import com.satzwerk.publicapi.IdempotencyRecordRepository
-import com.satzwerk.publicapi.PartnerWriteAuditRepository
+import com.satzwerk.publicapi.PublicScope
+import com.satzwerk.publicapi.PublicWriteAuditRepository
+import com.satzwerk.publicapi.PublicWriteIdempotencyRecordRepository
+import com.satzwerk.publicapi.PublicWritePrincipalType
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -25,10 +28,10 @@ class PublicExerciseIntegrationTest : PostgresTestContainer() {
     lateinit var client: WebTestClient
 
     @Autowired
-    lateinit var idempotencyRecordRepository: IdempotencyRecordRepository
+    lateinit var publicWriteIdempotencyRecordRepository: PublicWriteIdempotencyRecordRepository
 
     @Autowired
-    lateinit var partnerWriteAuditRepository: PartnerWriteAuditRepository
+    lateinit var publicWriteAuditRepository: PublicWriteAuditRepository
 
     @Test
     fun `partner app with exercises write scope can create an Exercise`() {
@@ -185,12 +188,97 @@ class PublicExerciseIntegrationTest : PostgresTestContainer() {
 
         assertEquals(first, replayed)
         runBlocking {
-            val records = idempotencyRecordRepository.findAllByGrantId(grant.grantId).toList()
-            val audits = partnerWriteAuditRepository.findAllByGrantId(grant.grantId).toList()
+            val records =
+                publicWriteIdempotencyRecordRepository
+                    .findAllByPrincipalTypeAndCredentialId(PublicWritePrincipalType.PARTNER_APP, grant.grantId)
+                    .toList()
+            val audits =
+                publicWriteAuditRepository
+                    .findAllByPrincipalTypeAndCredentialId(PublicWritePrincipalType.PARTNER_APP, grant.grantId)
+                    .toList()
             assertEquals(1, records.size)
             assertEquals(2, audits.size)
-            assertEquals("exercises:write", audits.first().grantedScopes)
+            assertEquals(PublicScope.EXERCISES_WRITE, audits.first().grantedScopes)
         }
+    }
+
+    @Test
+    fun `PAT with exercises write scope replays the original Exercise create response`() {
+        val token = registerAndLogin()
+        val personalToken = createToken(token, "Exercise Writer", listOf(PublicScope.EXERCISES_WRITE))
+        val idempotencyKey = UUID.randomUUID().toString()
+        val requestBody = mapOf("name" to "PAT Replay Bench", "muscleGroup" to "CHEST")
+
+        val first =
+            client
+                .post()
+                .uri("/api/public/exercises")
+                .header("Authorization", "Bearer ${personalToken.token}")
+                .header("Idempotency-Key", idempotencyKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(requestBody)
+                .exchange()
+                .expectStatus().isCreated
+                .returnResult<ExerciseResponse>()
+                .responseBody
+                .blockFirst()!!
+
+        val replayed =
+            client
+                .post()
+                .uri("/api/public/exercises")
+                .header("Authorization", "Bearer ${personalToken.token}")
+                .header("Idempotency-Key", idempotencyKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(requestBody)
+                .exchange()
+                .expectStatus().isCreated
+                .returnResult<ExerciseResponse>()
+                .responseBody
+                .blockFirst()!!
+
+        assertEquals(first, replayed)
+        runBlocking {
+            val records =
+                publicWriteIdempotencyRecordRepository
+                    .findAllByPrincipalTypeAndCredentialId(
+                        PublicWritePrincipalType.PERSONAL_API_TOKEN,
+                        personalToken.id,
+                    ).toList()
+            val audits =
+                publicWriteAuditRepository
+                    .findAllByPrincipalTypeAndCredentialId(
+                        PublicWritePrincipalType.PERSONAL_API_TOKEN,
+                        personalToken.id,
+                    ).toList()
+            assertEquals(1, records.size)
+            assertEquals(2, audits.size)
+            assertEquals(PublicScope.EXERCISES_WRITE, audits.first().grantedScopes)
+            assertEquals(PublicWritePrincipalType.PERSONAL_API_TOKEN, records.first().principalType)
+            assertEquals(personalToken.id, records.first().credentialId)
+            assertEquals(PublicWritePrincipalType.PERSONAL_API_TOKEN, audits.first().principalType)
+            assertEquals(personalToken.id, audits.first().credentialId)
+            assertEquals(null, audits.first().appId)
+            assertEquals(null, audits.first().grantId)
+        }
+    }
+
+    @Test
+    fun `PAT without exercises write scope is rejected with 403 on Exercise create`() {
+        val token = registerAndLogin()
+        val personalToken = createToken(token, "Exercise Reader", listOf(PublicScope.PLANS_WRITE))
+
+        client
+            .post()
+            .uri("/api/public/exercises")
+            .header("Authorization", "Bearer ${personalToken.token}")
+            .header("Idempotency-Key", UUID.randomUUID().toString())
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("name" to "Blocked PAT Exercise", "muscleGroup" to "CHEST"))
+            .exchange()
+            .expectStatus().isForbidden
+            .expectBody()
+            .jsonPath("$.error").isEqualTo("Required scope: ${PublicScope.EXERCISES_WRITE}")
     }
 
     @Test
@@ -302,6 +390,23 @@ class PublicExerciseIntegrationTest : PostgresTestContainer() {
             .exchange()
             .expectStatus().isCreated
             .returnResult<AppGrantResponse>()
+            .responseBody
+            .blockFirst()!!
+
+    private fun createToken(
+        jwt: String,
+        name: String,
+        scopes: List<String>,
+    ): CreatedPersonalApiTokenResponse =
+        client
+            .post()
+            .uri("/api/tokens")
+            .header("Authorization", "Bearer $jwt")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("name" to name, "scopes" to scopes))
+            .exchange()
+            .expectStatus().isCreated
+            .returnResult<CreatedPersonalApiTokenResponse>()
             .responseBody
             .blockFirst()!!
 }

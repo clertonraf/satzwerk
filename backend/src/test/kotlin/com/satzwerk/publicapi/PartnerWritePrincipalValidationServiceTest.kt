@@ -1,8 +1,11 @@
 package com.satzwerk.publicapi
 
+import com.satzwerk.auth.PersonalApiToken
+import com.satzwerk.common.PartnerAppRequestPrincipal
 import com.satzwerk.common.RequestContext
 import com.satzwerk.common.UnauthorizedException
 import com.satzwerk.partners.AppGrant
+import com.satzwerk.partners.PartnerAppService
 import com.satzwerk.partners.PartnerPrincipal
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -18,57 +21,59 @@ import java.util.UUID
 
 class PartnerWritePrincipalValidationServiceTest {
     @Test
-    fun `requireValidPrincipal returns the authenticated partner principal when the active grant matches`(): Unit =
+    fun `requireValidPrincipal returns the partner request principal for valid partner requests`(): Unit =
         runBlocking {
-            val request = request()
-            val expected = RequestContext(request).requirePartnerAppPrincipal()
-            val activeGrant =
-                AppGrant(
-                    id = GRANT_ID,
-                    appId = APP_ID,
-                    userId = USER_ID,
-                    grantedScopes = "exercises:write",
-                    accessTokenHash = "hash",
-                )
             val validatedService =
                 PartnerWritePrincipalValidationService(
-                    mock {
-                        onBlocking { resolveActiveGrant(APP_TOKEN) } doReturn activeGrant
-                    },
+                    PublicWritePrincipalValidationService(
+                        mock<PartnerAppService> {
+                            onBlocking { resolveActiveGrant(APP_TOKEN) } doReturn activeGrant()
+                        },
+                    ),
                 )
 
-            val actual = validatedService.requireValidPrincipal(RequestContext(request))
+            val actual = validatedService.requireValidPrincipal(RequestContext(partnerAppRequest()))
 
-            assertEquals(expected, actual)
+            assertEquals(
+                PartnerAppRequestPrincipal(
+                    userId = USER_ID,
+                    appId = APP_ID,
+                    grantId = GRANT_ID,
+                    scopes = setOf("exercises:write"),
+                    partnerPrincipal =
+                        PartnerPrincipal(
+                            userId = USER_ID.toString(),
+                            appId = APP_ID.toString(),
+                            grantId = GRANT_ID.toString(),
+                            grantedScopes = "exercises:write",
+                        ),
+                ),
+                actual,
+            )
         }
 
     @Test
-    fun `requireValidPrincipal rejects a stale partner principal when the active grant changes`() {
-        val activeGrant =
-            AppGrant(
-                id = UUID.randomUUID(),
-                appId = APP_ID,
-                userId = USER_ID,
-                grantedScopes = "exercises:write",
-                accessTokenHash = "hash",
-            )
+    fun `requireValidPrincipal rejects non-partner principals even when public writes are allowed`() {
         val validatedService =
             PartnerWritePrincipalValidationService(
-                mock {
-                    onBlocking { resolveActiveGrant(APP_TOKEN) } doReturn activeGrant
-                },
+                PublicWritePrincipalValidationService(mock()),
             )
 
         assertThrows<UnauthorizedException> {
-            runBlocking { validatedService.requireValidPrincipal(RequestContext(request())) }
+            runBlocking { validatedService.requireValidPrincipal(RequestContext(personalApiTokenRequest())) }
         }
     }
 
-    private fun request(): ServerRequest {
-        val headers =
-            mock<ServerRequest.Headers> {
-                on { firstHeader("X-App-Token") } doReturn APP_TOKEN
-            }
+    private fun activeGrant(): AppGrant =
+        AppGrant(
+            id = GRANT_ID,
+            appId = APP_ID,
+            userId = USER_ID,
+            grantedScopes = "exercises:write",
+            accessTokenHash = "hash",
+        )
+
+    private fun partnerAppRequest(): ServerRequest {
         val principal =
             UsernamePasswordAuthenticationToken(
                 USER_ID.toString(),
@@ -80,6 +85,35 @@ class PartnerWritePrincipalValidationServiceTest {
                 ),
                 listOf(SimpleGrantedAuthority("exercises:write")),
             )
+        return request(principal, APP_TOKEN)
+    }
+
+    private fun personalApiTokenRequest(): ServerRequest {
+        val token =
+            PersonalApiToken(
+                id = TOKEN_ID,
+                userId = USER_ID,
+                name = "Automation token",
+                tokenHash = "hash",
+                scopesRaw = "exercises:write",
+            )
+        val principal =
+            UsernamePasswordAuthenticationToken(
+                USER_ID.toString(),
+                token,
+                listOf(SimpleGrantedAuthority("exercises:write")),
+            )
+        return request(principal)
+    }
+
+    private fun request(
+        principal: UsernamePasswordAuthenticationToken,
+        appToken: String? = null,
+    ): ServerRequest {
+        val headers =
+            mock<ServerRequest.Headers> {
+                on { firstHeader("X-App-Token") } doReturn appToken
+            }
 
         return mock {
             on { headers() } doReturn headers
@@ -89,6 +123,7 @@ class PartnerWritePrincipalValidationServiceTest {
 
     companion object {
         private val USER_ID: UUID = UUID.randomUUID()
+        private val TOKEN_ID: UUID = UUID.randomUUID()
         private val APP_ID: UUID = UUID.randomUUID()
         private val GRANT_ID: UUID = UUID.randomUUID()
         private const val APP_TOKEN = "app-token"

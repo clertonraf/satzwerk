@@ -42,20 +42,17 @@ class JwtAuthenticationWebFilter(
             bearerToken.isBlank() -> chainMono
             bearerToken.startsWith(PAT_PREFIX) ->
                 mono { personalApiTokenService.resolve(bearerToken) }
-                    .flatMap { pat -> chainMono.withPatAuth(pat, bearerToken) }
-                    .switchIfEmpty(Mono.defer { unauthorized(exchange) })
+                    .flatMap { pat -> Mono.justOrEmpty(pat) }
+                    .switchIfEmpty(Mono.defer { unauthorized(exchange).then(Mono.empty()) })
+                    .flatMap { pat -> chainMono.withPatAuth(pat) }
             else -> chainMono.withJwtAuth(bearerToken)
         }
     }
 
-    private fun Mono<Void>.withPatAuth(
-        pat: PersonalApiToken?,
-        bearerToken: String,
-    ): Mono<Void> {
-        pat ?: return this
+    private fun Mono<Void>.withPatAuth(pat: PersonalApiToken): Mono<Void> {
         // PAT authorities are the raw scope strings only — no JWT_SESSION marker.
         val authorities = pat.scopes().map { SimpleGrantedAuthority(it) }
-        val auth = UsernamePasswordAuthenticationToken(pat.userId.toString(), bearerToken, authorities)
+        val auth = UsernamePasswordAuthenticationToken(pat.userId.toString(), pat, authorities)
         return contextWrite(ReactiveSecurityContextHolder.withAuthentication(auth))
     }
 

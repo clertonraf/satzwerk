@@ -4,8 +4,9 @@ import com.satzwerk.PostgresTestContainer
 import com.satzwerk.auth.AuthResponse
 import com.satzwerk.partners.AppGrantResponse
 import com.satzwerk.partners.PartnerAppRegistrationResponse
-import com.satzwerk.publicapi.IdempotencyRecordRepository
-import com.satzwerk.publicapi.PartnerWriteAuditRepository
+import com.satzwerk.publicapi.PublicWriteAuditRepository
+import com.satzwerk.publicapi.PublicWriteIdempotencyRecordRepository
+import com.satzwerk.publicapi.PublicWritePrincipalType
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -26,10 +27,10 @@ class PublicMeasurementIntegrationTest : PostgresTestContainer() {
     lateinit var client: WebTestClient
 
     @Autowired
-    lateinit var idempotencyRecordRepository: IdempotencyRecordRepository
+    lateinit var publicWriteIdempotencyRecordRepository: PublicWriteIdempotencyRecordRepository
 
     @Autowired
-    lateinit var partnerWriteAuditRepository: PartnerWriteAuditRepository
+    lateinit var publicWriteAuditRepository: PublicWriteAuditRepository
 
     private val today: LocalDate = LocalDate.of(2026, 6, 1)
 
@@ -307,8 +308,14 @@ class PublicMeasurementIntegrationTest : PostgresTestContainer() {
 
         assertEquals(first, replayed)
         runBlocking {
-            val records = idempotencyRecordRepository.findAllByGrantId(grant.grantId).toList()
-            val audits = partnerWriteAuditRepository.findAllByGrantId(grant.grantId).toList()
+            val records =
+                publicWriteIdempotencyRecordRepository
+                    .findAllByPrincipalTypeAndCredentialId(PublicWritePrincipalType.PARTNER_APP, grant.grantId)
+                    .toList()
+            val audits =
+                publicWriteAuditRepository
+                    .findAllByPrincipalTypeAndCredentialId(PublicWritePrincipalType.PARTNER_APP, grant.grantId)
+                    .toList()
             assertEquals(1, records.size)
             assertEquals(2, audits.size)
             assertEquals("measurements:write", audits.first().grantedScopes)
