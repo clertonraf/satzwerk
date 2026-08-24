@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import HistoryPage from '../HistoryPage'
 import { QueryClientWrapper } from '@/test/QueryClientWrapper'
@@ -12,6 +13,7 @@ import type { WorkoutPlan, WorkoutPlanDetail } from '@/services/planService'
 vi.mock('@/services/sessionService', () => ({
   sessionService: {
     history: vi.fn(),
+    getById: vi.fn(),
   },
 }))
 
@@ -38,6 +40,7 @@ function makeSetLog(index: number): SetLog {
     setNumber: index + 1,
     weight: 60,
     reps: 10,
+    rir: null,
     loggedAt: '2026-06-01T10:00:00Z',
   }
 }
@@ -156,5 +159,27 @@ describe('HistoryPage', () => {
 
     await screen.findByText('Push Day')
     expect(screen.queryByText(/% sets completed/i)).not.toBeInTheDocument()
+  })
+
+  it('renders rir in expanded session details when present', async () => {
+    const setLogs = [makeSetLog(0)]
+    vi.mocked(sessionService.history).mockResolvedValue([makeSession({ setLogs })])
+    vi.mocked(sessionService.getById).mockResolvedValue(makeSession({ setLogs: [{ ...makeSetLog(0), rir: 2 }] }))
+    vi.mocked(planService.list).mockResolvedValue([mockPlan])
+    vi.mocked(planService.getStructure).mockResolvedValue({ groups: makePlanDetail(1).groups })
+    vi.mocked(exerciseService.list).mockResolvedValue([{ id: 'ex-1', name: 'Bench Press' }] as never)
+
+    render(
+      <QueryClientWrapper>
+        <MemoryRouter>
+          <HistoryPage />
+        </MemoryRouter>
+      </QueryClientWrapper>,
+    )
+
+    const toggle = await screen.findByRole('button', { name: /push day/i })
+    await userEvent.click(toggle)
+
+    expect(await screen.findByText(/rir 2/i)).toBeInTheDocument()
   })
 })

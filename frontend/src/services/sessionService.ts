@@ -19,24 +19,27 @@ export interface SetLog {
   setNumber: number
   weight: number
   reps: number
+  rir: number | null
   loggedAt: string
 }
 
 export type SubmittedSetLog = SetLog & { pending: false }
 export type PendingSetLog = Omit<SetLog, 'id'> & { id: string; pending: true }
 export type SetLogResult = SubmittedSetLog | PendingSetLog
-export type SetLogUpdate = Pick<SetLog, 'weight' | 'reps'>
+export type SetLogUpdate = Pick<SetLog, 'weight' | 'reps' | 'rir'>
 
 export interface AddSetLogRequest {
   exerciseId: string
   setNumber: number
   weight: number
   reps: number
+  rir: number | null
 }
 
 export interface UpdateSetLogRequest {
   weight: number
   reps: number
+  rir: number | null
 }
 
 export interface ExerciseReferenceWeights {

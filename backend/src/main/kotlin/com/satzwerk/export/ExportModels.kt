@@ -52,6 +52,7 @@ data class ExportSetLogDto(
     val setNumber: Int,
     val weight: BigDecimal,
     val reps: Int,
+    val rir: Int? = null,
     val loggedAt: Instant,
     val isPr: Boolean,
 )

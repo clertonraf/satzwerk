@@ -46,6 +46,7 @@ const makeSession = (overrides: Partial<WorkoutSession> = {}): WorkoutSession =>
     setNumber: index + 1,
     weight: 80,
     reps: 8,
+    rir: null,
     loggedAt: '2026-06-01T10:00:00Z',
   }))
 

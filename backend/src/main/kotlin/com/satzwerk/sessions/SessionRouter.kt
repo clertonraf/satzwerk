@@ -1,5 +1,6 @@
 package com.satzwerk.sessions
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.RequestContext
 import com.satzwerk.common.body
@@ -23,10 +24,11 @@ class SessionRouter {
         workoutSessionService: WorkoutSessionService,
         setLogService: SetLogService,
         validator: Validator,
+        objectMapper: ObjectMapper,
     ) = coRouter {
         "/api/sessions".nest {
             sessionStartRoutes(workoutSessionService, validator)
-            sessionSetLogRoutes(workoutSessionService, setLogService, validator)
+            sessionSetLogRoutes(workoutSessionService, setLogService, validator, objectMapper)
             sessionLifecycleRoutes(workoutSessionService)
         }
     }
@@ -70,6 +72,7 @@ private fun CoRouterFunctionDsl.sessionSetLogRoutes(
     workoutSessionService: WorkoutSessionService,
     setLogService: SetLogService,
     validator: Validator,
+    objectMapper: ObjectMapper,
 ) {
     POST("/{id}/set-logs") { request ->
         withOwnedOpenSession(request, workoutSessionService) { ctx, session ->
@@ -81,7 +84,7 @@ private fun CoRouterFunctionDsl.sessionSetLogRoutes(
     }
     PATCH("/{id}/set-logs/{setLogId}") { request ->
         withOwnedOpenSession(request, workoutSessionService) { ctx, session ->
-            val body = ctx.body<UpdateSetLogRequest>()
+            val body = parseUpdateSetLogRequest(ctx.body(), objectMapper)
             validateOrBadRequest(validator, body) {
                 ServerResponse.ok().bodyValueAndAwait(
                     setLogService.update(session, ctx.pathId("setLogId"), body),

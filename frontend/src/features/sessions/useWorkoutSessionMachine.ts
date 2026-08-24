@@ -19,8 +19,8 @@ export type SessionEvent =
   | { type: 'DISCARD' }
   | { type: 'COMPLETE' }
   | { type: 'FORFEIT' }
-  | { type: 'LOG_SET'; exerciseId: string; setNumber: number; weight: number; reps: number; unit: 'kg' | 'lb' }
-  | { type: 'UPDATE_SET'; setLogId: string; weight: number; reps: number; unit: 'kg' | 'lb' }
+  | { type: 'LOG_SET'; exerciseId: string; setNumber: number; weight: number; reps: number; rir?: number | null; unit: 'kg' | 'lb' }
+  | { type: 'UPDATE_SET'; setLogId: string; weight: number; reps: number; rir?: number | null; unit: 'kg' | 'lb' }
   | { type: 'DELETE_SET'; setLogId: string }
   | { type: 'DISMISS_STALE_PLAN' }
 
@@ -187,6 +187,7 @@ export function useWorkoutSessionMachine({
           setNumber: event.setNumber,
           weight: toKilograms(event.weight, event.unit),
           reps: event.reps,
+          rir: event.rir ?? null,
         }
         const pendingLog: PendingSetLog = {
           id: crypto.randomUUID(),
@@ -194,6 +195,7 @@ export function useWorkoutSessionMachine({
           setNumber: event.setNumber,
           weight: toKilograms(event.weight, event.unit),
           reps: event.reps,
+          rir: event.rir ?? null,
           loggedAt: new Date().toISOString(),
           pending: true,
         }
@@ -218,6 +220,7 @@ export function useWorkoutSessionMachine({
         const payload: UpdateSetLogRequest = {
           weight: toKilograms(event.weight, event.unit),
           reps: event.reps,
+          rir: event.rir ?? null,
         }
         const updated = await transport.updateSetLog(session.id, event.setLogId, payload)
         queryClient.setQueryData<WorkoutSession>(queryKeys.sessions.open(), (current) => {
@@ -225,7 +228,7 @@ export function useWorkoutSessionMachine({
           return {
             ...current,
             setLogs: current.setLogs.map((l) =>
-              l.id === event.setLogId ? { ...l, weight: updated.weight, reps: updated.reps } : l,
+              l.id === event.setLogId ? { ...l, weight: updated.weight, reps: updated.reps, rir: updated.rir } : l,
             ),
           }
         })

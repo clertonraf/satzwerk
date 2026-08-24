@@ -158,11 +158,11 @@ export default function SessionPage() {
               isDeleteSetPending={isDeleteSetPending}
               isCompletePending={isCompletePending}
               isForfeitPending={isForfeitPending}
-              onLogSet={(exerciseId, setNumber, weight, reps, unit) =>
-                void dispatch({ type: 'LOG_SET', exerciseId, setNumber, weight, reps, unit })
+              onLogSet={(exerciseId, setNumber, weight, reps, rir, unit) =>
+                void dispatch({ type: 'LOG_SET', exerciseId, setNumber, weight, reps, rir, unit })
               }
-              onUpdateSetLog={(setLogId, weight, reps, unit) =>
-                dispatch({ type: 'UPDATE_SET', setLogId, weight, reps, unit })
+              onUpdateSetLog={(setLogId, weight, reps, rir, unit) =>
+                dispatch({ type: 'UPDATE_SET', setLogId, weight, reps, rir, unit })
               }
               onDeleteSetLog={(setLogId) => void dispatch({ type: 'DELETE_SET', setLogId })}
               onSetExerciseUnit={setExerciseUnit}

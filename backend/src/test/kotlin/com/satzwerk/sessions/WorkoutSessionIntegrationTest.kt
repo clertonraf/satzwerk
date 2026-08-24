@@ -5,8 +5,10 @@ import com.satzwerk.auth.AuthResponse
 import com.satzwerk.workouts.ExerciseResponse
 import com.satzwerk.workouts.WorkoutGroupResponse
 import com.satzwerk.workouts.WorkoutPlanResponse
+import jakarta.validation.Validator
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -24,9 +26,19 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
     @Autowired
     lateinit var client: WebTestClient
 
+    @Autowired
+    lateinit var validator: Validator
+
     private lateinit var authToken: String
     private lateinit var workoutGroupId: UUID
     private lateinit var exerciseId: UUID
+
+    private data class SetLogUpdateMutation(
+        val weight: BigDecimal,
+        val reps: Int,
+        val rir: Int? = null,
+        val includeRir: Boolean = true,
+    )
 
     @BeforeEach
     fun setup() {
@@ -180,6 +192,7 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
                     "setNumber" to 1,
                     "weight" to BigDecimal("80.0"),
                     "reps" to 5,
+                    "rir" to 2,
                 ),
             ).exchange()
             .expectStatus().isCreated
@@ -189,12 +202,13 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
             .jsonPath("$.setNumber").isEqualTo(1)
             .jsonPath("$.weight").isEqualTo(80)
             .jsonPath("$.reps").isEqualTo(5)
+            .jsonPath("$.rir").isEqualTo(2)
     }
 
     @Test
     fun `set log weight is stored in kilograms as provided`() {
         val session = startSession()
-        addSetLog(session.id, BigDecimal("100.0"))
+        addSetLog(session.id, BigDecimal("100.0"), rir = 2)
 
         val openSession =
             client
@@ -208,6 +222,7 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
                 .responseBody!!
 
         assertEquals(BigDecimal("100.00"), openSession.setLogs.single().weight)
+        assertEquals(2, openSession.setLogs.single().rir)
     }
 
     @Test
@@ -333,7 +348,7 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
     @Test
     fun `get session by id returns session with set logs`() {
         val session = startSession()
-        addSetLog(session.id, BigDecimal("100.0"))
+        addSetLog(session.id, BigDecimal("100.0"), rir = 2)
         val completedSession = completeSession(session.id)
 
         client
@@ -351,6 +366,7 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
             .jsonPath("$.setLogs[0].exerciseId").isEqualTo(exerciseId.toString())
             .jsonPath("$.setLogs[0].weight").isEqualTo(100)
             .jsonPath("$.setLogs[0].reps").isEqualTo(5)
+            .jsonPath("$.setLogs[0].rir").isEqualTo(2)
     }
 
     @Test
@@ -371,7 +387,7 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
     @Test
     fun `update set log returns updated set log`() {
         val session = startSession()
-        val setLog = addSetLog(session.id, BigDecimal("80.0"))
+        val setLog = addSetLog(session.id, BigDecimal("80.0"), rir = 2)
 
         client
             .patch()
@@ -382,6 +398,7 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
                 mapOf(
                     "weight" to BigDecimal("90.0"),
                     "reps" to 8,
+                    "rir" to 1,
                 ),
             ).exchange()
             .expectStatus().isOk
@@ -390,6 +407,22 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
             .jsonPath("$.weight").isEqualTo(90)
             .jsonPath("$.reps").isEqualTo(8)
             .jsonPath("$.setNumber").isEqualTo(1)
+            .jsonPath("$.rir").isEqualTo(1)
+    }
+
+    @Test
+    fun `update set log preserves rir when patch omits field`() {
+        val session = startSession()
+        val setLog = addSetLog(session.id, BigDecimal("80.0"), rir = 2)
+
+        val updated =
+            updateSetLog(
+                session.id,
+                setLog.id,
+                SetLogUpdateMutation(weight = BigDecimal("90.0"), reps = 8, includeRir = false),
+            )
+
+        assertEquals(2, updated.rir)
     }
 
     @Test
@@ -499,6 +532,22 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
     }
 
     @Test
+    fun `add set log request with rir above max violates validation`() {
+        val violations =
+            validator.validate(
+                AddSetLogRequest(
+                    exerciseId = exerciseId,
+                    setNumber = 1,
+                    weight = BigDecimal("100.0"),
+                    reps = 5,
+                    rir = 11,
+                ),
+            )
+
+        assertTrue(violations.any { it.propertyPath.toString() == "rir" })
+    }
+
+    @Test
     fun `set log with higher weight to reps ratio is marked as personal record even when absolute weight is lower`() {
         val firstSession = startSession()
         addSetLog(firstSession.id, BigDecimal("100.0"), reps = 10)
@@ -550,7 +599,7 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
 
         val secondSession = startSession()
         val setLog = addSetLog(secondSession.id, BigDecimal("80.0"), reps = 5)
-        updateSetLog(secondSession.id, setLog.id, BigDecimal("120.0"), reps = 5)
+        updateSetLog(secondSession.id, setLog.id, SetLogUpdateMutation(weight = BigDecimal("120.0"), reps = 5))
         completeSession(secondSession.id)
 
         client
@@ -573,7 +622,7 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
 
         val secondSession = startSession()
         val setLog = addSetLog(secondSession.id, BigDecimal("120.0"), reps = 5)
-        updateSetLog(secondSession.id, setLog.id, BigDecimal("80.0"), reps = 5)
+        updateSetLog(secondSession.id, setLog.id, SetLogUpdateMutation(weight = BigDecimal("80.0"), reps = 5))
         completeSession(secondSession.id)
 
         client
@@ -706,7 +755,7 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
     @Test
     fun `reference weights updates pr from current open session`() {
         val completedSession = startSession()
-        addSetLog(completedSession.id, BigDecimal("100.0"))
+        addSetLog(completedSession.id, BigDecimal("100.0"), rir = 2)
         completeSession(completedSession.id)
 
         val currentSession = startSession()
@@ -1044,13 +1093,15 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
     private fun addSetLog(
         sessionId: UUID,
         weight: BigDecimal,
-    ): SetLogResponse = addSetLog(sessionId, weight, reps = 5)
+        rir: Int? = null,
+    ): SetLogResponse = addSetLog(sessionId, weight, reps = 5, rir = rir)
 
     private fun addSetLog(
         sessionId: UUID,
         weight: BigDecimal,
         reps: Int,
         setNumber: Int = 1,
+        rir: Int? = null,
     ): SetLogResponse =
         client
             .post()
@@ -1063,6 +1114,7 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
                     "setNumber" to setNumber,
                     "weight" to weight,
                     "reps" to reps,
+                    "rir" to rir,
                 ),
             ).exchange()
             .expectStatus().isCreated
@@ -1073,8 +1125,7 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
     private fun updateSetLog(
         sessionId: UUID,
         setLogId: UUID,
-        weight: BigDecimal,
-        reps: Int,
+        mutation: SetLogUpdateMutation,
     ): SetLogResponse =
         client
             .patch()
@@ -1082,10 +1133,14 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
             .header("Authorization", "Bearer $authToken")
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(
-                mapOf(
-                    "weight" to weight,
-                    "reps" to reps,
-                ),
+                linkedMapOf<String, Any?>(
+                    "weight" to mutation.weight,
+                    "reps" to mutation.reps,
+                ).apply {
+                    if (mutation.includeRir) {
+                        put("rir", mutation.rir)
+                    }
+                },
             ).exchange()
             .expectStatus().isOk
             .expectBody(SetLogResponse::class.java)

@@ -37,6 +37,7 @@ const addSetLogRequest = {
   setNumber: 1,
   weight: 80,
   reps: 5,
+  rir: 2,
 }
 
 const submittedSetLog = {
@@ -45,6 +46,7 @@ const submittedSetLog = {
   setNumber: 1,
   weight: 80,
   reps: 5,
+  rir: 2,
   loggedAt: '2026-01-01T00:00:00Z',
 }
 
@@ -83,6 +85,7 @@ describe('createOnlineSetLogTransport', () => {
       ...submittedSetLog,
       weight: 82.5,
       reps: 4,
+      rir: 1,
     })
 
     const transport = createOnlineSetLogTransport({
@@ -92,15 +95,17 @@ describe('createOnlineSetLogTransport', () => {
     })
 
     await expect(
-      transport.updateSetLog('session-1', 'setlog-1', { weight: 82.5, reps: 4 }),
+      transport.updateSetLog('session-1', 'setlog-1', { weight: 82.5, reps: 4, rir: 1 }),
     ).resolves.toEqual({
       weight: 82.5,
       reps: 4,
+      rir: 1,
     })
 
     expect(sessionService.updateSetLog).toHaveBeenCalledWith('session-1', 'setlog-1', {
       weight: 82.5,
       reps: 4,
+      rir: 1,
     })
   })
 
@@ -154,17 +159,18 @@ describe('createQueuedSetLogTransport', () => {
     })
 
     await expect(
-      transport.updateSetLog('session-1', 'setlog-1', { weight: 82.5, reps: 4 }),
+      transport.updateSetLog('session-1', 'setlog-1', { weight: 82.5, reps: 4, rir: 1 }),
     ).resolves.toEqual({
       weight: 82.5,
       reps: 4,
+      rir: 1,
     })
 
     expect(offlineQueue.enqueue).toHaveBeenCalledWith({
       type: 'update-set',
       sessionId: 'session-1',
       setLogId: 'setlog-1',
-      data: { weight: 82.5, reps: 4 },
+      data: { weight: 82.5, reps: 4, rir: 1 },
     })
   })
 
@@ -248,6 +254,7 @@ describe('useSessionTransport', () => {
       ...submittedSetLog,
       weight: 82.5,
       reps: 4,
+      rir: 1,
     })
 
     const { result } = renderHook(() => useSessionTransport(), {
@@ -260,17 +267,20 @@ describe('useSessionTransport', () => {
       updated = await result.current.transport.updateSetLog('session-1', 'setlog-1', {
         weight: 82.5,
         reps: 4,
+        rir: 1,
       })
     })
 
     expect(sessionService.updateSetLog).toHaveBeenCalledWith('session-1', 'setlog-1', {
       weight: 82.5,
       reps: 4,
+      rir: 1,
     })
     expect(offlineQueue.enqueue).not.toHaveBeenCalled()
     expect(updated).toEqual({
       weight: 82.5,
       reps: 4,
+      rir: 1,
     })
   })
 
@@ -288,6 +298,7 @@ describe('useSessionTransport', () => {
       updated = await result.current.transport.updateSetLog('session-1', 'setlog-1', {
         weight: 82.5,
         reps: 4,
+        rir: 1,
       })
     })
 
@@ -295,12 +306,13 @@ describe('useSessionTransport', () => {
       type: 'update-set',
       sessionId: 'session-1',
       setLogId: 'setlog-1',
-      data: { weight: 82.5, reps: 4 },
+      data: { weight: 82.5, reps: 4, rir: 1 },
     })
     expect(sessionService.updateSetLog).not.toHaveBeenCalled()
     expect(updated).toEqual({
       weight: 82.5,
       reps: 4,
+      rir: 1,
     })
   })
 

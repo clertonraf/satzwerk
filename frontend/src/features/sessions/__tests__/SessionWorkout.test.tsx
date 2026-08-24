@@ -50,6 +50,7 @@ function makeSession(setCount: number): WorkoutSession {
       setNumber: i + 1,
       weight: 80,
       reps: 5,
+      rir: null,
       loggedAt: '2026-01-01T00:00:00Z',
     })),
     setCount,
@@ -127,8 +128,8 @@ describe('SessionWorkout completion progress', () => {
 
   it('includes pending SetLogs in the displayed percentage', () => {
     const pending = [
-      { id: 'pending-1', exerciseId: 'exercise-0', setNumber: 1, weight: 80, reps: 5, loggedAt: '2026-01-01T00:00:00Z', pending: true as const },
-      { id: 'pending-2', exerciseId: 'exercise-0', setNumber: 2, weight: 80, reps: 5, loggedAt: '2026-01-01T00:00:00Z', pending: true as const },
+      { id: 'pending-1', exerciseId: 'exercise-0', setNumber: 1, weight: 80, reps: 5, rir: null, loggedAt: '2026-01-01T00:00:00Z', pending: true as const },
+      { id: 'pending-2', exerciseId: 'exercise-0', setNumber: 2, weight: 80, reps: 5, rir: null, loggedAt: '2026-01-01T00:00:00Z', pending: true as const },
     ]
     render(
       <SessionWorkout

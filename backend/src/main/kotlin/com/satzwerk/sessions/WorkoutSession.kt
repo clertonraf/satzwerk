@@ -38,4 +38,5 @@ data class SetLog(
     val loggedAt: Instant = Instant.now(),
     @Column("is_pr")
     val isPr: Boolean = false,
+    val rir: Int? = null,
 )

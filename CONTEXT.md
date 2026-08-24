@@ -29,7 +29,7 @@ A single training event: started by a user against a WorkoutGroup, completed whe
 _Avoid_: Workout commit, training log, workout entry
 
 **SetLog**:
-A single performed set within a WorkoutSession: records `exerciseId`, `setNumber`, `weight` (always in kg), and `reps` performed. The atomic unit of training performance data.
+A single performed set within a WorkoutSession: records `exerciseId`, `setNumber`, `weight` (always in kg), `reps` performed, and optional `rir` (reps in reserve, integer `0..10`). The atomic unit of training performance data.
 _Avoid_: ExerciseLog, rep log, set entry
 
 **Heatmap**:
