@@ -109,6 +109,8 @@ class WorkoutPlanServiceTest {
                     workoutGroupRepository = workoutGroupRepository,
                     workoutExerciseRepository = workoutExerciseRepository,
                     exerciseRepository = exerciseRepository,
+                    analyticsReadCache = mock(),
+                    transactionRunner = mock(),
                 )
 
             val result = service.getDetail(userId, planId)
@@ -138,6 +140,8 @@ class WorkoutPlanServiceTest {
             workoutGroupRepository = workoutGroupRepository,
             workoutExerciseRepository = mock(),
             exerciseRepository = mock(),
+            analyticsReadCache = mock(),
+            transactionRunner = mock(),
         )
     }
 }

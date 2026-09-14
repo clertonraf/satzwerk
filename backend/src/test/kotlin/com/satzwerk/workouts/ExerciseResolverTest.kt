@@ -23,7 +23,8 @@ class ExerciseResolverTest {
         runBlocking {
             val result = resolver.resolve(userId, emptyMap())
 
-            assertTrue(result.isEmpty())
+            assertEquals(0, result.createdCount)
+            assertTrue(result.exercisesByNameLower.isEmpty())
             verify(exerciseRepository, never()).findAllByUserIdAndNamesLowercase(any(), any())
             verify(exerciseRepository, never()).saveAll(any<Iterable<Exercise>>())
         }
@@ -43,8 +44,9 @@ class ExerciseResolverTest {
 
             val result = resolver.resolve(userId, mapOf("Bench Press" to "Chest"))
 
-            assertEquals(1, result.size)
-            assertEquals(existing, result["bench press"])
+            assertEquals(0, result.createdCount)
+            assertEquals(1, result.exercisesByNameLower.size)
+            assertEquals(existing, result.exercisesByNameLower["bench press"])
             verify(exerciseRepository, never()).saveAll(any<Iterable<Exercise>>())
         }
 
@@ -65,8 +67,9 @@ class ExerciseResolverTest {
 
             val result = resolver.resolve(userId, mapOf("Squat" to "Legs"))
 
-            assertEquals(1, result.size)
-            assertEquals(saved, result["squat"])
+            assertEquals(1, result.createdCount)
+            assertEquals(1, result.exercisesByNameLower.size)
+            assertEquals(saved, result.exercisesByNameLower["squat"])
         }
 
     @Test
@@ -94,9 +97,10 @@ class ExerciseResolverTest {
 
             val result = resolver.resolve(userId, mapOf("Bench Press" to "Chest", "Squat" to "Legs"))
 
-            assertEquals(2, result.size)
-            assertEquals(existing, result["bench press"])
-            assertEquals(saved, result["squat"])
+            assertEquals(1, result.createdCount)
+            assertEquals(2, result.exercisesByNameLower.size)
+            assertEquals(existing, result.exercisesByNameLower["bench press"])
+            assertEquals(saved, result.exercisesByNameLower["squat"])
         }
 
     @Test
@@ -114,8 +118,9 @@ class ExerciseResolverTest {
 
             val result = resolver.resolve(userId, mapOf("Bench Press" to "Chest"))
 
-            assertEquals(1, result.size)
-            assertEquals(existing, result["bench press"])
+            assertEquals(0, result.createdCount)
+            assertEquals(1, result.exercisesByNameLower.size)
+            assertEquals(existing, result.exercisesByNameLower["bench press"])
             verify(exerciseRepository, never()).saveAll(any<Iterable<Exercise>>())
         }
 

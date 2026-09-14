@@ -2,6 +2,7 @@ package com.satzwerk.workouts
 
 import com.satzwerk.common.NotFoundException
 import com.satzwerk.common.Owned
+import com.satzwerk.common.TransactionRunner
 import com.satzwerk.common.assertOwner
 import org.springframework.stereotype.Service
 import java.time.Instant
@@ -10,6 +11,8 @@ import java.util.UUID
 @Service
 class ExerciseService(
     private val exerciseRepository: ExerciseRepository,
+    private val exerciseCatalogCache: ExerciseCatalogCache,
+    private val transactionRunner: TransactionRunner,
 ) {
     suspend fun create(
         userId: UUID,
@@ -26,6 +29,9 @@ class ExerciseService(
                     equipment = request.equipment,
                 ),
             )
+        transactionRunner.afterCommit {
+            exerciseCatalogCache.invalidateUser(userId)
+        }
 
         return ExerciseResponse.from(exercise)
     }
@@ -33,15 +39,14 @@ class ExerciseService(
     suspend fun list(
         userId: UUID,
         muscleGroup: String?,
-    ): List<ExerciseResponse> =
-        (
-            if (muscleGroup.isNullOrBlank()) {
-                exerciseRepository.findAllByUserId(userId)
-            } else {
-                exerciseRepository.findAllByUserIdAndMuscleGroup(userId, muscleGroup)
+    ): List<ExerciseResponse> {
+        val normalizedMuscleGroup = normalizeExerciseCatalogMuscleGroup(muscleGroup)
+        val cached = exerciseCatalogCache.lookup(userId, normalizedMuscleGroup)
+        return cached.value
+            ?: loadExerciseList(userId, normalizedMuscleGroup).also { exercises ->
+                exerciseCatalogCache.put(userId, normalizedMuscleGroup, cached.version, exercises)
             }
-        ).sortedBy { it.name }
-            .map(ExerciseResponse::from)
+    }
 
     suspend fun getOwned(
         userId: UUID,
@@ -65,6 +70,9 @@ class ExerciseService(
                     updatedAt = Instant.now(),
                 ),
             )
+        transactionRunner.afterCommit {
+            exerciseCatalogCache.invalidateUser(userId)
+        }
 
         return ExerciseResponse.from(updated)
     }
@@ -75,6 +83,9 @@ class ExerciseService(
     ) {
         val exercise = getRequiredExercise(userId, exerciseId)
         exerciseRepository.deleteById(requireNotNull(exercise.id))
+        transactionRunner.afterCommit {
+            exerciseCatalogCache.invalidateUser(userId)
+        }
     }
 
     private suspend fun getRequiredExercise(
@@ -88,4 +99,17 @@ class ExerciseService(
 
         return exercise
     }
+
+    private suspend fun loadExerciseList(
+        userId: UUID,
+        muscleGroup: String?,
+    ): List<ExerciseResponse> =
+        (
+            if (muscleGroup.isNullOrBlank()) {
+                exerciseRepository.findAllByUserId(userId)
+            } else {
+                exerciseRepository.findAllByUserIdAndNormalizedMuscleGroup(userId, muscleGroup)
+            }
+        ).sortedBy { it.name }
+            .map(ExerciseResponse::from)
 }

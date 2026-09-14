@@ -9,6 +9,7 @@ import com.satzwerk.publicapi.PartnerWriteAuditRepository
 import com.satzwerk.workouts.ExerciseResponse
 import com.satzwerk.workouts.WorkoutGroupResponse
 import com.satzwerk.workouts.WorkoutPlanResponse
+import io.micrometer.core.instrument.MeterRegistry
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -20,6 +21,8 @@ import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.reactive.server.WebTestClient
 import org.springframework.test.web.reactive.server.returnResult
 import java.math.BigDecimal
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.UUID
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -33,6 +36,9 @@ class PublicSessionWriteIntegrationTest : PostgresTestContainer() {
 
     @Autowired
     lateinit var partnerWriteAuditRepository: PartnerWriteAuditRepository
+
+    @Autowired
+    lateinit var meterRegistry: MeterRegistry
 
     private data class SetLogMutation(
         val weight: BigDecimal,
@@ -122,6 +128,47 @@ class PublicSessionWriteIntegrationTest : PostgresTestContainer() {
             )
 
         assertEquals(2, updated.rir)
+    }
+
+    @Test
+    fun `partner SetLog update invalidates cached analytics reads`() {
+        val token = registerAndLogin()
+        val exerciseId = createExercise(token, "Squat", "LEGS")
+        val planId = createPlan(token, "Leg Day")
+        activatePlan(token, planId)
+        val workoutGroupId = createGroup(token, planId, "Heavy Legs", exerciseId)
+        val grant = grantAccess(token, registerApp(token).clientId)
+        val today = LocalDate.now(ZoneOffset.UTC)
+
+        val session = startPublicSession(grant.accessToken, workoutGroupId, UUID.randomUUID().toString())
+        val setLog =
+            addPublicSetLog(
+                grant.accessToken,
+                session.id,
+                exerciseId,
+                SetLogMutation(weight = BigDecimal("140.0"), reps = 5, rir = 2),
+            )
+        val heatmapMissBefore = cacheCounter("analytics-heatmap", "miss")
+        val heatmapHitBefore = cacheCounter("analytics-heatmap", "hit")
+        val streakMissBefore = cacheCounter("analytics-streak", "miss")
+        val streakHitBefore = cacheCounter("analytics-streak", "hit")
+
+        getAnalytics(token, today, expectedHeatmapCount = 1, expectedCurrentStreak = 1, expectedLongestStreak = 1)
+        getAnalytics(token, today, expectedHeatmapCount = 1, expectedCurrentStreak = 1, expectedLongestStreak = 1)
+
+        updatePublicSetLog(
+            grant.accessToken,
+            session.id,
+            setLog.id,
+            SetLogMutation(weight = BigDecimal("145.0"), reps = 4, rir = 1),
+        )
+
+        getAnalytics(token, today, expectedHeatmapCount = 1, expectedCurrentStreak = 1, expectedLongestStreak = 1)
+
+        assertEquals(2.0, cacheCounter("analytics-heatmap", "miss") - heatmapMissBefore)
+        assertEquals(1.0, cacheCounter("analytics-heatmap", "hit") - heatmapHitBefore)
+        assertEquals(2.0, cacheCounter("analytics-streak", "miss") - streakMissBefore)
+        assertEquals(1.0, cacheCounter("analytics-streak", "hit") - streakHitBefore)
     }
 
     @Test
@@ -422,4 +469,41 @@ class PublicSessionWriteIntegrationTest : PostgresTestContainer() {
             .returnResult<AppGrantResponse>()
             .responseBody
             .blockFirst()!!
+
+    private fun getAnalytics(
+        token: String,
+        day: LocalDate,
+        expectedHeatmapCount: Int,
+        expectedCurrentStreak: Int,
+        expectedLongestStreak: Int,
+    ) {
+        client
+            .get()
+            .uri("/api/analytics/heatmap?from=$day&to=$day")
+            .header("Authorization", "Bearer $token")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$[0].count").isEqualTo(expectedHeatmapCount)
+
+        client
+            .get()
+            .uri("/api/analytics/streak")
+            .header("Authorization", "Bearer $token")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.currentStreak").isEqualTo(expectedCurrentStreak)
+            .jsonPath("$.longestStreak").isEqualTo(expectedLongestStreak)
+    }
+
+    private fun cacheCounter(
+        cacheName: String,
+        result: String,
+    ): Double =
+        meterRegistry
+            .find("satzwerk.cache.requests")
+            .tags("cache", cacheName, "result", result)
+            .counter()
+            ?.count() ?: 0.0
 }

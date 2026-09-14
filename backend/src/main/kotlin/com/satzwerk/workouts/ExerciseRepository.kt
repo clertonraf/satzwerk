@@ -7,7 +7,14 @@ import java.util.UUID
 interface ExerciseRepository : CoroutineCrudRepository<Exercise, UUID> {
     suspend fun findAllByUserId(userId: UUID): List<Exercise>
 
-    suspend fun findAllByUserIdAndMuscleGroup(
+    @Query(
+        """
+        SELECT * FROM exercises
+        WHERE user_id = :userId
+          AND LOWER(BTRIM(muscle_group)) = :muscleGroup
+        """,
+    )
+    suspend fun findAllByUserIdAndNormalizedMuscleGroup(
         userId: UUID,
         muscleGroup: String,
     ): List<Exercise>

@@ -19,6 +19,7 @@ class AnalyticsService(
     private val publicAnalyticsService: PublicAnalyticsService,
     private val workoutReadPort: WorkoutReadPort,
     private val exerciseRepository: ExerciseRepository,
+    private val analyticsReadCache: AnalyticsReadCache,
 ) {
     suspend fun heatmap(
         userId: UUID,
@@ -27,9 +28,13 @@ class AnalyticsService(
     ): List<HeatmapEntry> = publicAnalyticsService.heatmap(userId, from, to)
 
     suspend fun streak(userId: UUID): StreakResponse {
+        val cached = analyticsReadCache.lookupStreak(userId)
+        cached.value?.let { return it }
         val days = workoutReadPort.findWorkoutDays(userId)
         val (current, longest) = computeStreaks(days)
-        return StreakResponse(currentStreak = current, longestStreak = longest)
+        return StreakResponse(currentStreak = current, longestStreak = longest).also {
+            analyticsReadCache.putStreak(userId, cached.version, it)
+        }
     }
 
     suspend fun dashboardSummary(userId: UUID): DashboardSummary {

@@ -1,5 +1,7 @@
 package com.satzwerk.workouts
 
+import com.satzwerk.analytics.AnalyticsReadCache
+import com.satzwerk.common.TransactionRunner
 import org.springframework.stereotype.Service
 import java.time.Instant
 import java.util.UUID
@@ -8,6 +10,8 @@ import java.util.UUID
 class WorkoutGroupService(
     private val workoutPlanService: WorkoutPlanService,
     private val workoutGroupRepository: WorkoutGroupRepository,
+    private val analyticsReadCache: AnalyticsReadCache,
+    private val transactionRunner: TransactionRunner,
 ) {
     suspend fun create(
         userId: UUID,
@@ -49,5 +53,8 @@ class WorkoutGroupService(
     ) {
         val group = workoutPlanService.getRequiredGroup(userId, planId, groupId)
         workoutGroupRepository.deleteById(requireNotNull(group.id))
+        transactionRunner.afterCommit {
+            analyticsReadCache.invalidateUser(userId)
+        }
     }
 }

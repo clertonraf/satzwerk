@@ -10,6 +10,9 @@ cp .env.example .env
 docker compose up
 ```
 
+The Docker quick start enables the Redis-backed read cache by default because
+the Compose stack includes Redis.
+
 App: http://localhost:5173
 Backend (direct, bypassing Traefik — dev only): http://localhost:8083
 Traefik dashboard: http://localhost:8081
@@ -44,6 +47,8 @@ pnpm dev
 ```
 
 Requires a local PostgreSQL instance. Copy `.env.example` and set `DB_*` variables.
+`CACHE_ENABLED` now defaults to `false` for this path so the backend does not
+expect Redis unless you explicitly enable it and provide a Redis instance too.
 
 ## Tech stack
 

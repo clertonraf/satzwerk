@@ -1,6 +1,8 @@
 package com.satzwerk.sessions
 
+import com.satzwerk.common.TransactionRunner
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -10,6 +12,7 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import java.math.BigDecimal
 import java.util.UUID
@@ -26,6 +29,15 @@ class SetLogServiceTest {
             workoutGroupId = UUID.randomUUID(),
         )
 
+    private val inlineTransactionRunner =
+        object : TransactionRunner {
+            override suspend fun <T> required(block: suspend () -> T): T = block()
+
+            override suspend fun afterCommit(block: suspend () -> Unit) {
+                runCatching { block() }
+            }
+        }
+
     private fun service(prevMaxRatio: BigDecimal?): Pair<SetLogService, SetLogRepository> {
         val queryRepo =
             mock<SessionQueryRepository> {
@@ -38,7 +50,7 @@ class SetLogServiceTest {
                     log.copy(id = UUID.randomUUID())
                 }
             }
-        return SetLogService(setLogRepo, queryRepo) to setLogRepo
+        return SetLogService(setLogRepo, queryRepo, mock(), inlineTransactionRunner) to setLogRepo
     }
 
     @Test
@@ -66,5 +78,55 @@ class SetLogServiceTest {
             val captor = argumentCaptor<SetLog>()
             verify(repo).save(captor.capture())
             assertFalse(captor.firstValue.isPr)
+        }
+
+    @Test
+    fun `clear set logs invalidates analytics cache for session user`(): Unit =
+        runBlocking {
+            val analyticsCache = mock<com.satzwerk.analytics.AnalyticsReadCache>()
+            val queryRepo =
+                mock<SessionQueryRepository> {
+                    onBlocking { findMaxRatioForExercise(any(), any(), any(), anyOrNull()) } doReturn null
+                }
+            val setLogRepo = mock<SetLogRepository>()
+            val service = SetLogService(setLogRepo, queryRepo, analyticsCache, inlineTransactionRunner)
+
+            service.clearSetLogs(session)
+
+            verify(setLogRepo).deleteAllByWorkoutSessionId(sessionId)
+            verify(analyticsCache).invalidateUser(userId)
+            verify(analyticsCache, never()).invalidateUser(exerciseId)
+        }
+
+    @Test
+    fun `add still returns success when post-commit cache invalidation fails`(): Unit =
+        runBlocking {
+            val queryRepo =
+                mock<SessionQueryRepository> {
+                    onBlocking { findMaxRatioForExercise(any(), any(), any(), anyOrNull()) } doReturn null
+                }
+            val setLogRepo =
+                mock<SetLogRepository> {
+                    onBlocking { save(any()) } doAnswer { invocation ->
+                        val log = invocation.getArgument<SetLog>(0)
+                        log.copy(id = UUID.randomUUID())
+                    }
+                }
+            val analyticsCache =
+                mock<com.satzwerk.analytics.AnalyticsReadCache> {
+                    onBlocking { invalidateUser(userId) } doAnswer {
+                        throw IllegalStateException("redis down")
+                    }
+                }
+            val service = SetLogService(setLogRepo, queryRepo, analyticsCache, inlineTransactionRunner)
+            val request = AddSetLogRequest(exerciseId = exerciseId, setNumber = 1, weight = BigDecimal("80"), reps = 5)
+
+            val response = service.add(session, request)
+
+            assertTrue(response.id.toString().isNotBlank())
+            assertEquals(exerciseId, response.exerciseId)
+            assertEquals(1, response.setNumber)
+            verify(setLogRepo).save(any())
+            verify(analyticsCache).invalidateUser(userId)
         }
 }

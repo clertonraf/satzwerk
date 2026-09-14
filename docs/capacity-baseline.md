@@ -177,3 +177,106 @@ During a healthy run, `r2dbc.pool.pending` should stay near zero and
 pending requests climb and stay high while `http.server.requests` latency
 degrades, treat that as evidence that the pool is saturated before adjusting
 any sizing values.
+
+## Redis read-cache A/B baseline for issue #296
+
+This branch also measured the new Redis-backed cache for the per-user
+`Exercise` catalog plus analytics `Heatmap` and streak reads.
+
+### Single-backend read-only sanity check
+
+The original local A/B pass used `perf/read-heavy-cache.js` against a single
+backend container published on `localhost:8083` with **20 constant VUs for
+30 seconds**. That run stayed useful as a sanity check after the coroutine
+threading fix, but it was not the best fit for issue #296's actual goal because
+it had neither cross-replica sharing nor concurrent write contention.
+
+| Endpoint | Before p95 (`CACHE_ENABLED=false`) | After p95 (`CACHE_ENABLED=true`) | Delta |
+| --- | ---: | ---: | ---: |
+| `GET /api/exercises` | 32.07 ms | 42.60 ms | +10.53 ms |
+| `GET /api/analytics/heatmap` | 49.23 ms | 52.06 ms | +2.83 ms |
+| `GET /api/analytics/streak` | 37.19 ms | 47.71 ms | +10.52 ms |
+| Overall `http_req_duration` | 38.34 ms | 47.95 ms | +9.61 ms |
+
+That small regression is the cost of the extra Redis version lookup added for
+safe post-commit invalidation. It is no longer the earlier broken
+triple-digit regression, but it also does not demonstrate the intended benefit.
+
+### Multi-replica mixed workload benchmark
+
+To measure the scenario issue #296 actually targets, I added
+`perf/read-cache-under-write-contention.js` and reran the comparison against
+the default **3-backend-replica** topology with simultaneous read and write
+traffic.
+
+#### Method
+
+- Same Colima host as the rest of this document: **2 vCPUs / 4 GiB RAM**.
+- Topology under test: `postgres + redis + 3 backend replicas` from
+  `docker-compose.yml`.
+- Load generator: a one-off `grafana/k6` container joined to the same Docker
+  network, targeting `http://backend:8080` so Docker DNS resolves the scaled
+  backend service across all three replicas.
+- Read load: **18 constant reader VUs** for 60 seconds.
+- Write load: **8 constant writer VUs** for 60 seconds.
+- Reader iteration: `GET /api/exercises`,
+  `GET /api/analytics/heatmap?from=<today>&to=<today>`,
+  `GET /api/analytics/streak`.
+- Writer iteration: register a new user, create an `Exercise`, create and
+  activate a `WorkoutPlan`, create a `WorkoutGroup`, attach the `Exercise`,
+  start a `WorkoutSession`, and add a `SetLog`.
+- "Before" run: `CACHE_ENABLED=false`.
+- "After" run: `CACHE_ENABLED=true`.
+- Both runs completed with **0% HTTP failures**.
+
+#### Measured result
+
+Under 3-replica mixed read/write contention, the shared Redis cache **did**
+show the intended improvement:
+
+| Reader metric | Before (`CACHE_ENABLED=false`) | After (`CACHE_ENABLED=true`) | Delta |
+| --- | ---: | ---: | ---: |
+| Aggregate read p95 (`reader_total_duration`) | 90.51 ms | 22.66 ms | -67.85 ms (-75.0%) |
+| `GET /api/exercises` p95 | 155.66 ms | 24.66 ms | -131.00 ms (-84.2%) |
+| `GET /api/analytics/heatmap` p95 | 33.21 ms | 21.89 ms | -11.32 ms (-34.1%) |
+| `GET /api/analytics/streak` p95 | 27.39 ms | 21.43 ms | -5.96 ms (-21.7%) |
+| Total read throughput | 213.27 req/s | 236.39 req/s | +23.12 req/s (+10.8%) |
+| Total HTTP throughput | 344.83 req/s | 360.35 req/s | +15.52 req/s (+4.5%) |
+
+#### Interpretation
+
+- The single-backend read-only A/B check understated the benefit because it
+  measured only the local cost of an extra Redis read, not the avoided Postgres
+  work during concurrent writes.
+- In the 3-replica mixed workload, Redis reduced read p95 substantially and
+  increased read throughput, which matches the feature's intended value:
+  shielding Postgres from repeated read traffic while keeping cache contents
+  consistent across replicas.
+- The biggest win appears on `GET /api/exercises`, which is both highly reused
+  and explicitly invalidated on mutation rather than frequently recomputed.
+- The analytics endpoints improved too, but by a smaller margin because their
+  short TTL and write-driven invalidations naturally keep them closer to the
+  source-of-truth path.
+
+### Investigation notes
+
+- Compose-network RTT from `backend` to `redis` stayed low: `ping redis`
+  measured **0.124-0.276 ms**.
+- A raw Redis round-trip from inside the `backend` container using `nc` +
+  RESP `PING` measured **3.48-4.93 ms**, including process-launch overhead for
+  the probe itself.
+- Temporary app-level timing around
+  `redisTemplate.opsForValue().get(key).awaitFirstOrNull()` showed the actual
+  Redis call in the request path at **0.38-3.05 ms**; corresponding `set(...)`
+  calls measured **0.47-2.22 ms**. JSON serialize/deserialize for these small
+  payloads stayed in the low single-digit milliseconds too.
+- Spring Boot's `LettuceConnectionFactory` was configured with
+  `shareNativeConnection=true`, so the regression was **not** caused by opening
+  a new Redis TCP connection per request.
+- The original cache-enabled implementation was fine at **1 VU** (per-endpoint
+  p95 roughly **9-17 ms**), but degraded sharply under concurrency:
+  **5 VUs** produced cache-hit p95s of **162-223 ms**, and **20 VUs** produced
+  **199-283 ms**. That pattern matched thread contention rather than network
+  latency.
+- After moving cache work off the Lettuce event loop, the same cache-enabled
+  benchmark dropped to **21-29 ms p95 at 5 VUs** and **8-12 ms p95 at 20 VUs**.

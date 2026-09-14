@@ -6,6 +6,7 @@ import com.satzwerk.partners.AppGrantResponse
 import com.satzwerk.partners.PartnerAppRegistrationResponse
 import com.satzwerk.publicapi.IdempotencyRecordRepository
 import com.satzwerk.publicapi.PartnerWriteAuditRepository
+import io.micrometer.core.instrument.MeterRegistry
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -29,6 +30,9 @@ class PublicExerciseIntegrationTest : PostgresTestContainer() {
 
     @Autowired
     lateinit var partnerWriteAuditRepository: PartnerWriteAuditRepository
+
+    @Autowired
+    lateinit var meterRegistry: MeterRegistry
 
     @Test
     fun `partner app with exercises write scope can create an Exercise`() {
@@ -82,6 +86,60 @@ class PublicExerciseIntegrationTest : PostgresTestContainer() {
             .jsonPath("$.name").isEqualTo("Paused Bench Press")
             .jsonPath("$.muscleGroup").isEqualTo("CHEST")
             .jsonPath("$.videoUrl").isEqualTo("https://example.com/bench")
+    }
+
+    @Test
+    fun `partner exercise update invalidates the cached Exercise list`() {
+        val token = registerAndLogin()
+        val app = registerApp(token)
+        val grant = grantAccess(token, app.clientId)
+        val created = createExercise(token, "Bench Press", "CHEST")
+        val missBefore = cacheCounter("exercise-catalog", "miss")
+        val hitBefore = cacheCounter("exercise-catalog", "hit")
+
+        client
+            .get()
+            .uri("/api/exercises")
+            .header("Authorization", "Bearer $token")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(1)
+
+        client
+            .get()
+            .uri("/api/exercises")
+            .header("Authorization", "Bearer $token")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(1)
+
+        client
+            .put()
+            .uri("/api/public/exercises/${created.id}")
+            .header("X-App-Token", grant.accessToken)
+            .header("Idempotency-Key", UUID.randomUUID().toString())
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "name" to "Paused Bench Press",
+                    "videoUrl" to "https://example.com/bench",
+                ),
+            ).exchange()
+            .expectStatus().isOk
+
+        client
+            .get()
+            .uri("/api/exercises")
+            .header("Authorization", "Bearer $token")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$[0].name").isEqualTo("Paused Bench Press")
+
+        assertEquals(2.0, cacheCounter("exercise-catalog", "miss") - missBefore)
+        assertEquals(1.0, cacheCounter("exercise-catalog", "hit") - hitBefore)
     }
 
     @Test
@@ -304,4 +362,14 @@ class PublicExerciseIntegrationTest : PostgresTestContainer() {
             .returnResult<AppGrantResponse>()
             .responseBody
             .blockFirst()!!
+
+    private fun cacheCounter(
+        cacheName: String,
+        result: String,
+    ): Double =
+        meterRegistry
+            .find("satzwerk.cache.requests")
+            .tags("cache", cacheName, "result", result)
+            .counter()
+            ?.count() ?: 0.0
 }

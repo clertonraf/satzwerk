@@ -1,6 +1,7 @@
 package com.satzwerk.workouts
 
 import com.fasterxml.jackson.databind.node.IntNode
+import com.satzwerk.common.TransactionRunner
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -20,14 +21,28 @@ class PlanImportServiceTest {
     private val workoutExerciseRepository: WorkoutExerciseRepository = mock()
     private val exerciseResolver: ExerciseResolver = mock()
     private val planImportParsingAdapters: PlanImportParsingAdapters = mock()
+    private val exerciseCatalogCache: ExerciseCatalogCache = mock()
+    private val inlineTransactionRunner =
+        object : TransactionRunner {
+            override suspend fun <T> required(block: suspend () -> T): T = block()
+
+            override suspend fun afterCommit(block: suspend () -> Unit) {
+                block()
+            }
+        }
     private val service =
         PlanImportService(
             planParser = planParser,
-            workoutPlanRepository = workoutPlanRepository,
-            workoutGroupRepository = workoutGroupRepository,
-            workoutExerciseRepository = workoutExerciseRepository,
-            exerciseResolver = exerciseResolver,
-            planImportParsingAdapters = planImportParsingAdapters,
+            planImportDeps =
+                PlanImportDeps(
+                    workoutPlanRepository = workoutPlanRepository,
+                    workoutGroupRepository = workoutGroupRepository,
+                    workoutExerciseRepository = workoutExerciseRepository,
+                    exerciseResolver = exerciseResolver,
+                    planImportParsingAdapters = planImportParsingAdapters,
+                    exerciseCatalogCache = exerciseCatalogCache,
+                ),
+            transactionRunner = inlineTransactionRunner,
         )
 
     @Test
@@ -47,14 +62,18 @@ class PlanImportServiceTest {
             whenever(planImportParsingAdapters.parseReps(parsedResponse.workouts[0].exercises[0].reps))
                 .thenReturn(PlanImportReps(reps = 0, toFailure = true))
             whenever(exerciseResolver.resolve(userId, mapOf("Bench Press" to "CHEST"))).thenReturn(
-                mapOf(
-                    "bench press" to
-                        Exercise(
-                            id = exerciseId,
-                            userId = userId,
-                            name = "Bench Press",
-                            muscleGroup = "CHEST",
+                ExerciseResolution(
+                    exercisesByNameLower =
+                        mapOf(
+                            "bench press" to
+                                Exercise(
+                                    id = exerciseId,
+                                    userId = userId,
+                                    name = "Bench Press",
+                                    muscleGroup = "CHEST",
+                                ),
                         ),
+                    createdCount = 0,
                 ),
             )
             stubPersistence(userId, planId, groupId)
