@@ -57,3 +57,23 @@ Requires a local PostgreSQL instance. Copy `.env.example` and set `DB_*` variabl
 | Database | PostgreSQL |
 | Auth | JWT + refresh token rotation |
 | Deployment | Docker Compose + Traefik |
+
+## Performance testing
+
+The repository includes a bounded k6 regression script at `perf/stress.js`. It targets the backend directly and mixes:
+
+- `POST /api/auth/register`
+- `POST /api/exercises` + `GET /api/exercises`
+- `GET /api/analytics/summary`
+
+Run it locally against the Docker Compose backend port:
+
+```bash
+BASE_URL=http://localhost:8083 k6 run perf/stress.js
+```
+
+If `BASE_URL` is omitted, the script defaults to `http://localhost:8083`, which matches `docker-compose.override.yml`.
+
+GitHub Actions also runs the same script in `.github/workflows/perf.yml` on `workflow_dispatch` and on a weekly schedule. The workflow boots a local Docker Compose stack, waits for `backend` health, then lets k6 enforce the regression gate through thresholds.
+
+Treat a workflow failure as a performance regression signal, not just a flaky smoke test. The current gate fails when HTTP failures exceed 1%, when the mixed scenario p95 latency rises above 500 ms, or when the read-only summary spike p95 latency rises above 350 ms. Start by checking the k6 threshold output and the Docker Compose service logs in the workflow job.
