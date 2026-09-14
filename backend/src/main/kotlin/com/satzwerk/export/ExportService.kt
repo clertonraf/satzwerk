@@ -60,43 +60,45 @@ class ExportService(
         userId: UUID,
         root: JsonNode,
     ): ImportSummaryDto {
-        val summary =
-            exportSupportDeps.transactionRunner.required {
-                val export = translatorRegistry.forImport(root).importSnapshot(root)
-                checkImportPreconditions(userId)
-                val exerciseResult = importExercises(userId, export.exercises)
-                val (groupIdMap, importedPlans) = importPlans(userId, export.workoutPlans, exerciseResult.exerciseIdMap)
-                val (importedSessions, importedSetLogs) =
-                    importSessions(userId, export.workoutSessions, exerciseResult.exerciseIdMap, groupIdMap)
-                val medResult =
-                    importMedicationsAndLogs(
-                        userId,
-                        export.medications,
-                        export.medicationLogs,
-                        MedicationImportDeps(
-                            exportSupportDeps.medicationRepository,
-                            exportSupportDeps.medicationLogRepository,
-                            exportSupportDeps.objectMapper,
-                        ),
-                    )
-                ImportSummaryDto(
-                    importedExercises = exerciseResult.importedCount,
-                    importedWorkoutPlans = importedPlans,
-                    importedWorkoutSessions = importedSessions,
-                    importedSetLogs = importedSetLogs,
-                    reusedExercises = exerciseResult.reusedCount,
-                    importedMedications = medResult.importedCount,
-                    importedMedicationLogs = medResult.importedLogCount,
-                    reusedMedications = medResult.reusedCount,
+        return exportSupportDeps.transactionRunner.required {
+            val export = translatorRegistry.forImport(root).importSnapshot(root)
+            checkImportPreconditions(userId)
+            val exerciseResult = importExercises(userId, export.exercises)
+            val (groupIdMap, importedPlans) = importPlans(userId, export.workoutPlans, exerciseResult.exerciseIdMap)
+            val (importedSessions, importedSetLogs) =
+                importSessions(userId, export.workoutSessions, exerciseResult.exerciseIdMap, groupIdMap)
+            val medResult =
+                importMedicationsAndLogs(
+                    userId,
+                    export.medications,
+                    export.medicationLogs,
+                    MedicationImportDeps(
+                        exportSupportDeps.medicationRepository,
+                        exportSupportDeps.medicationLogRepository,
+                        exportSupportDeps.objectMapper,
+                    ),
                 )
+            if (exerciseResult.importedCount > 0) {
+                exportSupportDeps.transactionRunner.afterCommit {
+                    workoutDeps.exerciseCatalogCache.invalidateUser(userId)
+                }
             }
-        if (summary.importedExercises > 0) {
-            workoutDeps.exerciseCatalogCache.invalidateUser(userId)
+            if (importedSetLogs > 0) {
+                exportSupportDeps.transactionRunner.afterCommit {
+                    workoutDeps.analyticsReadCache.invalidateUser(userId)
+                }
+            }
+            ImportSummaryDto(
+                importedExercises = exerciseResult.importedCount,
+                importedWorkoutPlans = importedPlans,
+                importedWorkoutSessions = importedSessions,
+                importedSetLogs = importedSetLogs,
+                reusedExercises = exerciseResult.reusedCount,
+                importedMedications = medResult.importedCount,
+                importedMedicationLogs = medResult.importedLogCount,
+                reusedMedications = medResult.reusedCount,
+            )
         }
-        if (summary.importedSetLogs > 0) {
-            workoutDeps.analyticsReadCache.invalidateUser(userId)
-        }
-        return summary
     }
 
     private suspend fun checkImportPreconditions(userId: UUID) {

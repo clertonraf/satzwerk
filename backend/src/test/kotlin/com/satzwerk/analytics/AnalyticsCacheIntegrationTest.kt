@@ -9,6 +9,7 @@ import com.satzwerk.workouts.ExerciseResponse
 import com.satzwerk.workouts.WorkoutGroupResponse
 import com.satzwerk.workouts.WorkoutPlanResponse
 import io.micrometer.core.instrument.MeterRegistry
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
@@ -85,8 +86,64 @@ class AnalyticsCacheIntegrationTest : PostgresTestContainer() {
     }
 
     @Test
+    fun `analytics cache invalidates after set log update`() {
+        val today = LocalDate.now(ZoneOffset.UTC)
+        val session = startSession(workoutGroupId)
+        val setLog = addSetLog(session.id, exerciseId, 1)
+        val heatmapMissBefore = cacheCounter("analytics-heatmap", "miss")
+        val heatmapHitBefore = cacheCounter("analytics-heatmap", "hit")
+        val streakMissBefore = cacheCounter("analytics-streak", "miss")
+        val streakHitBefore = cacheCounter("analytics-streak", "hit")
+
+        getHeatmap(today, expectedCount = 1)
+        getHeatmap(today, expectedCount = 1)
+        getStreak(expectedCurrent = 1, expectedLongest = 1)
+        getStreak(expectedCurrent = 1, expectedLongest = 1)
+
+        updateSetLog(
+            session.id,
+            setLog.id,
+            AnalyticsCacheSetLogFixture(weight = BigDecimal("82.5"), reps = 6),
+        )
+
+        getHeatmap(today, expectedCount = 1)
+        getStreak(expectedCurrent = 1, expectedLongest = 1)
+
+        assertEquals(2.0, cacheCounter("analytics-heatmap", "miss") - heatmapMissBefore)
+        assertEquals(1.0, cacheCounter("analytics-heatmap", "hit") - heatmapHitBefore)
+        assertEquals(2.0, cacheCounter("analytics-streak", "miss") - streakMissBefore)
+        assertEquals(1.0, cacheCounter("analytics-streak", "hit") - streakHitBefore)
+    }
+
+    @Test
+    fun `analytics cache invalidates after set log delete`() {
+        val today = LocalDate.now(ZoneOffset.UTC)
+        val session = startSession(workoutGroupId)
+        val setLog = addSetLog(session.id, exerciseId, 1)
+        val heatmapMissBefore = cacheCounter("analytics-heatmap", "miss")
+        val heatmapHitBefore = cacheCounter("analytics-heatmap", "hit")
+        val streakMissBefore = cacheCounter("analytics-streak", "miss")
+        val streakHitBefore = cacheCounter("analytics-streak", "hit")
+
+        getHeatmap(today, expectedCount = 1)
+        getHeatmap(today, expectedCount = 1)
+        getStreak(expectedCurrent = 1, expectedLongest = 1)
+        getStreak(expectedCurrent = 1, expectedLongest = 1)
+
+        deleteSetLog(session.id, setLog.id)
+
+        getHeatmap(today, expectedCount = 0)
+        getStreak(expectedCurrent = 0, expectedLongest = 0)
+
+        assertEquals(2.0, cacheCounter("analytics-heatmap", "miss") - heatmapMissBefore)
+        assertEquals(1.0, cacheCounter("analytics-heatmap", "hit") - heatmapHitBefore)
+        assertEquals(2.0, cacheCounter("analytics-streak", "miss") - streakMissBefore)
+        assertEquals(1.0, cacheCounter("analytics-streak", "hit") - streakHitBefore)
+    }
+
+    @Test
     fun `analytics cache ignores stale write from older version after invalidation`(): Unit =
-        kotlinx.coroutines.runBlocking {
+        runBlocking {
             val userId = requireNotNull(userRepository.findByEmail(userEmail)?.id)
             val today = LocalDate.now(ZoneOffset.UTC)
             val staleHeatmapLookup = analyticsReadCache.lookupHeatmap(userId, today, today)
@@ -181,6 +238,37 @@ class AnalyticsCacheIntegrationTest : PostgresTestContainer() {
             .expectBody(SetLogResponse::class.java)
             .returnResult()
             .responseBody!!
+
+    private fun updateSetLog(
+        sessionId: UUID,
+        setLogId: UUID,
+        setLog: AnalyticsCacheSetLogFixture,
+    ) {
+        client
+            .patch()
+            .uri("/api/sessions/$sessionId/set-logs/$setLogId")
+            .header("Authorization", "Bearer $authToken")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "weight" to setLog.weight,
+                    "reps" to setLog.reps,
+                ),
+            ).exchange()
+            .expectStatus().isOk
+    }
+
+    private fun deleteSetLog(
+        sessionId: UUID,
+        setLogId: UUID,
+    ) {
+        client
+            .delete()
+            .uri("/api/sessions/$sessionId/set-logs/$setLogId")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isNoContent
+    }
 
     private fun createExercise(
         name: String,

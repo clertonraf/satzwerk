@@ -17,17 +17,17 @@ class SetLogService(
         session: WorkoutSession,
         request: AddSetLogRequest,
     ): SetLogResponse {
-        val response =
-            transactionRunner.required {
-                val now = Instant.now()
-                val isPr =
-                    sessionQueryRepository.calculateIsPr(
-                        session.userId,
-                        request.exerciseId,
-                        request.weight,
-                        request.reps,
-                        SetLogRef(null, now),
-                    )
+        return transactionRunner.required {
+            val now = Instant.now()
+            val isPr =
+                sessionQueryRepository.calculateIsPr(
+                    session.userId,
+                    request.exerciseId,
+                    request.weight,
+                    request.reps,
+                    SetLogRef(null, now),
+                )
+            val response =
                 setLogRepository.save(
                     SetLog(
                         workoutSessionId = requireNotNull(session.id),
@@ -40,9 +40,11 @@ class SetLogService(
                         isPr = isPr,
                     ),
                 ).toResponse()
+            transactionRunner.afterCommit {
+                analyticsReadCache.invalidateUser(session.userId)
             }
-        analyticsReadCache.invalidateUser(session.userId)
-        return response
+            response
+        }
     }
 
     suspend fun update(
@@ -50,26 +52,28 @@ class SetLogService(
         setLogId: UUID,
         request: UpdateSetLogRequest,
     ): SetLogResponse {
-        val response =
-            transactionRunner.required {
-                val setLog =
-                    setLogRepository.findByIdAndWorkoutSessionId(setLogId, requireNotNull(session.id))
-                        ?: throw NotFoundException("Set log not found")
-                val isPr =
-                    sessionQueryRepository.calculateIsPr(
-                        session.userId,
-                        setLog.exerciseId,
-                        request.weight,
-                        request.reps,
-                        SetLogRef(requireNotNull(setLog.id), setLog.loggedAt),
-                    )
-                val rir = if (request.rirProvided) request.rir else setLog.rir
+        return transactionRunner.required {
+            val setLog =
+                setLogRepository.findByIdAndWorkoutSessionId(setLogId, requireNotNull(session.id))
+                    ?: throw NotFoundException("Set log not found")
+            val isPr =
+                sessionQueryRepository.calculateIsPr(
+                    session.userId,
+                    setLog.exerciseId,
+                    request.weight,
+                    request.reps,
+                    SetLogRef(requireNotNull(setLog.id), setLog.loggedAt),
+                )
+            val rir = if (request.rirProvided) request.rir else setLog.rir
+            val response =
                 setLogRepository.save(
                     setLog.copy(weight = request.weight, reps = request.reps, rir = rir, isPr = isPr),
                 ).toResponse()
+            transactionRunner.afterCommit {
+                analyticsReadCache.invalidateUser(session.userId)
             }
-        analyticsReadCache.invalidateUser(session.userId)
-        return response
+            response
+        }
     }
 
     suspend fun delete(
@@ -80,8 +84,10 @@ class SetLogService(
             setLogRepository.findByIdAndWorkoutSessionId(setLogId, requireNotNull(session.id))
                 ?: throw NotFoundException("Set log not found")
             setLogRepository.deleteById(setLogId)
+            transactionRunner.afterCommit {
+                analyticsReadCache.invalidateUser(session.userId)
+            }
         }
-        analyticsReadCache.invalidateUser(session.userId)
     }
 
     suspend fun loadSetLogs(sessionId: UUID): List<SetLogResponse> =
@@ -92,8 +98,10 @@ class SetLogService(
     suspend fun clearSetLogs(session: WorkoutSession) {
         transactionRunner.required {
             clearSetLogsInCurrentTransaction(requireNotNull(session.id))
+            transactionRunner.afterCommit {
+                analyticsReadCache.invalidateUser(session.userId)
+            }
         }
-        analyticsReadCache.invalidateUser(session.userId)
     }
 
     internal suspend fun clearSetLogsInCurrentTransaction(sessionId: UUID) {

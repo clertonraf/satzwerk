@@ -1,5 +1,6 @@
 package com.satzwerk.analytics
 
+import com.satzwerk.cache.CacheInvalidationException
 import com.satzwerk.cache.RedisJsonCacheService
 import com.satzwerk.cache.VersionedCacheValue
 import com.satzwerk.cache.get
@@ -68,9 +69,20 @@ class AnalyticsReadCache(
     }
 
     suspend fun invalidateUser(userId: UUID) {
-        if (cacheService.increment(analyticsVersionKey(userId)) == null) {
-            logger.warn("Analytics cache invalidation failed for userId={}", userId)
+        if (cacheService.increment(analyticsVersionKey(userId)) != null) {
+            return
         }
+        if (cacheService.increment(analyticsVersionKey(userId)) != null) {
+            logger.warn("Analytics cache invalidation recovered on retry for userId={}", userId)
+            return
+        }
+
+        val deletedHeatmap = cacheService.deleteByPattern(heatmapCachePattern(userId))
+        val deletedStreak = cacheService.deleteByPattern(streakCachePattern(userId))
+        if (!deletedHeatmap || !deletedStreak) {
+            throw CacheInvalidationException("Analytics cache invalidation failed for userId=$userId")
+        }
+        logger.warn("Analytics cache invalidation fell back to direct key deletion for userId={}", userId)
     }
 }
 
@@ -85,5 +97,9 @@ private fun streakCacheKey(
     userId: UUID,
     version: Long,
 ): String = "analytics:streak:$userId:v$version"
+
+private fun heatmapCachePattern(userId: UUID): String = "analytics:heatmap:$userId:v*:*:*"
+
+private fun streakCachePattern(userId: UUID): String = "analytics:streak:$userId:v*"
 
 private fun analyticsVersionKey(userId: UUID): String = "$ANALYTICS_VERSION_KEY:$userId"

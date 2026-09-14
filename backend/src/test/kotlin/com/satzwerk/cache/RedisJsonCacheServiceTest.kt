@@ -2,10 +2,12 @@ package com.satzwerk.cache
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
@@ -133,6 +135,19 @@ class RedisJsonCacheServiceTest {
         }
 
     @Test
+    fun `get propagates cancellation`() {
+        whenever(valueOperations.get("analytics:streak:user-1"))
+            .thenReturn(Mono.error(CancellationException("request cancelled")))
+        val service = RedisJsonCacheService(redisTemplate, objectMapper, meterRegistry, enabled = true)
+
+        assertThrows<CancellationException> {
+            runBlocking {
+                service.get<StreakSnapshot>(cacheName = "analytics-streak", key = "analytics:streak:user-1")
+            }
+        }
+    }
+
+    @Test
     fun `set swallows redis write failures`(): Unit =
         runBlocking {
             whenever(valueOperations.set(eq("workouts:exercises:list:user-1:all"), any(), eq(Duration.ofMinutes(10))))
@@ -147,6 +162,23 @@ class RedisJsonCacheServiceTest {
         }
 
     @Test
+    fun `set propagates cancellation`() {
+        whenever(valueOperations.set(eq("workouts:exercises:list:user-1:all"), any(), eq(Duration.ofMinutes(10))))
+            .thenReturn(Mono.error(CancellationException("request cancelled")))
+        val service = RedisJsonCacheService(redisTemplate, objectMapper, meterRegistry, enabled = true)
+
+        assertThrows<CancellationException> {
+            runBlocking {
+                service.set(
+                    key = "workouts:exercises:list:user-1:all",
+                    value = listOf(ExerciseSnapshot(name = "Bench Press")),
+                    ttl = Duration.ofMinutes(10),
+                )
+            }
+        }
+    }
+
+    @Test
     fun `delete swallows redis delete failures and returns false`(): Unit =
         runBlocking {
             whenever(redisTemplate.delete("analytics:streak:user-1"))
@@ -159,6 +191,19 @@ class RedisJsonCacheServiceTest {
         }
 
     @Test
+    fun `delete propagates cancellation`() {
+        whenever(redisTemplate.delete("analytics:streak:user-1"))
+            .thenReturn(Mono.error(CancellationException("request cancelled")))
+        val service = RedisJsonCacheService(redisTemplate, objectMapper, meterRegistry, enabled = true)
+
+        assertThrows<CancellationException> {
+            runBlocking {
+                service.delete("analytics:streak:user-1")
+            }
+        }
+    }
+
+    @Test
     fun `increment returns null on redis failure`(): Unit =
         runBlocking {
             whenever(valueOperations.increment("analytics:version:user-1"))
@@ -169,6 +214,26 @@ class RedisJsonCacheServiceTest {
 
             assertNull(updated)
         }
+
+    @Test
+    fun `version reads and increments propagate cancellation`() {
+        whenever(valueOperations.get("analytics:version:user-1"))
+            .thenReturn(Mono.error(CancellationException("request cancelled")))
+        whenever(valueOperations.increment("analytics:version:user-2"))
+            .thenReturn(Mono.error(CancellationException("request cancelled")))
+        val service = RedisJsonCacheService(redisTemplate, objectMapper, meterRegistry, enabled = true)
+
+        assertThrows<CancellationException> {
+            runBlocking {
+                service.getLong("analytics:version:user-1")
+            }
+        }
+        assertThrows<CancellationException> {
+            runBlocking {
+                service.increment("analytics:version:user-2")
+            }
+        }
+    }
 
     private fun counter(
         cacheName: String,

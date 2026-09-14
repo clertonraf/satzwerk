@@ -80,15 +80,15 @@ class WorkoutSessionService(
         userId: UUID,
         sessionId: UUID,
     ) {
-        val session =
-            workoutSessionDeps.transactionRunner.required {
-                val ownedSession = requireOwnedSession(userId, sessionId, workoutSessionRepository)
-                requireOpenSession(ownedSession)
-                workoutSessionDeps.setLogService.clearSetLogsInCurrentTransaction(requireNotNull(ownedSession.id))
-                workoutSessionRepository.deleteById(sessionId)
-                ownedSession
+        workoutSessionDeps.transactionRunner.required {
+            val ownedSession = requireOwnedSession(userId, sessionId, workoutSessionRepository)
+            requireOpenSession(ownedSession)
+            workoutSessionDeps.setLogService.clearSetLogsInCurrentTransaction(requireNotNull(ownedSession.id))
+            workoutSessionRepository.deleteById(sessionId)
+            workoutSessionDeps.transactionRunner.afterCommit {
+                workoutSessionDeps.analyticsReadCache.invalidateUser(ownedSession.userId)
             }
-        workoutSessionDeps.analyticsReadCache.invalidateUser(session.userId)
+        }
     }
 
     suspend fun history(userId: UUID): List<WorkoutSessionResponse> =

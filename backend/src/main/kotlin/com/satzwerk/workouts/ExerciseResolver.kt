@@ -19,7 +19,7 @@ class ExerciseResolver(
      * Case-insensitive collisions (e.g. "Bench Press" vs "bench press") are resolved by first-occurrence wins.
      *
      * @param nameToMuscleGroup map of original-cased exercise name → muscle group
-     * @return map of lowercase exercise name → Exercise
+     * @return [ExerciseResolution] containing the lowercase-name lookup map plus the number of created Exercises
      */
     suspend fun resolve(
         userId: UUID,

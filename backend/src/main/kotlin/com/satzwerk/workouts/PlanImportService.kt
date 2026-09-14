@@ -16,37 +16,38 @@ class PlanImportService(
         userId: UUID,
         filePart: FilePart,
     ): WorkoutPlanResponse {
-        val importResult =
-            transactionRunner.required {
-                val parsed = planParser.parse(filePart)
-                val planName = planImportDeps.planImportParsingAdapters.normalizeFilename(filePart.filename())
+        return transactionRunner.required {
+            val parsed = planParser.parse(filePart)
+            val planName = planImportDeps.planImportParsingAdapters.normalizeFilename(filePart.filename())
 
-                val plan =
-                    planImportDeps.workoutPlanRepository.save(
-                        WorkoutPlan(
-                            userId = userId,
-                            name = planName,
-                            source = WorkoutSource.IMPORTED.name,
-                            isActive = false,
-                        ),
-                    )
-                val planId = requireNotNull(plan.id)
+            val plan =
+                planImportDeps.workoutPlanRepository.save(
+                    WorkoutPlan(
+                        userId = userId,
+                        name = planName,
+                        source = WorkoutSource.IMPORTED.name,
+                        isActive = false,
+                    ),
+                )
+            val planId = requireNotNull(plan.id)
 
-                val nameToMuscleGroup =
-                    buildMap<String, String> {
-                        parsed.workouts.forEach { workout ->
-                            val muscleGroup = workout.bodyParts.firstOrNull().orEmpty()
-                            workout.exercises.forEach { ex -> putIfAbsent(ex.exercise, muscleGroup) }
-                        }
+            val nameToMuscleGroup =
+                buildMap<String, String> {
+                    parsed.workouts.forEach { workout ->
+                        val muscleGroup = workout.bodyParts.firstOrNull().orEmpty()
+                        workout.exercises.forEach { ex -> putIfAbsent(ex.exercise, muscleGroup) }
                     }
-                val resolution = planImportDeps.exerciseResolver.resolve(userId, nameToMuscleGroup)
-                createGroupsAndExercises(planId, parsed, resolution.exercisesByNameLower)
-                PlanImportResult(WorkoutPlanResponse.from(plan), resolution.createdCount)
+                }
+            val resolution = planImportDeps.exerciseResolver.resolve(userId, nameToMuscleGroup)
+            createGroupsAndExercises(planId, parsed, resolution.exercisesByNameLower)
+            if (resolution.createdCount > 0) {
+                transactionRunner.afterCommit {
+                    planImportDeps.exerciseCatalogCache.invalidateUser(userId)
+                }
             }
-        if (importResult.createdExerciseCount > 0) {
-            planImportDeps.exerciseCatalogCache.invalidateUser(userId)
+            PlanImportResult(WorkoutPlanResponse.from(plan), resolution.createdCount)
         }
-        return importResult.response
+            .response
     }
 
     private suspend fun createGroupsAndExercises(

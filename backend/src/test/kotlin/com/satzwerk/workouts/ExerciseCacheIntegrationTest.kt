@@ -4,6 +4,7 @@ import com.satzwerk.PostgresTestContainer
 import com.satzwerk.auth.AuthResponse
 import com.satzwerk.users.UserRepository
 import io.micrometer.core.instrument.MeterRegistry
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
@@ -64,7 +65,7 @@ class ExerciseCacheIntegrationTest : PostgresTestContainer() {
 
     @Test
     fun `exercise cache ignores stale write from older version after invalidation`(): Unit =
-        kotlinx.coroutines.runBlocking {
+        runBlocking {
             val userId = requireNotNull(userRepository.findByEmail(userEmail)?.id)
             val staleLookup = exerciseCatalogCache.lookup(userId, muscleGroup = null)
 
@@ -94,6 +95,47 @@ class ExerciseCacheIntegrationTest : PostgresTestContainer() {
             assertNull(freshLookup.value)
         }
 
+    @Test
+    fun `exercise list invalidates after update`() {
+        val exercise = createExercise("Bench Press", "CHEST")
+        val missBefore = cacheCounter("exercise-catalog", "miss")
+        val hitBefore = cacheCounter("exercise-catalog", "hit")
+
+        listExercises(expectedCount = 1)
+        listExercises(expectedCount = 1)
+
+        updateExercise(exercise.id, "Paused Bench Press")
+
+        client
+            .get()
+            .uri("/api/exercises")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(1)
+            .jsonPath("$[0].name").isEqualTo("Paused Bench Press")
+
+        assertEquals(2.0, cacheCounter("exercise-catalog", "miss") - missBefore)
+        assertEquals(1.0, cacheCounter("exercise-catalog", "hit") - hitBefore)
+    }
+
+    @Test
+    fun `exercise list invalidates after delete`() {
+        val exercise = createExercise("Bench Press", "CHEST")
+        val missBefore = cacheCounter("exercise-catalog", "miss")
+        val hitBefore = cacheCounter("exercise-catalog", "hit")
+
+        listExercises(expectedCount = 1)
+        listExercises(expectedCount = 1)
+
+        deleteExercise(exercise.id)
+        listExercises(expectedCount = 0)
+
+        assertEquals(2.0, cacheCounter("exercise-catalog", "miss") - missBefore)
+        assertEquals(1.0, cacheCounter("exercise-catalog", "hit") - hitBefore)
+    }
+
     private fun listExercises(expectedCount: Int) {
         client
             .get()
@@ -108,7 +150,7 @@ class ExerciseCacheIntegrationTest : PostgresTestContainer() {
     private fun createExercise(
         name: String,
         muscleGroup: String,
-    ) {
+    ): ExerciseResponse =
         client
             .post()
             .uri("/api/exercises")
@@ -121,6 +163,31 @@ class ExerciseCacheIntegrationTest : PostgresTestContainer() {
                 ),
             ).exchange()
             .expectStatus().isCreated
+            .expectBody(ExerciseResponse::class.java)
+            .returnResult()
+            .responseBody!!
+
+    private fun updateExercise(
+        exerciseId: UUID,
+        name: String,
+    ) {
+        client
+            .patch()
+            .uri("/api/exercises/$exerciseId")
+            .header("Authorization", "Bearer $authToken")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("name" to name))
+            .exchange()
+            .expectStatus().isOk
+    }
+
+    private fun deleteExercise(exerciseId: UUID) {
+        client
+            .delete()
+            .uri("/api/exercises/$exerciseId")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isNoContent
     }
 
     private fun registerAndLogin(

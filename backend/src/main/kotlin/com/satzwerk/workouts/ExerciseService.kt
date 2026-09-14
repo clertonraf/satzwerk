@@ -2,6 +2,7 @@ package com.satzwerk.workouts
 
 import com.satzwerk.common.NotFoundException
 import com.satzwerk.common.Owned
+import com.satzwerk.common.TransactionRunner
 import com.satzwerk.common.assertOwner
 import org.springframework.stereotype.Service
 import java.time.Instant
@@ -11,6 +12,7 @@ import java.util.UUID
 class ExerciseService(
     private val exerciseRepository: ExerciseRepository,
     private val exerciseCatalogCache: ExerciseCatalogCache,
+    private val transactionRunner: TransactionRunner,
 ) {
     suspend fun create(
         userId: UUID,
@@ -27,7 +29,9 @@ class ExerciseService(
                     equipment = request.equipment,
                 ),
             )
-        exerciseCatalogCache.invalidateUser(userId)
+        transactionRunner.afterCommit {
+            exerciseCatalogCache.invalidateUser(userId)
+        }
 
         return ExerciseResponse.from(exercise)
     }
@@ -65,7 +69,9 @@ class ExerciseService(
                     updatedAt = Instant.now(),
                 ),
             )
-        exerciseCatalogCache.invalidateUser(userId)
+        transactionRunner.afterCommit {
+            exerciseCatalogCache.invalidateUser(userId)
+        }
 
         return ExerciseResponse.from(updated)
     }
@@ -76,7 +82,9 @@ class ExerciseService(
     ) {
         val exercise = getRequiredExercise(userId, exerciseId)
         exerciseRepository.deleteById(requireNotNull(exercise.id))
-        exerciseCatalogCache.invalidateUser(userId)
+        transactionRunner.afterCommit {
+            exerciseCatalogCache.invalidateUser(userId)
+        }
     }
 
     private suspend fun getRequiredExercise(

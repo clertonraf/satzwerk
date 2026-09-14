@@ -10,6 +10,9 @@ cp .env.example .env
 docker compose up
 ```
 
+The Docker quick start enables the Redis-backed read cache by default because
+the Compose stack includes Redis.
+
 App: http://localhost:5173
 Backend (direct, bypassing Traefik — dev only): http://localhost:8083
 Traefik dashboard: http://localhost:8081

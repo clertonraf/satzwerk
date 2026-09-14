@@ -25,6 +25,10 @@ class PlanImportServiceTest {
     private val inlineTransactionRunner =
         object : TransactionRunner {
             override suspend fun <T> required(block: suspend () -> T): T = block()
+
+            override suspend fun afterCommit(block: suspend () -> Unit) {
+                block()
+            }
         }
     private val service =
         PlanImportService(

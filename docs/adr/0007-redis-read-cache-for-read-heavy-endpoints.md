@@ -35,6 +35,10 @@ Issue #296 explicitly chose Redis over in-memory caching.
   instead of scanning Redis for matching keys. This also prevents stale
   in-flight cache fills from re-populating the active namespace after a newer
   invalidation.
+- If a version bump fails, retry it once. If it still fails, fall back to a
+  direct Redis key scan/delete for just that user's cache namespace. If that
+  rare fallback also fails, propagate an error instead of pretending the
+  invalidation succeeded.
 - Cache values are serialized as JSON with the existing Jackson `ObjectMapper`.
 - `Exercise` list entries use **write-driven invalidation** plus a long TTL
   (12 hours). Any create, update, or delete for that user bumps that user's
@@ -49,7 +53,10 @@ Issue #296 explicitly chose Redis over in-memory caching.
   not need to survive restarts.
 - Expose Redis health through Spring Boot's auto-configured Redis health
   indicator only when cache is enabled, while keeping component-level health
-  details on authenticated `/actuator/health` requests.
+  details on authenticated `/actuator/health` requests. Docker liveness uses a
+  separate `/actuator/health/backend` group that excludes Redis so the backend
+  stays healthy when Redis is unavailable and reads/writes fall back as
+  designed.
 - Record cache hit/miss counters in Micrometer under
   `satzwerk.cache.requests{cache=<name>,result=hit|miss}`.
 
@@ -59,11 +66,14 @@ Issue #296 explicitly chose Redis over in-memory caching.
   values and invalidations.
 - Redis becomes an operational dependency for the backend runtime and local
   Compose stack.
-- Local non-Docker development keeps `CACHE_ENABLED=false` by default so the
-  backend does not try to connect to Redis unless the developer opts in.
+- Docker quick start keeps `CACHE_ENABLED=true` by default because the Compose
+  stack includes Redis. Local non-Docker backend development still keeps
+  `CACHE_ENABLED=false` by default so the backend does not try to connect to
+  Redis unless the developer opts in.
 - The cache implementation stays predictable for coroutine code because reads
-  and invalidations are explicit in the service layer and happen after the
-  enclosing write transaction commits.
+  and invalidations are explicit in the service layer and register post-commit
+  work against the enclosing transaction when one exists, including partner API
+  writes wrapped by `PartnerWritePolicyService`.
 - Local single-node latency may not improve materially; the main benefit is
   reduced repeated Postgres reads and cross-replica cache consistency.
 - `CACHE_ENABLED` is available both as an operational bypass and for local

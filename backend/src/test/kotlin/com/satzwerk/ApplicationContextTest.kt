@@ -33,6 +33,17 @@ class ApplicationContextTest : PostgresTestContainer() {
     }
 
     @Test
+    fun `anonymous backend health group returns UP without redis dependency`() {
+        webTestClient
+            .get().uri("/actuator/health/backend")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.status").isEqualTo("UP")
+            .jsonPath("$.components").doesNotExist()
+    }
+
+    @Test
     fun `authenticated health endpoint includes redis component status`() {
         val jwt = registerAndLogin()
 

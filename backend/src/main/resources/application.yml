@@ -45,6 +45,9 @@ management:
       show-components: when-authorized
       show-details: when-authorized
       roles: JWT_SESSION,metrics:read
+      group:
+        backend:
+          include: ping,diskSpace,r2dbc,ssl
     prometheus:
       access: read-only
 
