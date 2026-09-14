@@ -21,7 +21,8 @@ Single-context repo:
 │   ├── 0001-spring-webflux-over-mvc.md
 │   ├── 0002-two-separate-repos.md
 │   ├── 0003-offline-scoped-to-session-survival.md
-│   └── 0004-kraftlogparser-sidecar-integration.md
+│   ├── 0004-kraftlogparser-sidecar-integration.md
+│   └── 0005-postgres-connection-budget.md
 ├── backend/
 └── frontend/
 ```
