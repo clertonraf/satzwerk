@@ -27,10 +27,7 @@ docker compose -f docker-compose.yml up -d
 
 Traefik load-balances requests across `BACKEND_REPLICAS` backend instances over
 plain HTTP; it does not currently terminate TLS. Put a TLS-terminating reverse
-proxy in front of this stack for public production use — TLS/ACME support was
-previously removed and is tracked for a possible future reintroduction in
-issue #290. `DOMAIN`/`ACME_EMAIL` in `.env.example` are stale leftovers from
-that removed setup — do not rely on them.
+proxy or managed load balancer in front of this stack for public production use.
 
 ## Development (without Docker)
 
