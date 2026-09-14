@@ -26,12 +26,16 @@ spring:
 
 management:
   endpoints:
+    access:
+      default: read-only
     web:
       exposure:
-        include: health
+        include: health,prometheus
   endpoint:
     health:
       show-details: never
+    prometheus:
+      access: read-only
 
 jwt:
   secret: ${JWT_SECRET:change-me-in-production}

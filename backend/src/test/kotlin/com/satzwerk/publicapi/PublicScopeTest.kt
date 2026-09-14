@@ -18,9 +18,12 @@ class PublicScopeTest {
 
     @Test
     fun `declared-scope validation normalises before validating`() {
-        val scopes = validateDeclaredPublicScopes("  EXERCISES:WRITE, analytics:read exercises:write ")
+        val scopes = validateDeclaredPublicScopes("  EXERCISES:WRITE, analytics:read metrics:read exercises:write ")
 
-        assertEquals("${PublicScope.ANALYTICS_READ} ${PublicScope.EXERCISES_WRITE}", scopes)
+        assertEquals(
+            "${PublicScope.ANALYTICS_READ} ${PublicScope.EXERCISES_WRITE} ${PublicScope.METRICS_READ}",
+            scopes,
+        )
     }
 
     @Test

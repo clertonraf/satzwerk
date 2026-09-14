@@ -36,3 +36,64 @@ is the intended mechanism for establishing and continuously re-verifying a
 repeatable throughput/latency baseline under this resource configuration;
 run it manually (`workflow_dispatch` on `.github/workflows/perf.yml`) against
 this configuration to record the first official numeric baseline.
+
+## Observing pool saturation via Prometheus metrics
+
+When running a local or CI k6 load test against this baseline, scrape the
+backend's `/actuator/prometheus` endpoint alongside the usual latency/error
+summary so you can correlate request pressure with pool behavior. In local
+Docker dev, `docker-compose.override.yml` maps the backend to host port 8083.
+Create a dedicated Personal API Token scoped to `metrics:read`, then use that
+long-lived token for scraping:
+
+```bash
+METRICS_PAT=$(curl -s http://localhost:8083/api/tokens \
+  -H "Authorization: Bearer <jwt-session-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Prometheus scrape","scopes":["metrics:read"]}' | jq -r '.token')
+
+curl -H "Authorization: Bearer $METRICS_PAT" http://localhost:8083/actuator/prometheus
+```
+
+In the production-style multi-replica setup behind Traefik, `docker-compose.yml`
+does not publish a host port for `backend` and Traefik's only router matches
+`/api`, so `/actuator/prometheus` is **not reachable** from outside the Compose
+network today. Scraping it in that topology needs one of: a Prometheus
+container joined to the same Docker network (note: scraping `backend:8080`
+directly does **not** load-balance or rotate across replicas — plain Docker
+DNS resolution is cached, so a target configured this way will repeatedly
+hit whichever single replica it first resolved and silently miss the others;
+per-replica discovery is required for full coverage), a
+dedicated private Traefik router/entrypoint for `/actuator/**` restricted to an
+internal network, or an equivalent per-replica private route. That network
+setup is out of scope here — this section only covers local/CI k6 runs, where
+the host-published port above is sufficient; see #302 for production-topology
+Prometheus scraping before relying on it operationally.
+
+For quick ad-hoc manual sampling, a JWT obtained via `/api/auth/login` still
+works, but it follows `jwt.expiry-ms` in `application.yml` and expires after
+about 15 minutes by default, so it is not suitable for continuous Prometheus
+scraping. Note also that each PAT-authenticated scrape updates that token's
+`lastUsedAt` timestamp (one small DB write per scrape interval) — negligible
+next to real load-test traffic, but worth knowing if you're scrutinizing pool
+metrics at very fine granularity.
+
+Focus on the R2DBC pool meters and HTTP request timer:
+
+- `r2dbc.pool.acquired` / Prometheus
+  `r2dbc_pool_acquired_connections`: current in-use connections.
+- `r2dbc.pool.pending` / Prometheus
+  `r2dbc_pool_pending_connections`: requests waiting for a connection;
+  sustained non-zero values indicate saturation.
+- `r2dbc.pool.max.allocated` / Prometheus
+  `r2dbc_pool_max_allocated_connections`: the configured upper bound for
+  allocated connections.
+- `http.server.requests` / Prometheus `http_server_requests_seconds*`:
+  per-route request count/latency so you can line up pool pressure with the
+  specific endpoints under load.
+
+During a healthy run, `r2dbc.pool.pending` should stay near zero and
+`r2dbc.pool.acquired` should oscillate below `r2dbc.pool.max.allocated`. If
+pending requests climb and stay high while `http.server.requests` latency
+degrades, treat that as evidence that the pool is saturated before adjusting
+any sizing values.
