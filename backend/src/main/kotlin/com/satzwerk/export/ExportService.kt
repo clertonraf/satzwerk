@@ -1,12 +1,9 @@
 package com.satzwerk.export
 
 import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
 import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.NotFoundException
-import com.satzwerk.medications.MedicationLogRepository
-import com.satzwerk.medications.MedicationRepository
 import com.satzwerk.sessions.SetLog
 import com.satzwerk.sessions.WorkoutSession
 import com.satzwerk.users.UserRepository
@@ -18,7 +15,6 @@ import com.satzwerk.workouts.WorkoutGroupExportData
 import com.satzwerk.workouts.WorkoutPlan
 import com.satzwerk.workouts.WorkoutPlanExportData
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
 private data class ExerciseImportResult(
@@ -32,11 +28,9 @@ class ExportService(
     private val userRepository: UserRepository,
     private val exerciseRepository: ExerciseRepository,
     private val workoutDeps: ExportWorkoutDeps,
-    private val medicationRepository: MedicationRepository,
-    private val medicationLogRepository: MedicationLogRepository,
-    private val objectMapper: ObjectMapper,
+    private val exportSupportDeps: ExportSupportDeps,
 ) {
-    private val translatorRegistry = ExportTranslatorRegistry(objectMapper)
+    private val translatorRegistry = ExportTranslatorRegistry(exportSupportDeps.objectMapper)
 
     suspend fun exportForUser(userId: UUID): Any {
         val user = userRepository.findById(userId) ?: throw NotFoundException("User not found")
@@ -46,43 +40,63 @@ class ExportService(
                 exercises = exerciseRepository.findAllByUserId(userId).map(::toExerciseDto),
                 workoutPlans = exportPlans(userId),
                 workoutSessions = exportSessions(userId),
-                medications = exportMedicationsFor(userId, medicationRepository, objectMapper),
-                medicationLogs = exportMedicationLogsFor(userId, medicationRepository, medicationLogRepository),
+                medications =
+                    exportMedicationsFor(
+                        userId,
+                        exportSupportDeps.medicationRepository,
+                        exportSupportDeps.objectMapper,
+                    ),
+                medicationLogs =
+                    exportMedicationLogsFor(
+                        userId,
+                        exportSupportDeps.medicationRepository,
+                        exportSupportDeps.medicationLogRepository,
+                    ),
             ),
         )
     }
 
-    @Transactional
     suspend fun importForUser(
         userId: UUID,
         root: JsonNode,
     ): ImportSummaryDto {
-        val export = translatorRegistry.forImport(root).importSnapshot(root)
-        checkImportPreconditions(userId)
-        val exerciseResult = importExercises(userId, export.exercises)
-        val (groupIdMap, importedPlans) = importPlans(userId, export.workoutPlans, exerciseResult.exerciseIdMap)
-        val (importedSessions, importedSetLogs) =
-            importSessions(userId, export.workoutSessions, exerciseResult.exerciseIdMap, groupIdMap)
-        val medResult =
-            importMedicationsAndLogs(
-                userId,
-                export.medications,
-                export.medicationLogs,
-                MedicationImportDeps(medicationRepository, medicationLogRepository, objectMapper),
-            )
-        if (exerciseResult.importedCount > 0) {
+        val summary =
+            exportSupportDeps.transactionRunner.required {
+                val export = translatorRegistry.forImport(root).importSnapshot(root)
+                checkImportPreconditions(userId)
+                val exerciseResult = importExercises(userId, export.exercises)
+                val (groupIdMap, importedPlans) = importPlans(userId, export.workoutPlans, exerciseResult.exerciseIdMap)
+                val (importedSessions, importedSetLogs) =
+                    importSessions(userId, export.workoutSessions, exerciseResult.exerciseIdMap, groupIdMap)
+                val medResult =
+                    importMedicationsAndLogs(
+                        userId,
+                        export.medications,
+                        export.medicationLogs,
+                        MedicationImportDeps(
+                            exportSupportDeps.medicationRepository,
+                            exportSupportDeps.medicationLogRepository,
+                            exportSupportDeps.objectMapper,
+                        ),
+                    )
+                ImportSummaryDto(
+                    importedExercises = exerciseResult.importedCount,
+                    importedWorkoutPlans = importedPlans,
+                    importedWorkoutSessions = importedSessions,
+                    importedSetLogs = importedSetLogs,
+                    reusedExercises = exerciseResult.reusedCount,
+                    importedMedications = medResult.importedCount,
+                    importedMedicationLogs = medResult.importedLogCount,
+                    reusedMedications = medResult.reusedCount,
+                )
+            }
+        if (summary.importedExercises > 0) {
             workoutDeps.exerciseCatalogCache.invalidateUser(userId)
         }
-        return ImportSummaryDto(
-            importedExercises = exerciseResult.importedCount,
-            importedWorkoutPlans = importedPlans,
-            importedWorkoutSessions = importedSessions,
-            importedSetLogs = importedSetLogs,
-            reusedExercises = exerciseResult.reusedCount,
-            importedMedications = medResult.importedCount,
-            importedMedicationLogs = medResult.importedLogCount,
-            reusedMedications = medResult.reusedCount,
-        )
+        if (summary.importedSetLogs > 0) {
+            workoutDeps.analyticsReadCache.invalidateUser(userId)
+        }
+        return summary
     }
 
     private suspend fun checkImportPreconditions(userId: UUID) {

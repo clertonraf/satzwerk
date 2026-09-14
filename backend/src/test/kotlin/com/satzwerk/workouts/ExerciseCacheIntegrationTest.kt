@@ -2,8 +2,10 @@ package com.satzwerk.workouts
 
 import com.satzwerk.PostgresTestContainer
 import com.satzwerk.auth.AuthResponse
+import com.satzwerk.users.UserRepository
 import io.micrometer.core.instrument.MeterRegistry
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -12,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.reactive.server.WebTestClient
+import java.time.Instant
 import java.util.UUID
 
 @AutoConfigureObservability
@@ -24,11 +27,19 @@ class ExerciseCacheIntegrationTest : PostgresTestContainer() {
     @Autowired
     lateinit var meterRegistry: MeterRegistry
 
+    @Autowired
+    lateinit var exerciseCatalogCache: ExerciseCatalogCache
+
+    @Autowired
+    lateinit var userRepository: UserRepository
+
     private lateinit var authToken: String
+    private lateinit var userEmail: String
 
     @BeforeEach
     fun setup() {
-        authToken = registerAndLogin("exercise-cache-${UUID.randomUUID()}@test.com", "password123", "Cache User")
+        userEmail = "exercise-cache-${UUID.randomUUID()}@test.com"
+        authToken = registerAndLogin(userEmail, "password123", "Cache User")
     }
 
     @Test
@@ -50,6 +61,38 @@ class ExerciseCacheIntegrationTest : PostgresTestContainer() {
         assertEquals(2.0, cacheCounter("exercise-catalog", "miss") - missBefore)
         assertEquals(1.0, cacheCounter("exercise-catalog", "hit") - hitBefore)
     }
+
+    @Test
+    fun `exercise cache ignores stale write from older version after invalidation`(): Unit =
+        kotlinx.coroutines.runBlocking {
+            val userId = requireNotNull(userRepository.findByEmail(userEmail)?.id)
+            val staleLookup = exerciseCatalogCache.lookup(userId, muscleGroup = null)
+
+            exerciseCatalogCache.invalidateUser(userId)
+            exerciseCatalogCache.put(
+                userId = userId,
+                muscleGroup = null,
+                version = staleLookup.version,
+                exercises =
+                    listOf(
+                        ExerciseResponse(
+                            id = UUID.randomUUID(),
+                            name = "Stale Bench",
+                            muscleGroup = "CHEST",
+                            description = null,
+                            videoUrl = null,
+                            equipment = null,
+                            createdAt = Instant.parse("2026-01-01T00:00:00Z"),
+                            updatedAt = Instant.parse("2026-01-01T00:00:00Z"),
+                        ),
+                    ),
+            )
+
+            val freshLookup = exerciseCatalogCache.lookup(userId, muscleGroup = null)
+
+            assertEquals(staleLookup.version + 1, freshLookup.version)
+            assertNull(freshLookup.value)
+        }
 
     private fun listExercises(expectedCount: Int) {
         client

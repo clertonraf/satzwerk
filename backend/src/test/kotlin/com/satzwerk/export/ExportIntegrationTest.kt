@@ -16,6 +16,8 @@ import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.reactive.server.WebTestClient
 import java.math.BigDecimal
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.UUID
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -320,6 +322,57 @@ class ExportIntegrationTest : PostgresTestContainer() {
         }
 
     @Test
+    fun `import invalidates cached analytics reads when it imports set logs`(): Unit =
+        run {
+            val exportToken =
+                registerAndLogin("analytics-src-${UUID.randomUUID()}@test.com", "password123", "AnalyticsSrc")
+            val exerciseId = createExercise(exportToken, "Romanian Deadlift", "BACK")
+            val planId = createPlan(exportToken, "Posterior Chain")
+            activatePlan(exportToken, planId)
+            val groupId = createGroup(exportToken, planId, "Pull Group", exerciseId)
+            val sessionId = startSession(exportToken, groupId)
+            addSetLog(
+                exportToken,
+                sessionId,
+                exerciseId,
+                SetLogMutation(weight = BigDecimal("110.0"), reps = 6),
+            )
+            completeSession(exportToken, sessionId)
+            val exportBody = fetchExport(exportToken)
+
+            val importToken =
+                registerAndLogin("analytics-dst-${UUID.randomUUID()}@test.com", "password123", "AnalyticsDst")
+            val today = LocalDate.now(ZoneOffset.UTC)
+
+            expectAnalytics(
+                importToken,
+                today,
+                expectedHeatmapCount = 0,
+                expectedCurrentStreak = 0,
+                expectedLongestStreak = 0,
+            )
+
+            client
+                .post()
+                .uri("/api/import")
+                .header("Authorization", "Bearer $importToken")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(exportBody)
+                .exchange()
+                .expectStatus().isOk
+                .expectBody()
+                .jsonPath("$.importedSetLogs").isEqualTo(1)
+
+            expectAnalytics(
+                importToken,
+                today,
+                expectedHeatmapCount = 1,
+                expectedCurrentStreak = 1,
+                expectedLongestStreak = 1,
+            )
+        }
+
+    @Test
     fun `import returns 409 when user has open workout session`(): Unit =
         run {
             val srcToken = registerAndLogin("open-src-${UUID.randomUUID()}@test.com", "password123", "OpenSrc")
@@ -384,6 +437,33 @@ class ExportIntegrationTest : PostgresTestContainer() {
         }
 
     // --- Helpers ---
+
+    private fun expectAnalytics(
+        token: String,
+        day: LocalDate,
+        expectedHeatmapCount: Int,
+        expectedCurrentStreak: Int,
+        expectedLongestStreak: Int,
+    ) {
+        client
+            .get()
+            .uri("/api/analytics/heatmap?from=$day&to=$day")
+            .header("Authorization", "Bearer $token")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$[0].count").isEqualTo(expectedHeatmapCount)
+
+        client
+            .get()
+            .uri("/api/analytics/streak")
+            .header("Authorization", "Bearer $token")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.currentStreak").isEqualTo(expectedCurrentStreak)
+            .jsonPath("$.longestStreak").isEqualTo(expectedLongestStreak)
+    }
 
     private fun registerAndLogin(
         email: String,

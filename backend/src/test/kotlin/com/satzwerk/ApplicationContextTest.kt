@@ -22,9 +22,24 @@ class ApplicationContextTest : PostgresTestContainer() {
     lateinit var meterRegistry: MeterRegistry
 
     @Test
-    fun `context loads and health endpoint returns UP`() {
+    fun `anonymous health endpoint returns UP without component details`() {
         webTestClient
             .get().uri("/actuator/health")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.status").isEqualTo("UP")
+            .jsonPath("$.components").doesNotExist()
+    }
+
+    @Test
+    fun `authenticated health endpoint includes redis component status`() {
+        val jwt = registerAndLogin()
+
+        webTestClient
+            .get()
+            .uri("/actuator/health")
+            .header("Authorization", "Bearer $jwt")
             .exchange()
             .expectStatus().isOk
             .expectBody()

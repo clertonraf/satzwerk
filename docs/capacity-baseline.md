@@ -189,7 +189,7 @@ This branch also measured the new Redis-backed cache for the per-user
 - Same Colima host as the rest of this document: **2 vCPUs / 4 GiB RAM**.
 - Topology under test: local Docker Compose override stack
   (`postgres + redis + backend`) with the backend published on `localhost:8083`.
-- Load profile: **20 constant VUs for 60 seconds**, each iteration performing:
+- Load profile: **20 constant VUs for 30 seconds**, each iteration performing:
   `GET /api/exercises`, `GET /api/analytics/heatmap`, and
   `GET /api/analytics/streak`.
 - "Before" run: same branch with `CACHE_ENABLED=false`.
@@ -199,18 +199,19 @@ This branch also measured the new Redis-backed cache for the per-user
 
 ### Measured result
 
-The final cache implementation preserves local single-node read latency instead
-of regressing it. After the first benchmark showed an unexpected ~150ms p95
-penalty, a follow-up investigation isolated the issue to coroutine resumption on
-Lettuce I/O threads during cache hits; moving Redis + JSON cache work onto
-`Dispatchers.IO` removed that contention.
+The final cache implementation fixes the earlier correctness races, but on this
+single-node Colima setup the extra version-key lookup needed for versioned
+post-invalidation safety leaves local p95 latency roughly flat-to-slightly
+worse instead of better. The important part is that the large earlier ~150ms
+regression was eliminated; the remaining delta is on the order of a few to
+~10 ms, not hundreds.
 
 | Endpoint | Before p95 (`CACHE_ENABLED=false`) | After p95 (`CACHE_ENABLED=true`) | Delta |
 | --- | ---: | ---: | ---: |
-| `GET /api/exercises` | 19.55 ms | 12.33 ms | -7.22 ms |
-| `GET /api/analytics/heatmap` | 19.00 ms | 11.24 ms | -7.76 ms |
-| `GET /api/analytics/streak` | 15.82 ms | 8.04 ms | -7.78 ms |
-| Overall `http_req_duration` | 18.51 ms | 11.08 ms | -7.43 ms |
+| `GET /api/exercises` | 32.07 ms | 42.60 ms | +10.53 ms |
+| `GET /api/analytics/heatmap` | 49.23 ms | 52.06 ms | +2.83 ms |
+| `GET /api/analytics/streak` | 37.19 ms | 47.71 ms | +10.52 ms |
+| Overall `http_req_duration` | 38.34 ms | 47.95 ms | +9.61 ms |
 
 ### Investigation notes
 
@@ -234,6 +235,11 @@ Lettuce I/O threads during cache hits; moving Redis + JSON cache work onto
   latency.
 - After moving cache work off the Lettuce event loop, the same cache-enabled
   benchmark dropped to **21-29 ms p95 at 5 VUs** and **8-12 ms p95 at 20 VUs**.
+- The later correctness fix for stale-write protection switched reads to a
+  versioned-key scheme, which adds one extra Redis version lookup before the
+  cached value lookup. On this tiny local setup that extra hop shows up as a
+  modest p95 increase, but it keeps invalidation O(1) and prevents a stale
+  in-flight miss from repopulating the live namespace after commit.
 
 ### Interpretation
 
@@ -241,7 +247,10 @@ Lettuce I/O threads during cache hits; moving Redis + JSON cache work onto
   **cross-replica cache consistency**, not only single-process latency.
 - The initial regression was an application-level bug, not an inherent Redis
   penalty on this Colima setup.
-- With the coroutine-thread fix in place, the local single-node A/B result now
-  shows a modest improvement rather than a regression, and the shared-cache
-  design remains ready for multi-replica deployments where DB offload matters
-  more than local loopback latency.
+- With the coroutine-thread fix in place, Redis no longer adds the suspicious
+  triple-digit overhead from the first benchmark. The remaining local delta is
+  the cost of the extra version read required by the safer invalidation design.
+- That trade-off is acceptable for #296 because the issue's real target is
+  multi-replica correctness and DB offload. A same-host single-backend benchmark
+  is useful validation, but it understates the benefit of avoiding repeated
+  Postgres reads across replicas.

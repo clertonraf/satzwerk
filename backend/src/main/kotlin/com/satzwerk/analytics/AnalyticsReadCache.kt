@@ -1,7 +1,9 @@
 package com.satzwerk.analytics
 
 import com.satzwerk.cache.RedisJsonCacheService
+import com.satzwerk.cache.VersionedCacheValue
 import com.satzwerk.cache.get
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.Duration
 import java.time.LocalDate
@@ -11,47 +13,64 @@ private const val ANALYTICS_HEATMAP_CACHE = "analytics-heatmap"
 private const val ANALYTICS_STREAK_CACHE = "analytics-streak"
 private const val ANALYTICS_READ_TTL_SECONDS = 45L
 private val ANALYTICS_READ_TTL: Duration = Duration.ofSeconds(ANALYTICS_READ_TTL_SECONDS)
+private const val ANALYTICS_VERSION_KEY = "analytics:version"
 
 @Service
 class AnalyticsReadCache(
     private val cacheService: RedisJsonCacheService,
 ) {
-    suspend fun getHeatmap(
+    private val logger = LoggerFactory.getLogger(AnalyticsReadCache::class.java)
+
+    suspend fun lookupHeatmap(
         userId: UUID,
         from: LocalDate,
         to: LocalDate,
-    ): List<HeatmapEntry>? = cacheService.get(ANALYTICS_HEATMAP_CACHE, heatmapCacheKey(userId, from, to))
+    ): VersionedCacheValue<List<HeatmapEntry>> {
+        val version = cacheService.getLong(analyticsVersionKey(userId))
+        val cached =
+            cacheService.get<List<HeatmapEntry>>(
+                ANALYTICS_HEATMAP_CACHE,
+                heatmapCacheKey(userId, from, to, version),
+            )
+        return VersionedCacheValue(version = version, value = cached)
+    }
 
     suspend fun putHeatmap(
         userId: UUID,
         from: LocalDate,
         to: LocalDate,
+        version: Long,
         entries: List<HeatmapEntry>,
     ) {
         cacheService.set(
-            key = heatmapCacheKey(userId, from, to),
+            key = heatmapCacheKey(userId, from, to, version),
             value = entries,
             ttl = ANALYTICS_READ_TTL,
         )
     }
 
-    suspend fun getStreak(userId: UUID): StreakResponse? =
-        cacheService.get(ANALYTICS_STREAK_CACHE, streakCacheKey(userId))
+    suspend fun lookupStreak(userId: UUID): VersionedCacheValue<StreakResponse> {
+        val version = cacheService.getLong(analyticsVersionKey(userId))
+        val cached = cacheService.get<StreakResponse>(ANALYTICS_STREAK_CACHE, streakCacheKey(userId, version))
+        return VersionedCacheValue(version = version, value = cached)
+    }
 
     suspend fun putStreak(
         userId: UUID,
+        version: Long,
         streak: StreakResponse,
     ) {
         cacheService.set(
-            key = streakCacheKey(userId),
+            key = streakCacheKey(userId, version),
             value = streak,
             ttl = ANALYTICS_READ_TTL,
         )
     }
 
     suspend fun invalidateUser(userId: UUID) {
-        cacheService.deleteByPattern("analytics:heatmap:$userId:*")
-        cacheService.delete(streakCacheKey(userId))
+        if (cacheService.increment(analyticsVersionKey(userId)) == null) {
+            logger.warn("Analytics cache invalidation failed for userId={}", userId)
+        }
     }
 }
 
@@ -59,6 +78,12 @@ private fun heatmapCacheKey(
     userId: UUID,
     from: LocalDate,
     to: LocalDate,
-): String = "analytics:heatmap:$userId:$from:$to"
+    version: Long,
+): String = "analytics:heatmap:$userId:v$version:$from:$to"
 
-private fun streakCacheKey(userId: UUID): String = "analytics:streak:$userId"
+private fun streakCacheKey(
+    userId: UUID,
+    version: Long,
+): String = "analytics:streak:$userId:v$version"
+
+private fun analyticsVersionKey(userId: UUID): String = "$ANALYTICS_VERSION_KEY:$userId"

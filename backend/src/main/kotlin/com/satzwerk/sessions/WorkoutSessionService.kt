@@ -8,7 +8,6 @@ import com.satzwerk.workouts.WorkoutGroupRepository
 import com.satzwerk.workouts.WorkoutPlanDetailResponse
 import com.satzwerk.workouts.WorkoutPlanService
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
@@ -18,8 +17,7 @@ class WorkoutSessionService(
     private val workoutGroupRepository: WorkoutGroupRepository,
     private val workoutPlanService: WorkoutPlanService,
     private val personalRecordService: PersonalRecordService,
-    private val setLogService: SetLogService,
-    private val sessionQueryRepository: SessionQueryRepository,
+    private val workoutSessionDeps: WorkoutSessionDeps,
 ) {
     suspend fun getStartOptions(userId: UUID): WorkoutPlanDetailResponse = workoutPlanService.getActiveDetail(userId)
 
@@ -53,7 +51,7 @@ class WorkoutSessionService(
         val group =
             workoutGroupRepository.findById(session.workoutGroupId)
                 ?: throw NotFoundException("Workout group not found")
-        return session.toResponse(setLogService.loadSetLogs(requireNotNull(session.id)), group.title)
+        return session.toResponse(workoutSessionDeps.setLogService.loadSetLogs(requireNotNull(session.id)), group.title)
     }
 
     suspend fun complete(
@@ -75,22 +73,26 @@ class WorkoutSessionService(
         val group =
             workoutGroupRepository.findById(session.workoutGroupId)
                 ?: throw NotFoundException("Workout group not found")
-        return completedSession.toResponse(setLogService.loadSetLogs(sessionId), group.title)
+        return completedSession.toResponse(workoutSessionDeps.setLogService.loadSetLogs(sessionId), group.title)
     }
 
-    @Transactional
     suspend fun discard(
         userId: UUID,
         sessionId: UUID,
     ) {
-        val session = requireOwnedSession(userId, sessionId, workoutSessionRepository)
-        requireOpenSession(session)
-        setLogService.clearSetLogs(session)
-        workoutSessionRepository.deleteById(sessionId)
+        val session =
+            workoutSessionDeps.transactionRunner.required {
+                val ownedSession = requireOwnedSession(userId, sessionId, workoutSessionRepository)
+                requireOpenSession(ownedSession)
+                workoutSessionDeps.setLogService.clearSetLogsInCurrentTransaction(requireNotNull(ownedSession.id))
+                workoutSessionRepository.deleteById(sessionId)
+                ownedSession
+            }
+        workoutSessionDeps.analyticsReadCache.invalidateUser(session.userId)
     }
 
     suspend fun history(userId: UUID): List<WorkoutSessionResponse> =
-        sessionQueryRepository.findHistoryWithDetails(userId).map { row ->
+        workoutSessionDeps.sessionQueryRepository.findHistoryWithDetails(userId).map { row ->
             WorkoutSessionResponse(
                 id = row.id,
                 workoutGroupId = row.workoutGroupId,
@@ -112,7 +114,7 @@ class WorkoutSessionService(
         val group =
             workoutGroupRepository.findById(session.workoutGroupId)
                 ?: throw NotFoundException("Workout group not found")
-        return session.toResponse(setLogService.loadSetLogs(sessionId), group.title)
+        return session.toResponse(workoutSessionDeps.setLogService.loadSetLogs(sessionId), group.title)
     }
 
     suspend fun getReferenceWeights(

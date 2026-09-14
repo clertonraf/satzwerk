@@ -9,7 +9,7 @@ export const options = {
     readHeavy: {
       executor: 'constant-vus',
       vus: Number(__ENV.VUS || 20),
-      duration: __ENV.DURATION || '60s',
+      duration: __ENV.DURATION || '30s',
     },
   },
   thresholds: {

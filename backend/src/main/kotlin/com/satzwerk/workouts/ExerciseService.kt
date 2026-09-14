@@ -35,11 +35,13 @@ class ExerciseService(
     suspend fun list(
         userId: UUID,
         muscleGroup: String?,
-    ): List<ExerciseResponse> =
-        exerciseCatalogCache.get(userId, muscleGroup)
+    ): List<ExerciseResponse> {
+        val cached = exerciseCatalogCache.lookup(userId, muscleGroup)
+        return cached.value
             ?: loadExerciseList(userId, muscleGroup).also { exercises ->
-                exerciseCatalogCache.put(userId, muscleGroup, exercises)
+                exerciseCatalogCache.put(userId, muscleGroup, cached.version, exercises)
             }
+    }
 
     suspend fun getOwned(
         userId: UUID,

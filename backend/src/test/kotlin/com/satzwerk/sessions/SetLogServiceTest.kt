@@ -1,5 +1,6 @@
 package com.satzwerk.sessions
 
+import com.satzwerk.common.TransactionRunner
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -27,6 +28,11 @@ class SetLogServiceTest {
             workoutGroupId = UUID.randomUUID(),
         )
 
+    private val inlineTransactionRunner =
+        object : TransactionRunner {
+            override suspend fun <T> required(block: suspend () -> T): T = block()
+        }
+
     private fun service(prevMaxRatio: BigDecimal?): Pair<SetLogService, SetLogRepository> {
         val queryRepo =
             mock<SessionQueryRepository> {
@@ -39,7 +45,7 @@ class SetLogServiceTest {
                     log.copy(id = UUID.randomUUID())
                 }
             }
-        return SetLogService(setLogRepo, queryRepo, mock()) to setLogRepo
+        return SetLogService(setLogRepo, queryRepo, mock(), inlineTransactionRunner) to setLogRepo
     }
 
     @Test
@@ -78,7 +84,7 @@ class SetLogServiceTest {
                     onBlocking { findMaxRatioForExercise(any(), any(), any(), anyOrNull()) } doReturn null
                 }
             val setLogRepo = mock<SetLogRepository>()
-            val service = SetLogService(setLogRepo, queryRepo, analyticsCache)
+            val service = SetLogService(setLogRepo, queryRepo, analyticsCache, inlineTransactionRunner)
 
             service.clearSetLogs(session)
 

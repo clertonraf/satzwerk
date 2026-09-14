@@ -4,10 +4,14 @@ import kotlinx.coroutines.flow.toList
 import org.springframework.stereotype.Component
 import java.util.UUID
 
+data class ExerciseResolution(
+    val exercisesByNameLower: Map<String, Exercise>,
+    val createdCount: Int,
+)
+
 @Component
 class ExerciseResolver(
     private val exerciseRepository: ExerciseRepository,
-    private val exerciseCatalogCache: ExerciseCatalogCache,
 ) {
     /**
      * Looks up existing exercises by userId and name (case-insensitive) and creates any that are missing.
@@ -20,8 +24,10 @@ class ExerciseResolver(
     suspend fun resolve(
         userId: UUID,
         nameToMuscleGroup: Map<String, String>,
-    ): Map<String, Exercise> {
-        if (nameToMuscleGroup.isEmpty()) return emptyMap()
+    ): ExerciseResolution {
+        if (nameToMuscleGroup.isEmpty()) {
+            return ExerciseResolution(exercisesByNameLower = emptyMap(), createdCount = 0)
+        }
 
         // Use putIfAbsent so first occurrence wins on case-insensitive collisions.
         val nameLowerToOriginal =
@@ -47,11 +53,12 @@ class ExerciseResolver(
             if (toCreate.isEmpty()) {
                 emptyList()
             } else {
-                exerciseRepository.saveAll(toCreate).toList().also {
-                    exerciseCatalogCache.invalidateUser(userId)
-                }
+                exerciseRepository.saveAll(toCreate).toList()
             }
 
-        return existingByNameLower + newExercises.associateBy { it.name.lowercase() }
+        return ExerciseResolution(
+            exercisesByNameLower = existingByNameLower + newExercises.associateBy { it.name.lowercase() },
+            createdCount = newExercises.size,
+        )
     }
 }

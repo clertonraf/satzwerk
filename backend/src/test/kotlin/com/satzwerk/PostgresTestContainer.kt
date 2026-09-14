@@ -38,6 +38,8 @@ abstract class PostgresTestContainer {
             registry.add("spring.flyway.password", postgres::getPassword)
             registry.add("spring.data.redis.host", redis::getHost)
             registry.add("spring.data.redis.port") { redis.getMappedPort(6379) }
+            registry.add("satzwerk.cache.enabled") { true }
+            registry.add("management.health.redis.enabled") { true }
         }
     }
 

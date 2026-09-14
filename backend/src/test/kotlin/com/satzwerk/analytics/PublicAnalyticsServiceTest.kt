@@ -1,5 +1,6 @@
 package com.satzwerk.analytics
 
+import com.satzwerk.cache.VersionedCacheValue
 import com.satzwerk.workouts.WorkoutReadPort
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -24,8 +25,13 @@ class PublicAnalyticsServiceTest {
                             from.plusDays(1) to 5,
                         )
                 }
+            val analyticsReadCache =
+                mock<AnalyticsReadCache> {
+                    onBlocking { lookupHeatmap(eq(userId), eq(from), eq(to)) } doReturn
+                        VersionedCacheValue(version = 0, value = null)
+                }
 
-            val result = PublicAnalyticsService(workoutReadPort, mock<AnalyticsReadCache>()).heatmap(userId, from, to)
+            val result = PublicAnalyticsService(workoutReadPort, analyticsReadCache).heatmap(userId, from, to)
 
             assertEquals(
                 listOf(

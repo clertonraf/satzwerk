@@ -44,6 +44,8 @@ pnpm dev
 ```
 
 Requires a local PostgreSQL instance. Copy `.env.example` and set `DB_*` variables.
+`CACHE_ENABLED` now defaults to `false` for this path so the backend does not
+expect Redis unless you explicitly enable it and provide a Redis instance too.
 
 ## Tech stack
 

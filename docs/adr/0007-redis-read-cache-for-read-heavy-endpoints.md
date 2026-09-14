@@ -27,24 +27,29 @@ Issue #296 explicitly chose Redis over in-memory caching.
 - Use **Redis** as the shared cache for the targeted read-heavy endpoints.
 - Use **explicit service-layer caching** via `ReactiveStringRedisTemplate`
   wrapped in a small JSON cache service. Do not rely on `@Cacheable`.
-- Cache keys are always scoped by **user ID**:
-  - `workouts:exercises:list:{userId}:{muscleGroup|all}`
-  - `analytics:heatmap:{userId}:{from}:{to}`
-  - `analytics:streak:{userId}`
+- Cache keys are always scoped by **user ID** and a per-user **version counter**:
+  - `workouts:exercises:list:{userId}:v{version}:{muscleGroup|all}`
+  - `analytics:heatmap:{userId}:v{version}:{from}:{to}`
+  - `analytics:streak:{userId}:v{version}`
+- Invalidation is **O(1)**: writes bump the relevant per-user version key
+  instead of scanning Redis for matching keys. This also prevents stale
+  in-flight cache fills from re-populating the active namespace after a newer
+  invalidation.
 - Cache values are serialized as JSON with the existing Jackson `ObjectMapper`.
 - `Exercise` list entries use **write-driven invalidation** plus a long TTL
-  (12 hours). Any create, update, or delete for that user evicts all cached
-  list variants for that user.
+  (12 hours). Any create, update, or delete for that user bumps that user's
+  Exercise cache version after the write transaction commits.
 - `Heatmap` and streak entries use a **short TTL** (45 seconds) plus explicit
-  invalidation on `SetLog` writes and `WorkoutSession` discard for that user.
+  invalidation on `SetLog` writes, imported `SetLog`s, and `WorkoutSession`
+  discard for that user.
   `WorkoutSession` completion relies on the same short TTL because the cached
   analytics data is already invalidated during the preceding `SetLog` writes.
 - Redis in local Docker Compose runs as a **non-persistent cache**
   (`redis-server --save "" --appendonly no`). Cache data is disposable and does
   not need to survive restarts.
 - Expose Redis health through Spring Boot's auto-configured Redis health
-  indicator while keeping component-level health details on authenticated
-  `/actuator/health/**` requests.
+  indicator only when cache is enabled, while keeping component-level health
+  details on authenticated `/actuator/health` requests.
 - Record cache hit/miss counters in Micrometer under
   `satzwerk.cache.requests{cache=<name>,result=hit|miss}`.
 
@@ -54,9 +59,12 @@ Issue #296 explicitly chose Redis over in-memory caching.
   values and invalidations.
 - Redis becomes an operational dependency for the backend runtime and local
   Compose stack.
+- Local non-Docker development keeps `CACHE_ENABLED=false` by default so the
+  backend does not try to connect to Redis unless the developer opts in.
 - The cache implementation stays predictable for coroutine code because reads
-  and invalidations are explicit in the service layer.
+  and invalidations are explicit in the service layer and happen after the
+  enclosing write transaction commits.
 - Local single-node latency may not improve materially; the main benefit is
   reduced repeated Postgres reads and cross-replica cache consistency.
-- `CACHE_ENABLED=false` is available as an operational bypass and for local
+- `CACHE_ENABLED` is available both as an operational bypass and for local
   A/B benchmarking.

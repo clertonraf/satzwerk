@@ -31,6 +31,9 @@ spring:
       name: disabled
 
 management:
+  health:
+    redis:
+      enabled: ${CACHE_ENABLED:false}
   endpoints:
     access:
       default: read-only
@@ -39,8 +42,9 @@ management:
         include: health,prometheus
   endpoint:
     health:
-      show-components: always
-      show-details: never
+      show-components: when-authorized
+      show-details: when-authorized
+      roles: JWT_SESSION,metrics:read
     prometheus:
       access: read-only
 
@@ -54,4 +58,4 @@ satzwerk-parser:
 
 satzwerk:
   cache:
-    enabled: ${CACHE_ENABLED:true}
+    enabled: ${CACHE_ENABLED:false}

@@ -4,11 +4,13 @@ import com.satzwerk.PostgresTestContainer
 import com.satzwerk.auth.AuthResponse
 import com.satzwerk.sessions.SetLogResponse
 import com.satzwerk.sessions.WorkoutSessionResponse
+import com.satzwerk.users.UserRepository
 import com.satzwerk.workouts.ExerciseResponse
 import com.satzwerk.workouts.WorkoutGroupResponse
 import com.satzwerk.workouts.WorkoutPlanResponse
 import io.micrometer.core.instrument.MeterRegistry
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -32,13 +34,21 @@ class AnalyticsCacheIntegrationTest : PostgresTestContainer() {
     @Autowired
     lateinit var meterRegistry: MeterRegistry
 
+    @Autowired
+    lateinit var analyticsReadCache: AnalyticsReadCache
+
+    @Autowired
+    lateinit var userRepository: UserRepository
+
     private lateinit var authToken: String
+    private lateinit var userEmail: String
     private lateinit var workoutGroupId: UUID
     private lateinit var exerciseId: UUID
 
     @BeforeEach
     fun setup() {
-        authToken = registerAndLogin("analytics-cache-${UUID.randomUUID()}@test.com", "password123", "Analytics User")
+        userEmail = "analytics-cache-${UUID.randomUUID()}@test.com"
+        authToken = registerAndLogin(userEmail, "password123", "Analytics User")
         exerciseId = createExercise("Bench Press", "CHEST")
         val planId = createPlan("Push Pull Legs")
         workoutGroupId = createGroup(planId, "Push Day", exerciseId)
@@ -73,6 +83,37 @@ class AnalyticsCacheIntegrationTest : PostgresTestContainer() {
         assertEquals(2.0, cacheCounter("analytics-streak", "miss") - streakMissBefore)
         assertEquals(1.0, cacheCounter("analytics-streak", "hit") - streakHitBefore)
     }
+
+    @Test
+    fun `analytics cache ignores stale write from older version after invalidation`(): Unit =
+        kotlinx.coroutines.runBlocking {
+            val userId = requireNotNull(userRepository.findByEmail(userEmail)?.id)
+            val today = LocalDate.now(ZoneOffset.UTC)
+            val staleHeatmapLookup = analyticsReadCache.lookupHeatmap(userId, today, today)
+            val staleStreakLookup = analyticsReadCache.lookupStreak(userId)
+
+            analyticsReadCache.invalidateUser(userId)
+            analyticsReadCache.putHeatmap(
+                userId = userId,
+                from = today,
+                to = today,
+                version = staleHeatmapLookup.version,
+                entries = listOf(HeatmapEntry(today, 99, 4)),
+            )
+            analyticsReadCache.putStreak(
+                userId = userId,
+                version = staleStreakLookup.version,
+                streak = StreakResponse(currentStreak = 9, longestStreak = 9),
+            )
+
+            val freshHeatmapLookup = analyticsReadCache.lookupHeatmap(userId, today, today)
+            val freshStreakLookup = analyticsReadCache.lookupStreak(userId)
+
+            assertEquals(staleHeatmapLookup.version + 1, freshHeatmapLookup.version)
+            assertEquals(staleStreakLookup.version + 1, freshStreakLookup.version)
+            assertNull(freshHeatmapLookup.value)
+            assertNull(freshStreakLookup.value)
+        }
 
     private fun getHeatmap(
         day: LocalDate,

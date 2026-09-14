@@ -1,5 +1,6 @@
 package com.satzwerk.sessions
 
+import com.satzwerk.common.TransactionRunner
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -13,6 +14,10 @@ import java.util.UUID
 
 class WorkoutSessionServiceHistoryTest {
     private val userId = UUID.randomUUID()
+    private val inlineTransactionRunner =
+        object : TransactionRunner {
+            override suspend fun <T> required(block: suspend () -> T): T = block()
+        }
 
     private val historyRow =
         SessionHistoryRow(
@@ -39,8 +44,13 @@ class WorkoutSessionServiceHistoryTest {
                     workoutGroupRepository = mock(),
                     workoutPlanService = mock(),
                     personalRecordService = mock(),
-                    setLogService = mock(),
-                    sessionQueryRepository = queryRepo,
+                    workoutSessionDeps =
+                        WorkoutSessionDeps(
+                            setLogService = mock(),
+                            sessionQueryRepository = queryRepo,
+                            analyticsReadCache = mock(),
+                            transactionRunner = inlineTransactionRunner,
+                        ),
                 )
 
             val result = service.history(userId)

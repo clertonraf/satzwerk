@@ -28,11 +28,12 @@ class AnalyticsService(
     ): List<HeatmapEntry> = publicAnalyticsService.heatmap(userId, from, to)
 
     suspend fun streak(userId: UUID): StreakResponse {
-        analyticsReadCache.getStreak(userId)?.let { return it }
+        val cached = analyticsReadCache.lookupStreak(userId)
+        cached.value?.let { return it }
         val days = workoutReadPort.findWorkoutDays(userId)
         val (current, longest) = computeStreaks(days)
         return StreakResponse(currentStreak = current, longestStreak = longest).also {
-            analyticsReadCache.putStreak(userId, it)
+            analyticsReadCache.putStreak(userId, cached.version, it)
         }
     }
 

@@ -1,50 +1,52 @@
 package com.satzwerk.workouts
 
+import com.satzwerk.common.TransactionRunner
 import kotlinx.coroutines.flow.toList
 import org.springframework.http.codec.multipart.FilePart
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
 @Service
 class PlanImportService(
     private val planParser: PlanParser,
-    private val workoutPlanRepository: WorkoutPlanRepository,
-    private val workoutGroupRepository: WorkoutGroupRepository,
-    private val workoutExerciseRepository: WorkoutExerciseRepository,
-    private val exerciseResolver: ExerciseResolver,
-    private val planImportParsingAdapters: PlanImportParsingAdapters,
+    private val planImportDeps: PlanImportDeps,
+    private val transactionRunner: TransactionRunner,
 ) {
-    @Transactional
     suspend fun import(
         userId: UUID,
         filePart: FilePart,
     ): WorkoutPlanResponse {
-        val parsed = planParser.parse(filePart)
-        val planName = planImportParsingAdapters.normalizeFilename(filePart.filename())
+        val importResult =
+            transactionRunner.required {
+                val parsed = planParser.parse(filePart)
+                val planName = planImportDeps.planImportParsingAdapters.normalizeFilename(filePart.filename())
 
-        val plan =
-            workoutPlanRepository.save(
-                WorkoutPlan(
-                    userId = userId,
-                    name = planName,
-                    source = WorkoutSource.IMPORTED.name,
-                    isActive = false,
-                ),
-            )
-        val planId = requireNotNull(plan.id)
+                val plan =
+                    planImportDeps.workoutPlanRepository.save(
+                        WorkoutPlan(
+                            userId = userId,
+                            name = planName,
+                            source = WorkoutSource.IMPORTED.name,
+                            isActive = false,
+                        ),
+                    )
+                val planId = requireNotNull(plan.id)
 
-        val nameToMuscleGroup =
-            buildMap<String, String> {
-                parsed.workouts.forEach { workout ->
-                    val muscleGroup = workout.bodyParts.firstOrNull().orEmpty()
-                    workout.exercises.forEach { ex -> putIfAbsent(ex.exercise, muscleGroup) }
-                }
+                val nameToMuscleGroup =
+                    buildMap<String, String> {
+                        parsed.workouts.forEach { workout ->
+                            val muscleGroup = workout.bodyParts.firstOrNull().orEmpty()
+                            workout.exercises.forEach { ex -> putIfAbsent(ex.exercise, muscleGroup) }
+                        }
+                    }
+                val resolution = planImportDeps.exerciseResolver.resolve(userId, nameToMuscleGroup)
+                createGroupsAndExercises(planId, parsed, resolution.exercisesByNameLower)
+                PlanImportResult(WorkoutPlanResponse.from(plan), resolution.createdCount)
             }
-        val exerciseByNameLower = exerciseResolver.resolve(userId, nameToMuscleGroup)
-        createGroupsAndExercises(planId, parsed, exerciseByNameLower)
-
-        return WorkoutPlanResponse.from(plan)
+        if (importResult.createdExerciseCount > 0) {
+            planImportDeps.exerciseCatalogCache.invalidateUser(userId)
+        }
+        return importResult.response
     }
 
     private suspend fun createGroupsAndExercises(
@@ -66,7 +68,8 @@ class PlanImportService(
                 )
             }
         // Sort by orderIndex to guarantee stable pairing with parsed.workouts regardless of saveAll emission order.
-        val savedGroups = workoutGroupRepository.saveAll(groupEntities).toList().sortedBy { it.orderIndex }
+        val savedGroups =
+            planImportDeps.workoutGroupRepository.saveAll(groupEntities).toList().sortedBy { it.orderIndex }
 
         val allExercises =
             savedGroups.flatMapIndexed { idx, group ->
@@ -74,18 +77,24 @@ class PlanImportService(
                 val groupId = requireNotNull(group.id)
                 parsedWorkout.exercises.mapIndexed { exerciseIndex, parsedExercise ->
                     val exercise = requireNotNull(exerciseByNameLower[parsedExercise.exercise.lowercase()])
-                    val parsedReps = planImportParsingAdapters.parseReps(parsedExercise.reps)
+                    val parsedReps = planImportDeps.planImportParsingAdapters.parseReps(parsedExercise.reps)
                     WorkoutExercise(
                         workoutGroupId = groupId,
                         exerciseId = requireNotNull(exercise.id),
                         sets = parsedExercise.sets,
                         reps = parsedReps.reps,
                         toFailure = parsedReps.toFailure,
-                        advancedTechnique = planImportParsingAdapters.parseTechnique(parsedExercise.advancedTechnique),
+                        advancedTechnique =
+                            planImportDeps.planImportParsingAdapters.parseTechnique(parsedExercise.advancedTechnique),
                         orderIndex = exerciseIndex,
                     )
                 }
             }
-        workoutExerciseRepository.saveAll(allExercises).toList()
+        planImportDeps.workoutExerciseRepository.saveAll(allExercises).toList()
     }
 }
+
+private data class PlanImportResult(
+    val response: WorkoutPlanResponse,
+    val createdExerciseCount: Int,
+)

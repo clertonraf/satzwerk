@@ -15,7 +15,6 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
 import org.springframework.data.redis.core.ReactiveValueOperations
-import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import java.time.Duration
 
@@ -76,33 +75,33 @@ class RedisJsonCacheServiceTest {
         }
 
     @Test
-    fun `deleteByPattern removes matching keys`(): Unit =
+    fun `get evicts malformed cached payload and records miss`(): Unit =
         runBlocking {
-            val pattern = "workouts:exercises:list:user-1:*"
-            val keys = listOf("workouts:exercises:list:user-1:all", "workouts:exercises:list:user-1:CHEST")
+            val key = "analytics:streak:user-1"
             val service = RedisJsonCacheService(redisTemplate, objectMapper, meterRegistry, enabled = true)
 
-            whenever(redisTemplate.scan(any())).thenReturn(Flux.fromIterable(keys))
-            whenever(redisTemplate.delete(any<Flux<String>>())).thenReturn(Mono.just(2))
+            whenever(valueOperations.get(key)).thenReturn(Mono.just("{not-json"))
+            whenever(redisTemplate.delete(key)).thenReturn(Mono.just(1))
 
-            val deleted = service.deleteByPattern(pattern)
+            val actual = service.get<StreakSnapshot>(cacheName = "analytics-streak", key = key)
 
-            assertEquals(2L, deleted)
-            verify(redisTemplate).delete(any<Flux<String>>())
+            assertNull(actual)
+            assertEquals(1.0, counter("analytics-streak", "miss"))
+            verify(redisTemplate).delete(key)
         }
 
     @Test
-    fun `deleteByPattern skips delete when no keys match`(): Unit =
+    fun `version reads default to zero and increment returns new value`(): Unit =
         runBlocking {
-            val pattern = "workouts:exercises:list:user-1:*"
             val service = RedisJsonCacheService(redisTemplate, objectMapper, meterRegistry, enabled = true)
+            whenever(valueOperations.get("analytics:version:user-1")).thenReturn(Mono.empty())
+            whenever(valueOperations.increment("analytics:version:user-1")).thenReturn(Mono.just(1))
 
-            whenever(redisTemplate.scan(any())).thenReturn(Flux.empty())
+            val before = service.getLong("analytics:version:user-1")
+            val after = service.increment("analytics:version:user-1")
 
-            val deleted = service.deleteByPattern(pattern)
-
-            assertEquals(0L, deleted)
-            verify(redisTemplate, never()).delete(any<Flux<String>>())
+            assertEquals(0L, before)
+            assertEquals(1L, after)
         }
 
     @Test
@@ -157,6 +156,18 @@ class RedisJsonCacheServiceTest {
             val deleted = service.delete("analytics:streak:user-1")
 
             assertEquals(false, deleted)
+        }
+
+    @Test
+    fun `increment returns null on redis failure`(): Unit =
+        runBlocking {
+            whenever(valueOperations.increment("analytics:version:user-1"))
+                .thenReturn(Mono.error(IllegalStateException("redis down")))
+            val service = RedisJsonCacheService(redisTemplate, objectMapper, meterRegistry, enabled = true)
+
+            val updated = service.increment("analytics:version:user-1")
+
+            assertNull(updated)
         }
 
     private fun counter(

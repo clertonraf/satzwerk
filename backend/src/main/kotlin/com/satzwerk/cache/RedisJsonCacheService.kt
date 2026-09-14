@@ -4,28 +4,23 @@ import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.core.instrument.MeterRegistry
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.reactive.asFlow
 import kotlinx.coroutines.reactive.awaitFirstOrNull
 import kotlinx.coroutines.reactive.awaitSingle
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
-import org.springframework.data.redis.core.ScanOptions
 import org.springframework.stereotype.Service
-import reactor.core.publisher.Flux
 import java.time.Duration
 
 private const val CACHE_REQUESTS_METER = "satzwerk.cache.requests"
-private const val CACHE_SCAN_BATCH_SIZE: Long = 100
 
 @Service
 class RedisJsonCacheService(
     private val redisTemplate: ReactiveStringRedisTemplate,
     private val objectMapper: ObjectMapper,
     private val meterRegistry: MeterRegistry,
-    @Value("\${satzwerk.cache.enabled:true}") private val enabled: Boolean,
+    @Value("\${satzwerk.cache.enabled:false}") private val enabled: Boolean,
 ) {
     private val logger = LoggerFactory.getLogger(RedisJsonCacheService::class.java)
 
@@ -38,21 +33,64 @@ class RedisJsonCacheService(
             null
         } else {
             offloadCacheWork {
+                val payload =
+                    runCatching { redisTemplate.opsForValue().get(key).awaitFirstOrNull() }
+                        .onFailure { error ->
+                            logger.warn("Redis cache read failed for key={}", key, error)
+                        }.getOrNull()
+
+                if (payload == null) {
+                    cacheCounter(cacheName, "miss").increment()
+                    return@offloadCacheWork null
+                }
+
+                val decoded =
+                    runCatching { objectMapper.readValue(payload, typeReference) as T }
+                        .onFailure { error ->
+                            logger.warn("Redis cache decode failed for key={}", key, error)
+                            delete(key)
+                        }.getOrNull()
+
+                if (decoded == null) {
+                    cacheCounter(cacheName, "miss").increment()
+                    null
+                } else {
+                    cacheCounter(cacheName, "hit").increment()
+                    decoded
+                }
+            }
+        }
+
+    suspend fun getLong(key: String): Long =
+        if (!enabled) {
+            0L
+        } else {
+            offloadCacheWork {
                 runCatching { redisTemplate.opsForValue().get(key).awaitFirstOrNull() }
                     .onFailure { error ->
                         logger.warn("Redis cache read failed for key={}", key, error)
                     }.getOrNull()
                     ?.let { payload ->
-                        cacheCounter(cacheName, "hit").increment()
-                        objectMapper.readValue(payload, typeReference) as T
-                    } ?: run {
-                    if (enabled) {
-                        cacheCounter(cacheName, "miss").increment()
-                    }
-                    null
-                }
+                        runCatching { payload.toLong() }
+                            .onFailure { error ->
+                                logger.warn("Redis cache version decode failed for key={}", key, error)
+                                delete(key)
+                            }.getOrDefault(0L)
+                    } ?: 0L
             }
         }
+
+    suspend fun increment(key: String): Long? {
+        if (!enabled) {
+            return 0L
+        }
+        return offloadCacheWork {
+            runCatching { redisTemplate.opsForValue().increment(key).awaitSingle() }
+                .onFailure { error ->
+                    logger.warn("Redis cache increment failed for key={}", key, error)
+                }.getOrNull()
+        }
+    }
 
     suspend fun set(
         key: String,
@@ -81,35 +119,6 @@ class RedisJsonCacheService(
                 .onFailure { error ->
                     logger.warn("Redis cache delete failed for key={}", key, error)
                 }.getOrDefault(false)
-        }
-    }
-
-    suspend fun deleteByPattern(pattern: String): Long {
-        if (!enabled) {
-            return 0L
-        }
-        return offloadCacheWork {
-            val keys =
-                runCatching {
-                    redisTemplate.scan(
-                        ScanOptions.scanOptions()
-                            .match(pattern)
-                            .count(CACHE_SCAN_BATCH_SIZE)
-                            .build(),
-                    ).asFlow()
-                        .toList()
-                }.onFailure { error ->
-                    logger.warn("Redis cache scan failed for pattern={}", pattern, error)
-                }.getOrDefault(emptyList())
-
-            if (keys.isEmpty()) {
-                0L
-            } else {
-                runCatching { redisTemplate.delete(Flux.fromIterable(keys)).awaitSingle() }
-                    .onFailure { error ->
-                        logger.warn("Redis cache bulk delete failed for pattern={}", pattern, error)
-                    }.getOrDefault(0L)
-            }
         }
     }
 
