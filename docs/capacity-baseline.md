@@ -42,8 +42,8 @@ this configuration to record the first official numeric baseline.
 When running a local or CI k6 load test against this baseline, scrape the
 backend's `/actuator/prometheus` endpoint alongside the usual latency/error
 summary so you can correlate request pressure with pool behavior. In local
-Docker dev, `docker-compose.override.yml` maps the backend to host port 8083,
-create a dedicated Personal API Token scoped to `metrics:read`, then use that
+Docker dev, `docker-compose.override.yml` maps the backend to host port 8083.
+Create a dedicated Personal API Token scoped to `metrics:read`, then use that
 long-lived token for scraping:
 
 ```bash
@@ -55,15 +55,25 @@ METRICS_PAT=$(curl -s http://localhost:8083/api/tokens \
 curl -H "Authorization: Bearer $METRICS_PAT" http://localhost:8083/actuator/prometheus
 ```
 
-In the production-style multi-replica setup behind Traefik, the public ingress
-only routes `/api`, so `/actuator/prometheus` is not available through the
-public URL; scrape each backend instance directly instead and include the same
-bearer token header. A Prometheus server can scrape those instance-local
-actuator endpoints continuously during longer runs.
+In the production-style multi-replica setup behind Traefik, `docker-compose.yml`
+does not publish a host port for `backend` and Traefik's only router matches
+`/api`, so `/actuator/prometheus` is **not reachable** from outside the Compose
+network today. Scraping it in that topology needs one of: a Prometheus
+container joined to the same Docker network (scraping `backend:8080` directly,
+though this load-balances across replicas rather than identifying one), a
+dedicated private Traefik router/entrypoint for `/actuator/**` restricted to an
+internal network, or an equivalent per-replica private route. That network
+setup is out of scope here — this section only covers local/CI k6 runs, where
+the host-published port above is sufficient; see #302 for production-topology
+Prometheus scraping before relying on it operationally.
+
 For quick ad-hoc manual sampling, a JWT obtained via `/api/auth/login` still
 works, but it follows `jwt.expiry-ms` in `application.yml` and expires after
 about 15 minutes by default, so it is not suitable for continuous Prometheus
-scraping.
+scraping. Note also that each PAT-authenticated scrape updates that token's
+`lastUsedAt` timestamp (one small DB write per scrape interval) — negligible
+next to real load-test traffic, but worth knowing if you're scrutinizing pool
+metrics at very fine granularity.
 
 Focus on the R2DBC pool meters and HTTP request timer:
 
