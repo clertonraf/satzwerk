@@ -2,6 +2,7 @@ package com.satzwerk
 
 import com.satzwerk.auth.AuthResponse
 import com.satzwerk.auth.CreatedPersonalApiTokenResponse
+import com.satzwerk.publicapi.PublicScope
 import io.micrometer.core.instrument.MeterRegistry
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -39,9 +40,9 @@ class ApplicationContextTest : PostgresTestContainer() {
     }
 
     @Test
-    fun `prometheus endpoint rejects personal api token authentication`() {
+    fun `prometheus endpoint rejects personal api token without metrics scope`() {
         val jwt = registerAndLogin()
-        val personalApiToken = createPersonalApiToken(jwt)
+        val personalApiToken = createPersonalApiToken(jwt, listOf(PublicScope.EXERCISES_READ))
 
         webTestClient
             .get()
@@ -49,6 +50,22 @@ class ApplicationContextTest : PostgresTestContainer() {
             .header("Authorization", "Bearer $personalApiToken")
             .exchange()
             .expectStatus().isForbidden
+    }
+
+    @Test
+    fun `prometheus endpoint accepts personal api token with metrics scope`() {
+        val jwt = registerAndLogin()
+        val personalApiToken = createPersonalApiToken(jwt, listOf(PublicScope.METRICS_READ))
+
+        webTestClient
+            .get()
+            .uri("/actuator/prometheus")
+            .header("Authorization", "Bearer $personalApiToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_PLAIN)
+            .expectBody(String::class.java)
+            .value { body -> assertThat(body).contains("r2dbc_pool_max_allocated_connections") }
     }
 
     @Test
@@ -115,7 +132,10 @@ class ApplicationContextTest : PostgresTestContainer() {
             .responseBody!!
             .accessToken
 
-    private fun createPersonalApiToken(jwt: String): String =
+    private fun createPersonalApiToken(
+        jwt: String,
+        scopes: List<String>,
+    ): String =
         webTestClient
             .post()
             .uri("/api/tokens")
@@ -124,7 +144,7 @@ class ApplicationContextTest : PostgresTestContainer() {
             .bodyValue(
                 mapOf(
                     "name" to "Metrics PAT",
-                    "scopes" to listOf("exercises:read"),
+                    "scopes" to scopes,
                 ),
             ).exchange()
             .expectStatus().isCreated

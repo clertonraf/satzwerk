@@ -18,6 +18,7 @@ object PublicScope {
     const val SESSIONS_READ = "sessions:read"
     const val SESSIONS_WRITE = "sessions:write"
     const val ANALYTICS_READ = "analytics:read"
+    const val METRICS_READ = "metrics:read"
     const val MEASUREMENTS_READ = "measurements:read"
     const val MEASUREMENTS_WRITE = "measurements:write"
     const val MEDICATIONS_READ = "medications:read"
@@ -29,6 +30,7 @@ object PublicScope {
             PLANS_READ, PLANS_WRITE,
             SESSIONS_READ, SESSIONS_WRITE,
             ANALYTICS_READ,
+            METRICS_READ,
             MEASUREMENTS_READ, MEASUREMENTS_WRITE,
             MEDICATIONS_READ, MEDICATIONS_WRITE,
         )

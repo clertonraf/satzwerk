@@ -1,5 +1,6 @@
 package com.satzwerk.config
 
+import com.satzwerk.publicapi.PublicScope
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpHeaders
@@ -41,7 +42,10 @@ class SecurityConfig(
             .addFilterBefore(partnerTokenWebFilter, SecurityWebFiltersOrder.AUTHORIZATION)
             .authorizeExchange {
                 it.pathMatchers("/api/auth/**", "/actuator/health", "/actuator/health/**").permitAll()
-                it.pathMatchers("/actuator/prometheus").hasAuthority(AUTHORITY_JWT_SESSION)
+                it.pathMatchers("/actuator/prometheus").hasAnyAuthority(
+                    AUTHORITY_JWT_SESSION,
+                    PublicScope.METRICS_READ,
+                )
                 it.anyExchange().authenticated()
             }
             .build()

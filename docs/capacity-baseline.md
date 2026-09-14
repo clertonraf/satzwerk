@@ -43,14 +43,16 @@ When running a local or CI k6 load test against this baseline, scrape the
 backend's `/actuator/prometheus` endpoint alongside the usual latency/error
 summary so you can correlate request pressure with pool behavior. In local
 Docker dev, `docker-compose.override.yml` maps the backend to host port 8083,
-so obtain a bearer token first and then scrape directly:
+create a dedicated Personal API Token scoped to `metrics:read`, then use that
+long-lived token for scraping:
 
 ```bash
-TOKEN=$(curl -s http://localhost:8083/api/auth/login \
+METRICS_PAT=$(curl -s http://localhost:8083/api/tokens \
+  -H "Authorization: Bearer <jwt-session-token>" \
   -H "Content-Type: application/json" \
-  -d '{"email":"you@example.com","password":"your-password"}' | jq -r '.accessToken')
+  -d '{"name":"Prometheus scrape","scopes":["metrics:read"]}' | jq -r '.token')
 
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8083/actuator/prometheus
+curl -H "Authorization: Bearer $METRICS_PAT" http://localhost:8083/actuator/prometheus
 ```
 
 In the production-style multi-replica setup behind Traefik, the public ingress
@@ -58,13 +60,10 @@ only routes `/api`, so `/actuator/prometheus` is not available through the
 public URL; scrape each backend instance directly instead and include the same
 bearer token header. A Prometheus server can scrape those instance-local
 actuator endpoints continuously during longer runs.
-The JWT obtained from `/api/auth/login` follows `jwt.expiry-ms` in
-`application.yml` and expires after about 15 minutes by default, so for
-continuous or long-running scraping you must re-authenticate periodically
-(for example via the refresh-token flow) or switch to a longer-lived
-credential mechanism if the project adds one later. For ad-hoc/manual
-sampling during a single load-test run, the default token lifetime is
-usually sufficient.
+For quick ad-hoc manual sampling, a JWT obtained via `/api/auth/login` still
+works, but it follows `jwt.expiry-ms` in `application.yml` and expires after
+about 15 minutes by default, so it is not suitable for continuous Prometheus
+scraping.
 
 Focus on the R2DBC pool meters and HTTP request timer:
 
