@@ -5,6 +5,10 @@ services:
       - "5432:5432"
 
   backend:
+    # A fixed host port (below) can't be shared by multiple replicas, and local
+    # dev doesn't need horizontal scaling — pin to a single instance here.
+    deploy:
+      replicas: 1
     ports:
       - "8083:8080"
     environment:

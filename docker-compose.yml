@@ -19,10 +19,33 @@ services:
       timeout: 5s
       retries: 5
 
+  traefik:
+    image: traefik:v3.3
+    platform: linux/arm64
+    restart: unless-stopped
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - backend
+
   backend:
     image: ghcr.io/clertonraf/satzwerk-backend:latest
     platform: linux/arm64
     restart: unless-stopped
+    # Replicas are load-balanced by Traefik's Docker provider, which continuously
+    # discovers container IPs and round-robins across all healthy replicas. Do not
+    # route to this service directly (e.g. nginx `proxy_pass http://backend:8080`) —
+    # plain Docker DNS resolution is cached and does not rebalance across replicas.
+    deploy:
+      replicas: ${BACKEND_REPLICAS:-2}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"
+      - "traefik.http.services.backend.loadbalancer.server.port=8080"
     environment:
       SPRING_PROFILES_ACTIVE: prod
       DB_HOST: postgres
@@ -51,6 +74,7 @@ services:
       - "${FRONTEND_PORT:-8080}:80"
     depends_on:
       - backend
+      - traefik
 
   satzwerk-parser:
     image: ghcr.io/clertonraf/satzwerk-parser:latest

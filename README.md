@@ -10,19 +10,27 @@ cp .env.example .env
 docker compose up
 ```
 
-App: http://localhost:5173  
-Backend: http://localhost:8080  
+App: http://localhost:5173
+Backend (direct, bypassing Traefik — dev only): http://localhost:8083
 Traefik dashboard: http://localhost:8081
+
+Requests from the frontend to `/api/*` are proxied through Traefik, which load-balances
+across all `backend` replicas (see `BACKEND_REPLICAS` below).
 
 ## Production deployment
 
 ```bash
 cp .env.example .env
-# Set DOMAIN, ACME_EMAIL, strong DB_PASSWORD and JWT_SECRET
+# Set BACKEND_REPLICAS (default 2), strong DB_PASSWORD and JWT_SECRET
 docker compose -f docker-compose.yml up -d
 ```
 
-Traefik handles HTTPS via Let's Encrypt automatically.
+Traefik load-balances requests across `BACKEND_REPLICAS` backend instances over
+plain HTTP; it does not currently terminate TLS. Put a TLS-terminating reverse
+proxy in front of this stack for public production use — TLS/ACME support was
+previously removed and is tracked for a possible future reintroduction in
+issue #290. `DOMAIN`/`ACME_EMAIL` in `.env.example` are stale leftovers from
+that removed setup — do not rely on them.
 
 ## Development (without Docker)
 
