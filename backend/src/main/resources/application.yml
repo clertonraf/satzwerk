@@ -7,11 +7,12 @@ spring:
     password: ${DB_PASSWORD:satzwerk}
     pool:
       enabled: true
-      # max-size is deliberately small per instance: Postgres max_connections is a shared,
-      # finite budget across all backend replicas (see issue #284 / docs/adr for the sizing
-      # rationale). Raise this only in lockstep with the Postgres connection budget.
+      # max-size is deliberately capped per instance: with the default 3 backend replicas,
+      # a pool size of 15 reserves at most 45 Postgres connections, leaving headroom under
+      # the shared 150-connection budget for Flyway, health checks, and other clients.
+      # Raise this only in lockstep with the replica count and Postgres connection budget.
       initial-size: ${R2DBC_POOL_INITIAL_SIZE:5}
-      max-size: ${R2DBC_POOL_MAX_SIZE:10}
+      max-size: ${R2DBC_POOL_MAX_SIZE:15}
       max-idle-time: ${R2DBC_POOL_MAX_IDLE_TIME:30m}
       max-life-time: ${R2DBC_POOL_MAX_LIFE_TIME:60m}
       max-acquire-time: ${R2DBC_POOL_MAX_ACQUIRE_TIME:3s}

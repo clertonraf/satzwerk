@@ -21,7 +21,7 @@ across all `backend` replicas (see `BACKEND_REPLICAS` below).
 
 ```bash
 cp .env.example .env
-# Set BACKEND_REPLICAS (default 2), strong DB_PASSWORD and JWT_SECRET
+# Set BACKEND_REPLICAS (default 3), strong DB_PASSWORD and JWT_SECRET
 docker compose -f docker-compose.yml up -d
 ```
 

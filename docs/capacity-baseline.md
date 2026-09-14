@@ -1,41 +1,121 @@
 # Backend capacity baseline (resource-constrained)
 
-Records the capacity baseline established after adding explicit container
-resource limits and JVM heap tuning to the `backend` service (issue #286),
-so future load tests (see the automated k6 CI gate, issue #287) have a fixed
-configuration to compare against.
+Records the local capacity baseline for the resource-constrained Docker stack
+after explicit container limits (#286), Prometheus pool metrics (#294), and the
+pool/replica tuning pass from #295.
 
-## Configuration under test
+## Test environment and method
+
+- Host runtime: Colima (Docker) with **2 vCPUs** and **4 GiB RAM** available to
+  the VM (`docker info`: `NCPU=2`, `MemTotal≈4.1 GB`).
+- Topology under test: Postgres + Traefik + backend replicas from
+  `docker-compose.yml`. The frontend and parser were omitted because the k6 test
+  hits the backend API directly through Traefik.
+- Backend image: built locally from the checked-out branch so the measured
+  config exactly matches the committed `application.yml`.
+- Workload: the existing `perf/stress.js` mixed write-heavy flow
+  (register → create `Exercise` → list `Exercise`s → fetch analytics summary),
+  rerun as short **constant-VU** bursts after a 10-second warm-up. This is
+  heavier than typical `SetLog` traffic because every iteration also includes
+  registration and exercise creation, so treat the numbers below as a
+  conservative floor for real WorkoutSession write traffic.
+- Metrics: `r2dbc_pool_acquired_connections`,
+  `r2dbc_pool_pending_connections`, and
+  `r2dbc_pool_max_allocated_connections` were scraped every 3 seconds from each
+  backend replica's `/actuator/prometheus` endpoint and summed per sample.
+
+## Tuned default configuration
 
 - `docker-compose.yml` `backend.deploy.resources.limits`: `cpus: 1.0`,
   `memory: 768M` (per replica), reservations `cpus: 0.5`, `memory: 512M`.
 - JVM flags baked into `backend/Dockerfile` via `JAVA_OPTS`:
   `-XX:+UseContainerSupport -Xms256m -Xmx512m -XX:MaxMetaspaceSize=128m`.
-- R2DBC pool `max-size=10` per instance (#283), Postgres `max_connections=150`
-  (#284), 2 backend replicas behind Traefik by default (#285).
+- **R2DBC pool `max-size=15` per backend replica** (#295).
+- **3 backend replicas behind Traefik by default** (#295).
+- Postgres `max_connections=150` (#284), so the default backend pool budget is
+  `3 × 15 = 45` connections, leaving **105 connections of headroom** for
+  Flyway, health checks, PAT/JWT-authenticated Prometheus scrapes, and other
+  non-backend clients.
+
+## Documented local write-throughput SLO
+
+For the resource-constrained self-hosted baseline above, Satzwerk should
+support **40 concurrent write-heavy API clients** against the existing k6 mixed
+scenario with:
+
+- `http_req_failed = 0%`
+- aggregated `r2dbc_pool_pending_connections` staying effectively at zero
+  (observed average `0.2`, peak `2`)
+- p95 request latency staying below the **1.5s ad-hoc saturation ceiling used
+  for this local study** (`http_req_duration p95 ≈ 1.18s`)
+
+This is the recorded local SLO because it was the highest observed load that
+met all three criteria above at once: 0% errors, near-zero pool queueing, and
+the study's 1.5s latency ceiling. At **50** concurrent clients, the same
+3-replica / pool-15 setup still stayed error-free with zero pending samples,
+but crossed the latency ceiling (`p95 ≈ 1.55s`), so 50 is better treated as
+the beginning of saturation for this local study rather than the default target
+for a modest self-hosted gym tracker.
+
+## Relation to the repo's actual CI perf gate
+
+This local saturation study does **not** use the same latency threshold as the
+automated k6 regression gate. The real enforced CI threshold in `perf/stress.js`
+for the mixed scenario is **`p(95) < 500 ms`**, not 1.5s.
+
+That difference matters:
+
+- Under the tuned **15 × 3** configuration, the measured mixed-scenario p95 was
+  **449 ms at 20 VUs** and **529 ms at 25 VUs**.
+- So this workload crosses the repo's actual enforced CI latency gate
+  **somewhere between 20 and 25 concurrent clients** on the 2 vCPU / 4 GiB
+  Colima host used for this study.
+- The documented **40 concurrent clients** SLO therefore means
+  "**error-free with near-zero pool queueing under this local study's 1.5s
+  latency ceiling**" — **not** "passes the repository's CI perf gate at 40
+  concurrent clients."
+
+There is also a topology difference: `.github/workflows/perf.yml` currently runs
+the same `perf/stress.js` script on a GitHub-hosted runner against a Compose
+stack forced to **`BACKEND_REPLICAS=1`** via `.env` plus
+`docker-compose.override.yml`, so it does **not** exercise the same 3-replica
+resource-constrained topology measured here. I did not re-run that CI workflow
+after changing the defaults, so whether the workflow currently passes with the
+new pool default in its single-replica setup remains an open verification gap.
+
+## Measured combinations
+
+All runs below used 30-second measured windows after the same 10-second warm-up
+on the 2 vCPU / 4 GiB Colima VM described above.
+
+| Pool / replicas | Load (VUs) | Req/s | p95 req | Errors | Pending avg / peak | Acquired peak / max | Notes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 10 × 2 (old default) | 25 | 65.0 | 584 ms | 0.00% | 0.0 / 0 | 10 / 20 | Healthy baseline. |
+| 10 × 2 (old default) | 30 | 60.7 | 1.06 s | 0.00% | 1.0 / 4 | 18 / 20 | First clear pool queueing. |
+| 10 × 2 (old default) | 35 | 19.9 | 5.26 s | 0.00% | 5.6 / 16 | 19 / 20 | Throughput collapse at pool ceiling. |
+| 20 × 2 | 40 | 81.5 | 1.11 s | 0.00% | 1.0 / 8 | 28 / 40 | Fastest 2-replica run, but queueing no longer stays near zero. |
+| 10 × 3 | 40 | 74.0 | 1.23 s | 0.00% | 0.2 / 2 | 24 / 30 | Third replica helps; still slower than 15 × 3. |
+| 15 × 3 | 20 | 56.7 | 449 ms | 0.00% | 0.1 / 1 | 8 / 45 | Last measured point that stayed under the CI mixed-scenario 500 ms p95 gate. |
+| 15 × 3 | 25 | 67.4 | 529 ms | 0.00% | 0.0 / 0 | 11 / 45 | First measured point above the CI mixed-scenario 500 ms p95 gate. |
+| **15 × 3 (chosen default)** | **40** | **78.8** | **1.18 s** | **0.00%** | **0.2 / 2** | **23 / 45** | Best balance of throughput, latency, and near-zero pending connections. |
+| 15 × 3 | 50 | 81.2 | 1.55 s | 0.00% | 0.0 / 0 | 38 / 45 | Error-free, but over this study's 1.5s saturation ceiling. |
 
 ## What was verified locally
 
-- `docker inspect` on a running `backend` container confirms the limit is
-  actually applied: `Memory: 805306368` (768 MiB), `NanoCpus: 1000000000`
+- `docker inspect` on a running `backend` container still confirms the resource
+  limit is applied: `Memory: 805306368` (768 MiB), `NanoCpus: 1000000000`
   (1.0 CPU).
-- `java -XX:+PrintFlagsFinal` inside the built image confirms the JVM honors
-  the explicit flags: `MaxHeapSize=536870912` (512MB), `InitialHeapSize=268435456`
-  (256MB), `MaxMetaspaceSize=134217728` (128MB), `UseContainerSupport=true`.
-- Both replicas started and passed their `/actuator/health` check under this
-  configuration with Postgres and Traefik in the loop.
-
-## Establishing a throughput/latency number
-
-This change verifies the *configuration* is correctly enforced end-to-end; it
-does not itself re-run the original manual k6 saturation test (ramping to
-8,000 concurrent VUs) against this specific resource-constrained
-configuration — repeating that scale of test isn't practical to run
-unattended in this environment. The automated k6 CI gate introduced in #287
-is the intended mechanism for establishing and continuously re-verifying a
-repeatable throughput/latency baseline under this resource configuration;
-run it manually (`workflow_dispatch` on `.github/workflows/perf.yml`) against
-this configuration to record the first official numeric baseline.
+- `java -XX:+PrintFlagsFinal` inside the built image still confirms the JVM
+  honors the explicit flags: `MaxHeapSize=536870912` (512MB),
+  `InitialHeapSize=268435456` (256MB), `MaxMetaspaceSize=134217728` (128MB),
+  `UseContainerSupport=true`.
+- All three tuned-default replicas started and passed `/actuator/health`
+  checks together with Postgres and Traefik.
+- The prior doc's **unestablished-number gap for this local
+  resource-constrained baseline** is now replaced with a real measured SLO and
+  saturation table for the shipped default config. The separate
+  high-infrastructure 8,000-VU / full-infra exercise remains tracked by #297
+  and was not attempted here.
 
 ## Observing pool saturation via Prometheus metrics
 

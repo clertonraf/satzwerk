@@ -29,4 +29,12 @@ class R2dbcPoolingConfigTest : PostgresTestContainer() {
         val pool = connectionFactory as ConnectionPool
         assertThat(pool.metrics).isPresent
     }
+
+    @Test
+    fun `connection pool max size matches tuned default`() {
+        val pool = connectionFactory as ConnectionPool
+        val metrics = pool.metrics.orElseThrow()
+
+        assertThat(metrics.maxAllocatedSize).isEqualTo(15)
+    }
 }
