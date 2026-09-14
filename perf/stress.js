@@ -235,12 +235,16 @@ function addDurations(left, right) {
 }
 
 function durationToSeconds(duration) {
-  const matches = duration.matchAll(/(\d+)(ms|s|m|h)/g);
+  const compactDuration = duration.replace(/\s+/g, '');
+  const pattern = /(\d+(?:\.\d+)?)(ms|s|m|h)/g;
   let totalSeconds = 0;
+  let consumed = '';
+  let match;
 
-  for (const match of matches) {
+  while ((match = pattern.exec(compactDuration)) !== null) {
     const amount = Number(match[1]);
     const unit = match[2];
+    consumed += match[0];
 
     if (unit === 'ms') {
       totalSeconds += amount / 1000;
@@ -253,7 +257,7 @@ function durationToSeconds(duration) {
     }
   }
 
-  if (totalSeconds === 0) {
+  if (consumed.length === 0 || consumed !== compactDuration) {
     throw new Error(`Unsupported k6 duration string: ${duration}`);
   }
 

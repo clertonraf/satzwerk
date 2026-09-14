@@ -21,16 +21,18 @@ fi
 
 docker_cpu=$(docker info --format '{{.NCPU}}')
 docker_mem_bytes=$(docker info --format '{{.MemTotal}}')
+docker_context_name=$(docker context show 2>/dev/null || true)
+docker_context_host=$(docker context inspect "$docker_context_name" --format '{{json (index .Endpoints "docker").Host}}' 2>/dev/null | tr -d '"' || true)
 
 colima_json=''
 if command -v colima >/dev/null 2>&1; then
-  colima_json=$(colima status --json 2>/dev/null || true)
+  colima_json=$(colima list --json 2>/dev/null || true)
   if [ -z "$colima_json" ]; then
-    colima_json=$(colima list --json 2>/dev/null || true)
+    colima_json=$(colima status --json 2>/dev/null || true)
   fi
 fi
 
-python3 - "$docker_cpu" "$docker_mem_bytes" "$colima_json" <<'PY'
+python3 - "$docker_cpu" "$docker_mem_bytes" "$docker_context_name" "$docker_context_host" "$colima_json" <<'PY'
 import json
 import math
 import sys
@@ -60,7 +62,9 @@ def env_int(name: str, default: int) -> int:
 
 docker_cpu = int(sys.argv[1])
 docker_mem_bytes = int(sys.argv[2])
-colima_raw = sys.argv[3]
+docker_context_name = sys.argv[3]
+docker_context_host = sys.argv[4]
+colima_raw = sys.argv[5]
 
 TARGET_VUS = env_int("TARGET_VUS", 8000)
 OBSERVED_OOM_VUS = env_int("OBSERVED_OOM_VUS", 2700)
@@ -78,18 +82,41 @@ projected_mem_gib = bytes_to_gib(projected_mem_bytes)
 cpu_per_vu = 2 / OBSERVED_OOM_VUS
 projected_cpu = cpu_per_vu * TARGET_VUS
 
+def normalize_colima_memory(raw_value: int) -> int:
+    if raw_value <= 0:
+        return 0
+    if raw_value < 1024:
+        return gib_to_bytes(raw_value)
+    return raw_value
+
+
+def matching_colima_entry(parsed_payload):
+    entries = parsed_payload if isinstance(parsed_payload, list) else [parsed_payload]
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("status", "").lower() != "running":
+            continue
+        socket = entry.get("docker_socket")
+        name = entry.get("name", "")
+        expected_context_names = {name, f"colima-{name}" if name else ""}
+        if name == "default":
+            expected_context_names.add("colima")
+        if docker_context_host and socket and socket == docker_context_host:
+            return entry
+        if docker_context_name and docker_context_name in expected_context_names:
+            return entry
+    return None
+
+
 colima_cpu = None
 colima_mem_bytes = None
 if colima_raw:
     parsed = json.loads(colima_raw)
-    if isinstance(parsed, list):
-        if parsed:
-            first = parsed[0]
-            colima_cpu = int(first.get("cpu", first.get("cpus", 0)) or 0)
-            colima_mem_bytes = int(first.get("memory", 0) or 0)
-    elif isinstance(parsed, dict):
-        colima_cpu = int(parsed.get("cpu", parsed.get("cpus", 0)) or 0)
-        colima_mem_bytes = int(parsed.get("memory", 0) or 0)
+    matched_entry = matching_colima_entry(parsed)
+    if matched_entry is not None:
+        colima_cpu = int(matched_entry.get("cpu", matched_entry.get("cpus", 0)) or 0)
+        colima_mem_bytes = normalize_colima_memory(int(matched_entry.get("memory", 0) or 0))
 
 effective_cpu = docker_cpu
 cpu_source = "docker info"
@@ -117,9 +144,9 @@ print(f"- Recommended safe minimum: round that floor up to {RECOMMENDED_MEM_GIB}
 print(f"- CPU scales similarly: 2 vCPU / {OBSERVED_OOM_VUS} VUs x {TARGET_VUS} VUs = {projected_cpu:.2f} vCPU, rounded to {RECOMMENDED_CPUS}.")
 print()
 print("Current runtime allocation:")
-print(f"- Docker reports: {docker_cpu} vCPU, {render_bytes_gib(docker_mem_bytes)}")
+print(f"- Docker reports: {docker_cpu} vCPU, {render_bytes_gib(docker_mem_bytes)} (context: {docker_context_name or 'default'})")
 if colima_cpu and colima_mem_bytes:
-    print(f"- Colima reports: {colima_cpu} vCPU, {render_bytes_gib(colima_mem_bytes)}")
+    print(f"- Colima reports: {colima_cpu} vCPU, {render_bytes_gib(colima_mem_bytes)} (matching active Docker socket)")
 print(f"- Effective allocation used for the gate: {effective_cpu} vCPU ({cpu_source}), {render_bytes_gib(effective_mem_bytes)} ({mem_source})")
 print()
 print("Recommended minimum before the 8,000-VU local run:")

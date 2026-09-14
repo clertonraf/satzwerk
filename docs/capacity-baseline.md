@@ -198,6 +198,7 @@ companion stage file `perf/write-saturation-8000-stages.json` ramps from 250 to
 Run it from the repo root:
 
 ```bash
+docker rm -f satzwerk-k6-ceiling 2>/dev/null || true
 docker run --name satzwerk-k6-ceiling \
   --network satzwerk-perf_default \
   -v "$PWD/perf:/perf:ro" \
