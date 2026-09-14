@@ -8,8 +8,17 @@ import java.util.UUID
 @Service
 class PublicAnalyticsService(
     private val workoutReadPort: WorkoutReadPort,
+    private val analyticsReadCache: AnalyticsReadCache,
 ) {
     suspend fun heatmap(
+        userId: UUID,
+        from: LocalDate,
+        to: LocalDate,
+    ): List<HeatmapEntry> =
+        analyticsReadCache.getHeatmap(userId, from, to)
+            ?: loadHeatmap(userId, from, to).also { analyticsReadCache.putHeatmap(userId, from, to, it) }
+
+    private suspend fun loadHeatmap(
         userId: UUID,
         from: LocalDate,
         to: LocalDate,

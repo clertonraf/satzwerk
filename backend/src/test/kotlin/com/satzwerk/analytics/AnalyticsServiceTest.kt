@@ -35,7 +35,12 @@ class AnalyticsServiceTest {
                 onBlocking { findDashboardSummary(any()) } doReturn summaryRow
                 onBlocking { findWorkoutDays(any()) } doReturn workoutDays
             }
-        return AnalyticsService(mock<PublicAnalyticsService>(), port, mock<ExerciseRepository>())
+        return AnalyticsService(
+            mock<PublicAnalyticsService>(),
+            port,
+            mock<ExerciseRepository>(),
+            mock<AnalyticsReadCache>(),
+        )
     }
 
     @Test
@@ -123,7 +128,12 @@ class AnalyticsServiceTest {
                     onBlocking { findExercisesBySetCount(any(), any(), eq(false)) } doReturn rows
                 }
             val result =
-                AnalyticsService(mock<PublicAnalyticsService>(), port, mock<ExerciseRepository>()).topExercises(
+                AnalyticsService(
+                    mock<PublicAnalyticsService>(),
+                    port,
+                    mock<ExerciseRepository>(),
+                    mock<AnalyticsReadCache>(),
+                ).topExercises(
                     userId,
                     limit = 2,
                 )
@@ -153,7 +163,12 @@ class AnalyticsServiceTest {
                     onBlocking { findExercisesBySetCount(any(), any(), eq(true)) } doReturn rows
                 }
             val result =
-                AnalyticsService(mock<PublicAnalyticsService>(), port, mock<ExerciseRepository>()).leastExercises(
+                AnalyticsService(
+                    mock<PublicAnalyticsService>(),
+                    port,
+                    mock<ExerciseRepository>(),
+                    mock<AnalyticsReadCache>(),
+                ).leastExercises(
                     userId,
                     limit = 2,
                 )

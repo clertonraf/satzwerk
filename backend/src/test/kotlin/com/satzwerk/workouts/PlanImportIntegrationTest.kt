@@ -124,6 +124,32 @@ class PlanImportIntegrationTest : PostgresTestContainer() {
     }
 
     @Test
+    fun `import invalidates cached exercise list when it creates new exercises`() {
+        client
+            .get()
+            .uri("/api/exercises")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(0)
+
+        mockParserResponse(parserResponse(workoutCount = 1, exercisesPerWorkout = 1))
+
+        mockMultipartImportRequest(authToken)
+            .expectStatus().isCreated
+
+        client
+            .get()
+            .uri("/api/exercises")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(1)
+    }
+
+    @Test
     fun `import maps reps F to toFailure true`() {
         mockParserResponse(
             SatzwerkParserResponse(

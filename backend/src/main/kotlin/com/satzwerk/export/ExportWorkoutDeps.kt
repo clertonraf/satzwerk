@@ -1,5 +1,6 @@
 package com.satzwerk.export
 
+import com.satzwerk.workouts.ExerciseCatalogCache
 import com.satzwerk.workouts.WorkoutReadPort
 import org.springframework.stereotype.Component
 
@@ -7,4 +8,5 @@ import org.springframework.stereotype.Component
 class ExportWorkoutDeps(
     val workoutReadPort: WorkoutReadPort,
     val workoutImportPort: WorkoutImportPort,
+    val exerciseCatalogCache: ExerciseCatalogCache,
 )

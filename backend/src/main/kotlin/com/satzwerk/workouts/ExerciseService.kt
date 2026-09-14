@@ -10,6 +10,7 @@ import java.util.UUID
 @Service
 class ExerciseService(
     private val exerciseRepository: ExerciseRepository,
+    private val exerciseCatalogCache: ExerciseCatalogCache,
 ) {
     suspend fun create(
         userId: UUID,
@@ -26,6 +27,7 @@ class ExerciseService(
                     equipment = request.equipment,
                 ),
             )
+        exerciseCatalogCache.invalidateUser(userId)
 
         return ExerciseResponse.from(exercise)
     }
@@ -34,14 +36,10 @@ class ExerciseService(
         userId: UUID,
         muscleGroup: String?,
     ): List<ExerciseResponse> =
-        (
-            if (muscleGroup.isNullOrBlank()) {
-                exerciseRepository.findAllByUserId(userId)
-            } else {
-                exerciseRepository.findAllByUserIdAndMuscleGroup(userId, muscleGroup)
+        exerciseCatalogCache.get(userId, muscleGroup)
+            ?: loadExerciseList(userId, muscleGroup).also { exercises ->
+                exerciseCatalogCache.put(userId, muscleGroup, exercises)
             }
-        ).sortedBy { it.name }
-            .map(ExerciseResponse::from)
 
     suspend fun getOwned(
         userId: UUID,
@@ -65,6 +63,7 @@ class ExerciseService(
                     updatedAt = Instant.now(),
                 ),
             )
+        exerciseCatalogCache.invalidateUser(userId)
 
         return ExerciseResponse.from(updated)
     }
@@ -75,6 +74,7 @@ class ExerciseService(
     ) {
         val exercise = getRequiredExercise(userId, exerciseId)
         exerciseRepository.deleteById(requireNotNull(exercise.id))
+        exerciseCatalogCache.invalidateUser(userId)
     }
 
     private suspend fun getRequiredExercise(
@@ -88,4 +88,17 @@ class ExerciseService(
 
         return exercise
     }
+
+    private suspend fun loadExerciseList(
+        userId: UUID,
+        muscleGroup: String?,
+    ): List<ExerciseResponse> =
+        (
+            if (muscleGroup.isNullOrBlank()) {
+                exerciseRepository.findAllByUserId(userId)
+            } else {
+                exerciseRepository.findAllByUserIdAndMuscleGroup(userId, muscleGroup)
+            }
+        ).sortedBy { it.name }
+            .map(ExerciseResponse::from)
 }

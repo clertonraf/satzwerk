@@ -21,6 +21,11 @@ spring:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:satzwerk}
     user: ${DB_USER:satzwerk}
     password: ${DB_PASSWORD:satzwerk}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: ${REDIS_TIMEOUT:2s}
   security:
     user:
       name: disabled
@@ -34,6 +39,7 @@ management:
         include: health,prometheus
   endpoint:
     health:
+      show-components: always
       show-details: never
     prometheus:
       access: read-only
@@ -45,3 +51,7 @@ jwt:
 
 satzwerk-parser:
   url: ${SATZWERK_PARSER_URL:http://satzwerk-parser:8080}
+
+satzwerk:
+  cache:
+    enabled: ${CACHE_ENABLED:true}

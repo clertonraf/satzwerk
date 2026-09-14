@@ -2,7 +2,9 @@ package com.satzwerk
 
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
+import org.testcontainers.containers.GenericContainer
 import org.testcontainers.containers.PostgreSQLContainer
+import org.testcontainers.containers.wait.strategy.Wait
 
 /**
  * Singleton-container base class for integration tests.
@@ -15,6 +17,12 @@ import org.testcontainers.containers.PostgreSQLContainer
 abstract class PostgresTestContainer {
     companion object {
         val postgres: PostgreSQLContainer<*> = PostgreSQLContainer("postgres:16-alpine").apply { start() }
+        val redis: GenericContainer<*> =
+            GenericContainer("redis:7-alpine")
+                .withExposedPorts(6379)
+                .withCommand("redis-server", "--save", "", "--appendonly", "no")
+                .waitingFor(Wait.forListeningPort())
+                .apply { start() }
 
         private fun r2dbcUrl() =
             "r2dbc:postgresql://${postgres.host}:${postgres.getMappedPort(5432)}/${postgres.databaseName}"
@@ -28,6 +36,8 @@ abstract class PostgresTestContainer {
             registry.add("spring.flyway.url", postgres::getJdbcUrl)
             registry.add("spring.flyway.user", postgres::getUsername)
             registry.add("spring.flyway.password", postgres::getPassword)
+            registry.add("spring.data.redis.host", redis::getHost)
+            registry.add("spring.data.redis.port") { redis.getMappedPort(6379) }
         }
     }
 

@@ -15,7 +15,8 @@ import java.util.UUID
 
 class ExerciseResolverTest {
     private val exerciseRepository: ExerciseRepository = mock()
-    private val resolver = ExerciseResolver(exerciseRepository)
+    private val exerciseCatalogCache: ExerciseCatalogCache = mock()
+    private val resolver = ExerciseResolver(exerciseRepository, exerciseCatalogCache)
     private val userId: UUID = UUID.randomUUID()
 
     @Test
@@ -67,6 +68,7 @@ class ExerciseResolverTest {
 
             assertEquals(1, result.size)
             assertEquals(saved, result["squat"])
+            verify(exerciseCatalogCache).invalidateUser(userId)
         }
 
     @Test
@@ -97,6 +99,7 @@ class ExerciseResolverTest {
             assertEquals(2, result.size)
             assertEquals(existing, result["bench press"])
             assertEquals(saved, result["squat"])
+            verify(exerciseCatalogCache).invalidateUser(userId)
         }
 
     @Test

@@ -5,7 +5,10 @@ import org.springframework.stereotype.Component
 import java.util.UUID
 
 @Component
-class ExerciseResolver(private val exerciseRepository: ExerciseRepository) {
+class ExerciseResolver(
+    private val exerciseRepository: ExerciseRepository,
+    private val exerciseCatalogCache: ExerciseCatalogCache,
+) {
     /**
      * Looks up existing exercises by userId and name (case-insensitive) and creates any that are missing.
      *
@@ -44,7 +47,9 @@ class ExerciseResolver(private val exerciseRepository: ExerciseRepository) {
             if (toCreate.isEmpty()) {
                 emptyList()
             } else {
-                exerciseRepository.saveAll(toCreate).toList()
+                exerciseRepository.saveAll(toCreate).toList().also {
+                    exerciseCatalogCache.invalidateUser(userId)
+                }
             }
 
         return existingByNameLower + newExercises.associateBy { it.name.lowercase() }

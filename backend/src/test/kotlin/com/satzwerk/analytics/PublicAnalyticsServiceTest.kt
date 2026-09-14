@@ -25,7 +25,7 @@ class PublicAnalyticsServiceTest {
                         )
                 }
 
-            val result = PublicAnalyticsService(workoutReadPort).heatmap(userId, from, to)
+            val result = PublicAnalyticsService(workoutReadPort, mock<AnalyticsReadCache>()).heatmap(userId, from, to)
 
             assertEquals(
                 listOf(

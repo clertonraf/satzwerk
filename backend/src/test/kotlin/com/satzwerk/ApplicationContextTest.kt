@@ -29,6 +29,7 @@ class ApplicationContextTest : PostgresTestContainer() {
             .expectStatus().isOk
             .expectBody()
             .jsonPath("$.status").isEqualTo("UP")
+            .jsonPath("$.components.redis.status").isEqualTo("UP")
     }
 
     @Test
@@ -73,6 +74,20 @@ class ApplicationContextTest : PostgresTestContainer() {
         val jwt = registerAndLogin()
 
         webTestClient
+            .get()
+            .uri("/api/exercises")
+            .header("Authorization", "Bearer $jwt")
+            .exchange()
+            .expectStatus().isOk
+
+        webTestClient
+            .get()
+            .uri("/api/exercises")
+            .header("Authorization", "Bearer $jwt")
+            .exchange()
+            .expectStatus().isOk
+
+        webTestClient
             .get().uri("/actuator/health")
             .exchange()
             .expectStatus().isOk
@@ -106,11 +121,13 @@ class ApplicationContextTest : PostgresTestContainer() {
         assertThat(body).contains("r2dbc_pool_max_allocated_connections")
         assertThat(body).contains("jvm_memory_used_bytes")
         assertThat(body).contains("http_server_requests_seconds")
+        assertThat(body).contains("satzwerk_cache_requests_total")
         assertThat(body).contains("uri=\"/api/auth/login\"")
         assertThat(body).contains("uri=\"/actuator/health\"")
 
         assertThat(meterRegistry.meters.map { it.id.name })
             .contains("http.server.requests")
+            .contains("satzwerk.cache.requests")
             .contains("r2dbc.pool.acquired", "r2dbc.pool.pending", "r2dbc.pool.max.allocated")
     }
 

@@ -270,6 +270,56 @@ class ExportIntegrationTest : PostgresTestContainer() {
         }
 
     @Test
+    fun `import invalidates cached exercise list when it creates new exercises`(): Unit =
+        run {
+            val exportToken = registerAndLogin("cache-src-${UUID.randomUUID()}@test.com", "password123", "CacheSrc")
+            val exerciseId = createExercise(exportToken, "Front Squat", "LEGS")
+            val planId = createPlan(exportToken, "Leg Plan")
+            activatePlan(exportToken, planId)
+            val groupId = createGroup(exportToken, planId, "Leg Group", exerciseId)
+            val sessionId = startSession(exportToken, groupId)
+            addSetLog(
+                exportToken,
+                sessionId,
+                exerciseId,
+                SetLogMutation(weight = BigDecimal("90.0"), reps = 5),
+            )
+            completeSession(exportToken, sessionId)
+            val exportBody = fetchExport(exportToken)
+
+            val importToken = registerAndLogin("cache-dst-${UUID.randomUUID()}@test.com", "password123", "CacheDst")
+            client
+                .get()
+                .uri("/api/exercises")
+                .header("Authorization", "Bearer $importToken")
+                .exchange()
+                .expectStatus().isOk
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(0)
+
+            client
+                .post()
+                .uri("/api/import")
+                .header("Authorization", "Bearer $importToken")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(exportBody)
+                .exchange()
+                .expectStatus().isOk
+                .expectBody()
+                .jsonPath("$.importedExercises").isEqualTo(1)
+
+            client
+                .get()
+                .uri("/api/exercises")
+                .header("Authorization", "Bearer $importToken")
+                .exchange()
+                .expectStatus().isOk
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(1)
+                .jsonPath("$[0].name").isEqualTo("Front Squat")
+        }
+
+    @Test
     fun `import returns 409 when user has open workout session`(): Unit =
         run {
             val srcToken = registerAndLogin("open-src-${UUID.randomUUID()}@test.com", "password123", "OpenSrc")

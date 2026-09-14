@@ -70,6 +70,9 @@ class ExportService(
                 export.medicationLogs,
                 MedicationImportDeps(medicationRepository, medicationLogRepository, objectMapper),
             )
+        if (exerciseResult.importedCount > 0) {
+            workoutDeps.exerciseCatalogCache.invalidateUser(userId)
+        }
         return ImportSummaryDto(
             importedExercises = exerciseResult.importedCount,
             importedWorkoutPlans = importedPlans,

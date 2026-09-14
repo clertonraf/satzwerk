@@ -85,7 +85,7 @@ class WorkoutSessionService(
     ) {
         val session = requireOwnedSession(userId, sessionId, workoutSessionRepository)
         requireOpenSession(session)
-        setLogService.clearSetLogs(sessionId)
+        setLogService.clearSetLogs(session)
         workoutSessionRepository.deleteById(sessionId)
     }
 

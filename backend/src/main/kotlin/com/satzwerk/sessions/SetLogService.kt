@@ -10,6 +10,7 @@ import java.util.UUID
 class SetLogService(
     private val setLogRepository: SetLogRepository,
     private val sessionQueryRepository: SessionQueryRepository,
+    private val analyticsReadCache: com.satzwerk.analytics.AnalyticsReadCache,
 ) {
     suspend fun add(
         session: WorkoutSession,
@@ -35,7 +36,9 @@ class SetLogService(
                 loggedAt = now,
                 isPr = isPr,
             ),
-        ).toResponse()
+        ).toResponse().also {
+            analyticsReadCache.invalidateUser(session.userId)
+        }
     }
 
     suspend fun update(
@@ -57,8 +60,9 @@ class SetLogService(
         val rir = if (request.rirProvided) request.rir else setLog.rir
         return setLogRepository.save(
             setLog.copy(weight = request.weight, reps = request.reps, rir = rir, isPr = isPr),
-        )
-            .toResponse()
+        ).toResponse().also {
+            analyticsReadCache.invalidateUser(session.userId)
+        }
     }
 
     @Transactional
@@ -69,6 +73,7 @@ class SetLogService(
         setLogRepository.findByIdAndWorkoutSessionId(setLogId, requireNotNull(session.id))
             ?: throw NotFoundException("Set log not found")
         setLogRepository.deleteById(setLogId)
+        analyticsReadCache.invalidateUser(session.userId)
     }
 
     suspend fun loadSetLogs(sessionId: UUID): List<SetLogResponse> =
@@ -77,5 +82,8 @@ class SetLogService(
             .map(SetLog::toResponse)
 
     @Transactional
-    suspend fun clearSetLogs(sessionId: UUID) = setLogRepository.deleteAllByWorkoutSessionId(sessionId)
+    suspend fun clearSetLogs(session: WorkoutSession) {
+        setLogRepository.deleteAllByWorkoutSessionId(requireNotNull(session.id))
+        analyticsReadCache.invalidateUser(session.userId)
+    }
 }

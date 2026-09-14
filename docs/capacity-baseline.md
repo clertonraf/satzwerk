@@ -177,3 +177,46 @@ During a healthy run, `r2dbc.pool.pending` should stay near zero and
 pending requests climb and stay high while `http.server.requests` latency
 degrades, treat that as evidence that the pool is saturated before adjusting
 any sizing values.
+
+## Redis read-cache A/B baseline for issue #296
+
+This branch also measured the new Redis-backed cache for the per-user
+`Exercise` catalog plus analytics `Heatmap` and streak reads using
+`perf/read-heavy-cache.js`.
+
+### Method
+
+- Same Colima host as the rest of this document: **2 vCPUs / 4 GiB RAM**.
+- Topology under test: local Docker Compose override stack
+  (`postgres + redis + backend`) with the backend published on `localhost:8083`.
+- Load profile: **20 constant VUs for 60 seconds**, each iteration performing:
+  `GET /api/exercises`, `GET /api/analytics/heatmap`, and
+  `GET /api/analytics/streak`.
+- "Before" run: same branch with `CACHE_ENABLED=false`.
+- "After" run: same branch with `CACHE_ENABLED=true`.
+- Goal of the measurement: honest local A/B comparison of read latency, not a
+  production-capacity claim.
+
+### Measured result
+
+On this local single-backend setup, Redis caching **did not improve latency**.
+The cache added network hop + JSON serialization overhead that outweighed the
+cost of the already-fast local Postgres reads for these small result sets.
+
+| Endpoint | Before p95 (`CACHE_ENABLED=false`) | After p95 (`CACHE_ENABLED=true`) | Delta |
+| --- | ---: | ---: | ---: |
+| `GET /api/exercises` | 13.62 ms | 164.29 ms | +150.67 ms |
+| `GET /api/analytics/heatmap` | 12.78 ms | 166.16 ms | +153.38 ms |
+| `GET /api/analytics/streak` | 11.33 ms | 145.18 ms | +133.85 ms |
+| Overall `http_req_duration` | 12.61 ms | 163.26 ms | +150.65 ms |
+
+### Interpretation
+
+- This issue still ships Redis because the architectural requirement is
+  **cross-replica cache consistency**, not just single-node latency.
+- The local A/B result is still worth recording because it shows that a
+  resource-light single-node dev stack is not representative of the production
+  motivation for the cache.
+- If we want a "showing improvement" benchmark in the future, we need a more
+  production-like read-heavy test that exercises multiple backend replicas and
+  enough repeated reads for Postgres pressure to dominate Redis overhead.
