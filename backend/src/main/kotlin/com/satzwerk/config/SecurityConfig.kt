@@ -40,7 +40,7 @@ class SecurityConfig(
             // before AUTHORIZATION runs.
             .addFilterBefore(partnerTokenWebFilter, SecurityWebFiltersOrder.AUTHORIZATION)
             .authorizeExchange {
-                it.pathMatchers("/api/auth/**", "/actuator/**").permitAll()
+                it.pathMatchers("/api/auth/**", "/actuator/health", "/actuator/health/**").permitAll()
                 it.anyExchange().authenticated()
             }
             .build()

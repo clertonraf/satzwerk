@@ -41,19 +41,25 @@ this configuration to record the first official numeric baseline.
 
 When running a local or CI k6 load test against this baseline, scrape the
 backend's `/actuator/prometheus` endpoint alongside the usual latency/error
-summary so you can correlate request pressure with pool behavior. A simple
-loop with `curl http://localhost:8080/actuator/prometheus` (or your ingress
-URL) is enough for ad-hoc sampling; a Prometheus server can scrape the same
-endpoint continuously during longer runs.
+summary so you can correlate request pressure with pool behavior. In local
+Docker dev, `docker-compose.override.yml` maps the backend to host port 8083,
+so an ad-hoc scrape looks like `curl http://localhost:8083/actuator/prometheus`.
+In the production-style multi-replica setup behind Traefik, the public ingress
+only routes `/api`, so `/actuator/prometheus` is not available through the
+public URL; scrape each backend instance directly instead. A Prometheus server
+can scrape those instance-local actuator endpoints continuously during longer
+runs.
 
 Focus on the R2DBC pool meters and HTTP request timer:
 
-- `r2dbc.pool.acquired` / Prometheus `r2dbc_pool_acquired*`: current in-use
-  connections.
-- `r2dbc.pool.pending` / Prometheus `r2dbc_pool_pending*`: requests waiting
-  for a connection; sustained non-zero values indicate saturation.
-- `r2dbc.pool.max-allocated-size` / Prometheus `r2dbc_pool_max_allocated*`:
-  the configured upper bound for allocated connections.
+- `r2dbc.pool.acquired` / Prometheus
+  `r2dbc_pool_acquired_connections`: current in-use connections.
+- `r2dbc.pool.pending` / Prometheus
+  `r2dbc_pool_pending_connections`: requests waiting for a connection;
+  sustained non-zero values indicate saturation.
+- `r2dbc.pool.max-allocated-size` / Prometheus
+  `r2dbc_pool_max_allocated_connections`: the configured upper bound for
+  allocated connections.
 - `http.server.requests` / Prometheus `http_server_requests_seconds*`:
   per-route request count/latency so you can line up pool pressure with the
   specific endpoints under load.

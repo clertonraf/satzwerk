@@ -1,5 +1,6 @@
 package com.satzwerk
 
+import com.satzwerk.auth.AuthResponse
 import io.micrometer.core.instrument.MeterRegistry
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -29,7 +30,17 @@ class ApplicationContextTest : PostgresTestContainer() {
     }
 
     @Test
-    fun `prometheus endpoint exposes r2dbc jvm and http metrics`() {
+    fun `prometheus endpoint requires authentication`() {
+        webTestClient
+            .get().uri("/actuator/prometheus")
+            .exchange()
+            .expectStatus().isUnauthorized
+    }
+
+    @Test
+    fun `authenticated prometheus endpoint exposes concrete r2dbc jvm and http metrics`() {
+        val token = registerAndLogin()
+
         webTestClient
             .get().uri("/actuator/health")
             .exchange()
@@ -49,7 +60,9 @@ class ApplicationContextTest : PostgresTestContainer() {
 
         val body =
             webTestClient
-                .get().uri("/actuator/prometheus")
+                .get()
+                .uri("/actuator/prometheus")
+                .header("Authorization", "Bearer $token")
                 .exchange()
                 .expectStatus().isOk
                 .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_PLAIN)
@@ -57,7 +70,9 @@ class ApplicationContextTest : PostgresTestContainer() {
                 .returnResult()
                 .responseBody!!
 
-        assertThat(body).contains("r2dbc_pool")
+        assertThat(body).contains("r2dbc_pool_acquired_connections")
+        assertThat(body).contains("r2dbc_pool_pending_connections")
+        assertThat(body).contains("r2dbc_pool_max_allocated_connections")
         assertThat(body).contains("jvm_memory_used_bytes")
         assertThat(body).contains("http_server_requests_seconds")
         assertThat(body).contains("uri=\"/api/auth/login\"")
@@ -65,6 +80,24 @@ class ApplicationContextTest : PostgresTestContainer() {
 
         assertThat(meterRegistry.meters.map { it.id.name })
             .contains("http.server.requests")
-            .anyMatch { it.startsWith("r2dbc.pool.") }
+            .contains("r2dbc.pool.acquired", "r2dbc.pool.pending", "r2dbc.pool.max.allocated")
     }
+
+    private fun registerAndLogin(): String =
+        webTestClient
+            .post()
+            .uri("/api/auth/register")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "email" to "metrics-${System.nanoTime()}@example.com",
+                    "password" to "password123",
+                    "displayName" to "Metrics Tester",
+                ),
+            ).exchange()
+            .expectStatus().isCreated
+            .expectBody(AuthResponse::class.java)
+            .returnResult()
+            .responseBody!!
+            .accessToken
 }
