@@ -43,12 +43,21 @@ When running a local or CI k6 load test against this baseline, scrape the
 backend's `/actuator/prometheus` endpoint alongside the usual latency/error
 summary so you can correlate request pressure with pool behavior. In local
 Docker dev, `docker-compose.override.yml` maps the backend to host port 8083,
-so an ad-hoc scrape looks like `curl http://localhost:8083/actuator/prometheus`.
+so obtain a bearer token first and then scrape directly:
+
+```bash
+TOKEN=$(curl -s http://localhost:8083/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","password":"your-password"}' | jq -r '.accessToken')
+
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8083/actuator/prometheus
+```
+
 In the production-style multi-replica setup behind Traefik, the public ingress
 only routes `/api`, so `/actuator/prometheus` is not available through the
-public URL; scrape each backend instance directly instead. A Prometheus server
-can scrape those instance-local actuator endpoints continuously during longer
-runs.
+public URL; scrape each backend instance directly instead and include the same
+bearer token header. A Prometheus server can scrape those instance-local
+actuator endpoints continuously during longer runs.
 
 Focus on the R2DBC pool meters and HTTP request timer:
 
@@ -57,7 +66,7 @@ Focus on the R2DBC pool meters and HTTP request timer:
 - `r2dbc.pool.pending` / Prometheus
   `r2dbc_pool_pending_connections`: requests waiting for a connection;
   sustained non-zero values indicate saturation.
-- `r2dbc.pool.max-allocated-size` / Prometheus
+- `r2dbc.pool.max.allocated` / Prometheus
   `r2dbc_pool_max_allocated_connections`: the configured upper bound for
   allocated connections.
 - `http.server.requests` / Prometheus `http_server_requests_seconds*`:
@@ -65,7 +74,7 @@ Focus on the R2DBC pool meters and HTTP request timer:
   specific endpoints under load.
 
 During a healthy run, `r2dbc.pool.pending` should stay near zero and
-`r2dbc.pool.acquired` should oscillate below `r2dbc.pool.max-allocated-size`. If
+`r2dbc.pool.acquired` should oscillate below `r2dbc.pool.max.allocated`. If
 pending requests climb and stay high while `http.server.requests` latency
 degrades, treat that as evidence that the pool is saturated before adjusting
 any sizing values.
