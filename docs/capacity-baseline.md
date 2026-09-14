@@ -50,11 +50,12 @@ scenario with:
   for this local study** (`http_req_duration p95 ≈ 1.18s`)
 
 This is the recorded local SLO because it was the highest observed load that
-kept errors at 0% and pool queueing near zero. At **50** concurrent clients,
-the same 3-replica / pool-15 setup stayed error-free but crossed the latency
-ceiling (`p95 ≈ 1.55s`), so 50 is better treated as the beginning of
-saturation for this local study rather than the default target for a modest
-self-hosted gym tracker.
+met all three criteria above at once: 0% errors, near-zero pool queueing, and
+the study's 1.5s latency ceiling. At **50** concurrent clients, the same
+3-replica / pool-15 setup still stayed error-free with zero pending samples,
+but crossed the latency ceiling (`p95 ≈ 1.55s`), so 50 is better treated as
+the beginning of saturation for this local study rather than the default target
+for a modest self-hosted gym tracker.
 
 ## Relation to the repo's actual CI perf gate
 
@@ -110,11 +111,11 @@ on the 2 vCPU / 4 GiB Colima VM described above.
   `UseContainerSupport=true`.
 - All three tuned-default replicas started and passed `/actuator/health`
   checks together with Postgres and Traefik.
-- The old "8,000 VU number is not yet established" gap is now closed for this
-  **local resource-constrained baseline**: we have a real recorded SLO and
-  measured saturation onset for the shipped default config. The separate
-  high-infrastructure 8,000-VU exercise remains tracked by #297 and was not
-  attempted here.
+- The prior doc's **unestablished-number gap for this local
+  resource-constrained baseline** is now replaced with a real measured SLO and
+  saturation table for the shipped default config. The separate
+  high-infrastructure 8,000-VU / full-infra exercise remains tracked by #297
+  and was not attempted here.
 
 ## Observing pool saturation via Prometheus metrics
 
