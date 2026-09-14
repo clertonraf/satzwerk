@@ -3,7 +3,7 @@ import { check, sleep } from 'k6';
 import exec from 'k6/execution';
 import { Counter, Trend } from 'k6/metrics';
 
-const BASE_URL = __ENV.BASE_URL || 'http://localhost:8085';
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:8083';
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
 const READER_VUS = Number(__ENV.READER_VUS || 15);
 const WRITER_VUS = Number(__ENV.WRITER_VUS || 5);
@@ -266,7 +266,7 @@ function addSetLog(accessToken, sessionId, exerciseId, setNumber) {
 }
 
 function uniqueIdentity(prefix, iteration) {
-  const vu = exec.vu.idInTest;
+  const vu = exec.vu && exec.vu.idInTest ? exec.vu.idInTest : 'setup';
   const timestamp = Date.now();
   const suffix = randomSuffix();
 
