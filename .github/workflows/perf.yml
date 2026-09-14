@@ -1,0 +1,85 @@
+name: Performance regression gate
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'
+
+jobs:
+  k6-regression:
+    name: k6 load test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create CI environment file
+        run: |
+          cat <<'EOF' > .env
+          DB_NAME=satzwerk
+          DB_USER=satzwerk
+          DB_PASSWORD=satzwerk-ci-db-password
+          JWT_SECRET=satzwerk-ci-jwt-secret-please-change-if-reused
+          BACKEND_REPLICAS=1
+          FRONTEND_PORT=8080
+          EOF
+
+      - name: Create Compose CI override
+        run: |
+          cat <<'EOF' > docker-compose.perf-ci.yml
+          services:
+            postgres:
+              platform: linux/amd64
+            traefik:
+              platform: linux/amd64
+            backend:
+              platform: linux/amd64
+              build:
+                context: ./backend
+                dockerfile: Dockerfile
+              image: ghcr.io/clertonraf/satzwerk-backend:latest
+            frontend:
+              platform: linux/amd64
+            satzwerk-parser:
+              platform: linux/amd64
+          EOF
+
+      - name: Start Docker Compose stack
+        run: docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.perf-ci.yml up -d --build
+
+      - name: Wait for backend health
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:8083/actuator/health | grep -q '"status":"UP"'; then
+              echo "Backend is healthy."
+              exit 0
+            fi
+
+            echo "Waiting for backend health (${attempt}/60)..."
+            sleep 5
+          done
+
+          docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.perf-ci.yml ps
+          docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.perf-ci.yml logs backend postgres
+          exit 1
+
+      - uses: grafana/setup-k6-action@v1
+
+      - name: Run k6 regression gate
+        env:
+          BASE_URL: http://localhost:8083
+        run: k6 run perf/stress.js
+
+      - name: Print Docker Compose diagnostics
+        if: failure()
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.perf-ci.yml ps
+          docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.perf-ci.yml logs backend postgres
+
+      - name: Tear down Docker Compose stack
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.perf-ci.yml down -v --remove-orphans
