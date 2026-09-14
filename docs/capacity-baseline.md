@@ -36,3 +36,30 @@ is the intended mechanism for establishing and continuously re-verifying a
 repeatable throughput/latency baseline under this resource configuration;
 run it manually (`workflow_dispatch` on `.github/workflows/perf.yml`) against
 this configuration to record the first official numeric baseline.
+
+## Observing pool saturation via Prometheus metrics
+
+When running a local or CI k6 load test against this baseline, scrape the
+backend's `/actuator/prometheus` endpoint alongside the usual latency/error
+summary so you can correlate request pressure with pool behavior. A simple
+loop with `curl http://localhost:8080/actuator/prometheus` (or your ingress
+URL) is enough for ad-hoc sampling; a Prometheus server can scrape the same
+endpoint continuously during longer runs.
+
+Focus on the R2DBC pool meters and HTTP request timer:
+
+- `r2dbc.pool.acquired` / Prometheus `r2dbc_pool_acquired*`: current in-use
+  connections.
+- `r2dbc.pool.pending` / Prometheus `r2dbc_pool_pending*`: requests waiting
+  for a connection; sustained non-zero values indicate saturation.
+- `r2dbc.pool.max-allocated-size` / Prometheus `r2dbc_pool_max_allocated*`:
+  the configured upper bound for allocated connections.
+- `http.server.requests` / Prometheus `http_server_requests_seconds*`:
+  per-route request count/latency so you can line up pool pressure with the
+  specific endpoints under load.
+
+During a healthy run, `r2dbc.pool.pending` should stay near zero and
+`r2dbc.pool.acquired` should oscillate below `r2dbc.pool.max-allocated-size`. If
+pending requests climb and stay high while `http.server.requests` latency
+degrades, treat that as evidence that the pool is saturated before adjusting
+any sizing values.
