@@ -199,24 +199,49 @@ This branch also measured the new Redis-backed cache for the per-user
 
 ### Measured result
 
-On this local single-backend setup, Redis caching **did not improve latency**.
-The cache added network hop + JSON serialization overhead that outweighed the
-cost of the already-fast local Postgres reads for these small result sets.
+The final cache implementation preserves local single-node read latency instead
+of regressing it. After the first benchmark showed an unexpected ~150ms p95
+penalty, a follow-up investigation isolated the issue to coroutine resumption on
+Lettuce I/O threads during cache hits; moving Redis + JSON cache work onto
+`Dispatchers.IO` removed that contention.
 
 | Endpoint | Before p95 (`CACHE_ENABLED=false`) | After p95 (`CACHE_ENABLED=true`) | Delta |
 | --- | ---: | ---: | ---: |
-| `GET /api/exercises` | 13.62 ms | 164.29 ms | +150.67 ms |
-| `GET /api/analytics/heatmap` | 12.78 ms | 166.16 ms | +153.38 ms |
-| `GET /api/analytics/streak` | 11.33 ms | 145.18 ms | +133.85 ms |
-| Overall `http_req_duration` | 12.61 ms | 163.26 ms | +150.65 ms |
+| `GET /api/exercises` | 19.55 ms | 12.33 ms | -7.22 ms |
+| `GET /api/analytics/heatmap` | 19.00 ms | 11.24 ms | -7.76 ms |
+| `GET /api/analytics/streak` | 15.82 ms | 8.04 ms | -7.78 ms |
+| Overall `http_req_duration` | 18.51 ms | 11.08 ms | -7.43 ms |
+
+### Investigation notes
+
+- Compose-network RTT from `backend` to `redis` stayed low: `ping redis`
+  measured **0.124-0.276 ms**.
+- A raw Redis round-trip from inside the `backend` container using `nc` +
+  RESP `PING` measured **3.48-4.93 ms**, including process-launch overhead for
+  the probe itself.
+- Temporary app-level timing around
+  `redisTemplate.opsForValue().get(key).awaitFirstOrNull()` showed the actual
+  Redis call in the request path at **0.38-3.05 ms**; corresponding `set(...)`
+  calls measured **0.47-2.22 ms**. JSON serialize/deserialize for these small
+  payloads stayed in the low single-digit milliseconds too.
+- Spring Boot's `LettuceConnectionFactory` was configured with
+  `shareNativeConnection=true`, so the regression was **not** caused by opening
+  a new Redis TCP connection per request.
+- The original cache-enabled implementation was fine at **1 VU** (per-endpoint
+  p95 roughly **9-17 ms**), but degraded sharply under concurrency:
+  **5 VUs** produced cache-hit p95s of **162-223 ms**, and **20 VUs** produced
+  **199-283 ms**. That pattern matched thread contention rather than network
+  latency.
+- After moving cache work off the Lettuce event loop, the same cache-enabled
+  benchmark dropped to **21-29 ms p95 at 5 VUs** and **8-12 ms p95 at 20 VUs**.
 
 ### Interpretation
 
-- This issue still ships Redis because the architectural requirement is
-  **cross-replica cache consistency**, not just single-node latency.
-- The local A/B result is still worth recording because it shows that a
-  resource-light single-node dev stack is not representative of the production
-  motivation for the cache.
-- If we want a "showing improvement" benchmark in the future, we need a more
-  production-like read-heavy test that exercises multiple backend replicas and
-  enough repeated reads for Postgres pressure to dominate Redis overhead.
+- Redis remains the right architectural choice here because the goal is
+  **cross-replica cache consistency**, not only single-process latency.
+- The initial regression was an application-level bug, not an inherent Redis
+  penalty on this Colima setup.
+- With the coroutine-thread fix in place, the local single-node A/B result now
+  shows a modest improvement rather than a regression, and the shared-cache
+  design remains ready for multi-replica deployments where DB offload matters
+  more than local loopback latency.
