@@ -46,14 +46,41 @@ scenario with:
 - `http_req_failed = 0%`
 - aggregated `r2dbc_pool_pending_connections` staying effectively at zero
   (observed average `0.2`, peak `2`)
-- p95 request latency staying below the existing local guardrail
-  (`http_req_duration p95 ≈ 1.18s`, under the 1.5s threshold)
+- p95 request latency staying below the **1.5s ad-hoc saturation ceiling used
+  for this local study** (`http_req_duration p95 ≈ 1.18s`)
 
 This is the recorded local SLO because it was the highest observed load that
 kept errors at 0% and pool queueing near zero. At **50** concurrent clients,
 the same 3-replica / pool-15 setup stayed error-free but crossed the latency
-guardrail (`p95 ≈ 1.55s`), so 50 is better treated as the beginning of
-saturation rather than the default target for a modest self-hosted gym tracker.
+ceiling (`p95 ≈ 1.55s`), so 50 is better treated as the beginning of
+saturation for this local study rather than the default target for a modest
+self-hosted gym tracker.
+
+## Relation to the repo's actual CI perf gate
+
+This local saturation study does **not** use the same latency threshold as the
+automated k6 regression gate. The real enforced CI threshold in `perf/stress.js`
+for the mixed scenario is **`p(95) < 500 ms`**, not 1.5s.
+
+That difference matters:
+
+- Under the tuned **15 × 3** configuration, the measured mixed-scenario p95 was
+  **449 ms at 20 VUs** and **529 ms at 25 VUs**.
+- So this workload crosses the repo's actual enforced CI latency gate
+  **somewhere between 20 and 25 concurrent clients** on the 2 vCPU / 4 GiB
+  Colima host used for this study.
+- The documented **40 concurrent clients** SLO therefore means
+  "**error-free with near-zero pool queueing under this local study's 1.5s
+  latency ceiling**" — **not** "passes the repository's CI perf gate at 40
+  concurrent clients."
+
+There is also a topology difference: `.github/workflows/perf.yml` currently runs
+the same `perf/stress.js` script on a GitHub-hosted runner against a Compose
+stack forced to **`BACKEND_REPLICAS=1`** via `.env` plus
+`docker-compose.override.yml`, so it does **not** exercise the same 3-replica
+resource-constrained topology measured here. I did not re-run that CI workflow
+after changing the defaults, so whether the workflow currently passes with the
+new pool default in its single-replica setup remains an open verification gap.
 
 ## Measured combinations
 
@@ -67,8 +94,10 @@ on the 2 vCPU / 4 GiB Colima VM described above.
 | 10 × 2 (old default) | 35 | 19.9 | 5.26 s | 0.00% | 5.6 / 16 | 19 / 20 | Throughput collapse at pool ceiling. |
 | 20 × 2 | 40 | 81.5 | 1.11 s | 0.00% | 1.0 / 8 | 28 / 40 | Fastest 2-replica run, but queueing no longer stays near zero. |
 | 10 × 3 | 40 | 74.0 | 1.23 s | 0.00% | 0.2 / 2 | 24 / 30 | Third replica helps; still slower than 15 × 3. |
+| 15 × 3 | 20 | 56.7 | 449 ms | 0.00% | 0.1 / 1 | 8 / 45 | Last measured point that stayed under the CI mixed-scenario 500 ms p95 gate. |
+| 15 × 3 | 25 | 67.4 | 529 ms | 0.00% | 0.0 / 0 | 11 / 45 | First measured point above the CI mixed-scenario 500 ms p95 gate. |
 | **15 × 3 (chosen default)** | **40** | **78.8** | **1.18 s** | **0.00%** | **0.2 / 2** | **23 / 45** | Best balance of throughput, latency, and near-zero pending connections. |
-| 15 × 3 | 50 | 81.2 | 1.55 s | 0.00% | 0.0 / 0 | 38 / 45 | Error-free, but over the 1.5s latency guardrail. |
+| 15 × 3 | 50 | 81.2 | 1.55 s | 0.00% | 0.0 / 0 | 38 / 45 | Error-free, but over this study's 1.5s saturation ceiling. |
 
 ## What was verified locally
 
