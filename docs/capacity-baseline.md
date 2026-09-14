@@ -58,6 +58,13 @@ only routes `/api`, so `/actuator/prometheus` is not available through the
 public URL; scrape each backend instance directly instead and include the same
 bearer token header. A Prometheus server can scrape those instance-local
 actuator endpoints continuously during longer runs.
+The JWT obtained from `/api/auth/login` follows `jwt.expiry-ms` in
+`application.yml` and expires after about 15 minutes by default, so for
+continuous or long-running scraping you must re-authenticate periodically
+(for example via the refresh-token flow) or switch to a longer-lived
+credential mechanism if the project adds one later. For ad-hoc/manual
+sampling during a single load-test run, the default token lifetime is
+usually sufficient.
 
 Focus on the R2DBC pool meters and HTTP request timer:
 
