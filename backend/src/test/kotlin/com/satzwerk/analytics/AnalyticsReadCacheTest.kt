@@ -15,18 +15,20 @@ class AnalyticsReadCacheTest {
     private val analyticsReadCache = AnalyticsReadCache(cacheService)
 
     @Test
-    fun `invalidate retries version bump then falls back to key deletion`(): Unit =
+    fun `invalidate retries version bump then falls back to key deletion and fresh version write`(): Unit =
         runBlocking {
             val userId = UUID.randomUUID()
             whenever(cacheService.increment("analytics:version:$userId")).thenReturn(null)
             whenever(cacheService.deleteByPattern("analytics:heatmap:$userId:v*:*:*")).thenReturn(true)
             whenever(cacheService.deleteByPattern("analytics:streak:$userId:v*")).thenReturn(true)
+            whenever(cacheService.writeFreshVersion("analytics:version:$userId")).thenReturn(101L)
 
             analyticsReadCache.invalidateUser(userId)
 
             verify(cacheService, times(2)).increment("analytics:version:$userId")
             verify(cacheService).deleteByPattern(eq("analytics:heatmap:$userId:v*:*:*"))
             verify(cacheService).deleteByPattern(eq("analytics:streak:$userId:v*"))
+            verify(cacheService).writeFreshVersion("analytics:version:$userId")
         }
 
     @Test

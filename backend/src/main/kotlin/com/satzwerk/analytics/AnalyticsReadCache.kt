@@ -86,8 +86,18 @@ class AnalyticsReadCache(
                         "stale data may persist until TTL expiry",
                     userId,
                 )
+            } else if (cacheService.writeFreshVersion(versionKey) == null) {
+                logger.warn(
+                    "Analytics cache invalidation fell back to direct key deletion for userId={} " +
+                        "but could not persist a fresh version; stale data may persist until TTL expiry",
+                    userId,
+                )
             } else {
-                logger.warn("Analytics cache invalidation fell back to direct key deletion for userId={}", userId)
+                logger.warn(
+                    "Analytics cache invalidation fell back to direct key deletion and fresh version write " +
+                        "for userId={}",
+                    userId,
+                )
             }
         }
     }

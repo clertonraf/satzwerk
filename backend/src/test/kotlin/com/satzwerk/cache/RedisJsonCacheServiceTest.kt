@@ -142,6 +142,21 @@ class RedisJsonCacheServiceTest {
         }
 
     @Test
+    fun `writeFreshVersion persists a new version that later reads back`(): Unit =
+        runBlocking {
+            val key = "analytics:version:user-1"
+            val persistedVersion = argumentCaptor<String>()
+            val service = RedisJsonCacheService(redisTemplate, objectMapper, meterRegistry, enabled = true)
+            whenever(valueOperations.set(eq(key), persistedVersion.capture())).thenReturn(Mono.just(true))
+
+            val writtenVersion = service.writeFreshVersion(key)
+            whenever(valueOperations.get(key)).thenReturn(Mono.just(requireNotNull(writtenVersion).toString()))
+            val readBackVersion = service.getLong(key)
+
+            assertEquals(writtenVersion, readBackVersion)
+        }
+
+    @Test
     fun `get returns null and skips redis when cache is disabled`(): Unit =
         runBlocking {
             val service = RedisJsonCacheService(redisTemplate, objectMapper, meterRegistry, enabled = false)

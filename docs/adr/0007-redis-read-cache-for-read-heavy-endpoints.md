@@ -53,8 +53,10 @@ Issue #296 explicitly chose Redis over in-memory caching.
   `WorkoutSession` completion relies on the same short TTL because the cached
   analytics data is already invalidated during the preceding `SetLog` writes.
 - Redis in local Docker Compose runs as a **non-persistent cache**
-  (`redis-server --save "" --appendonly no`). Cache data is disposable and does
-  not need to survive restarts.
+  (`redis-server --save "" --appendonly no`) with a **256 MiB maxmemory cap**
+  and `allkeys-lru` eviction. Cache data is disposable and does not need to
+  survive restarts, so bounding memory and evicting least-recently-used keys is
+  preferred over risking unbounded growth from long-tail key variants.
 - Expose Redis health through Spring Boot's auto-configured Redis health
   indicator only when cache is enabled, while keeping component-level health
   details on authenticated `/actuator/health` requests. Docker liveness uses a

@@ -40,10 +40,11 @@ class ExerciseService(
         userId: UUID,
         muscleGroup: String?,
     ): List<ExerciseResponse> {
-        val cached = exerciseCatalogCache.lookup(userId, muscleGroup)
+        val normalizedMuscleGroup = normalizeExerciseCatalogMuscleGroup(muscleGroup)
+        val cached = exerciseCatalogCache.lookup(userId, normalizedMuscleGroup)
         return cached.value
-            ?: loadExerciseList(userId, muscleGroup).also { exercises ->
-                exerciseCatalogCache.put(userId, muscleGroup, cached.version, exercises)
+            ?: loadExerciseList(userId, normalizedMuscleGroup).also { exercises ->
+                exerciseCatalogCache.put(userId, normalizedMuscleGroup, cached.version, exercises)
             }
     }
 
@@ -107,7 +108,7 @@ class ExerciseService(
             if (muscleGroup.isNullOrBlank()) {
                 exerciseRepository.findAllByUserId(userId)
             } else {
-                exerciseRepository.findAllByUserIdAndMuscleGroup(userId, muscleGroup)
+                exerciseRepository.findAllByUserIdAndNormalizedMuscleGroup(userId, muscleGroup)
             }
         ).sortedBy { it.name }
             .map(ExerciseResponse::from)

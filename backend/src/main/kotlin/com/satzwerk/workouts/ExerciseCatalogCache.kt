@@ -6,6 +6,7 @@ import com.satzwerk.cache.get
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.Duration
+import java.util.Locale
 import java.util.UUID
 
 private const val EXERCISE_CATALOG_CACHE = "exercise-catalog"
@@ -62,24 +63,39 @@ class ExerciseCatalogCache(
                     "stale data may persist until TTL expiry",
                 userId,
             )
+        } else if (cacheService.writeFreshVersion(versionKey) == null) {
+            logger.warn(
+                "Exercise catalog cache invalidation fell back to direct key deletion for userId={} " +
+                    "but could not persist a fresh version; stale data may persist until TTL expiry",
+                userId,
+            )
         } else {
-            logger.warn("Exercise catalog cache invalidation fell back to direct key deletion for userId={}", userId)
+            logger.warn(
+                "Exercise catalog cache invalidation fell back to direct key deletion and fresh version write " +
+                    "for userId={}",
+                userId,
+            )
         }
     }
 }
 
-private fun exerciseCatalogCacheKey(
+internal fun exerciseCatalogCacheKey(
     userId: UUID,
     muscleGroup: String?,
     version: Long,
 ): String {
     val muscleGroupSegment =
-        muscleGroup
-            ?.ifBlank { null }
+        normalizeExerciseCatalogMuscleGroup(muscleGroup)
             ?.let { "muscle-group:$it" }
             ?: EXERCISE_CATALOG_UNFILTERED_SEGMENT
     return "workouts:exercises:list:$userId:v$version:$muscleGroupSegment"
 }
+
+internal fun normalizeExerciseCatalogMuscleGroup(muscleGroup: String?): String? =
+    muscleGroup
+        ?.trim()
+        ?.takeIf(String::isNotEmpty)
+        ?.lowercase(Locale.ROOT)
 
 private fun exerciseCatalogCachePattern(userId: UUID): String = "workouts:exercises:list:$userId:v*:*"
 

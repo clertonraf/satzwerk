@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.reactive.awaitFirstOrNull
 import kotlinx.coroutines.reactive.awaitSingle
 import kotlinx.coroutines.withContext
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
@@ -38,7 +39,7 @@ class RedisJsonCacheService(
         if (!enabled) {
             null
         } else {
-            offloadCacheWork {
+            offloadRedisCacheWork {
                 val payload =
                     redisResult { redisTemplate.opsForValue().get(key).awaitFirstOrNull() }
                         .onFailure { error ->
@@ -47,7 +48,7 @@ class RedisJsonCacheService(
 
                 if (payload == null) {
                     cacheCounter(cacheName, "miss").increment()
-                    return@offloadCacheWork null
+                    return@offloadRedisCacheWork null
                 }
 
                 val decodedResult = runCatching { objectMapper.readValue(payload, typeReference) as T }
@@ -74,7 +75,7 @@ class RedisJsonCacheService(
         if (!enabled) {
             0L
         } else {
-            offloadCacheWork {
+            offloadRedisCacheWork {
                 redisResult { redisTemplate.opsForValue().get(key).awaitFirstOrNull() }
                     .onFailure { error ->
                         logger.warn("Redis cache read failed for key={}", key, error)
@@ -95,7 +96,7 @@ class RedisJsonCacheService(
         if (!enabled) {
             return 0L
         }
-        return offloadCacheWork {
+        return offloadRedisCacheWork {
             redisResult { redisTemplate.opsForValue().increment(key).awaitSingle() }
                 .onFailure { error ->
                     logger.warn("Redis cache increment failed for key={}", key, error)
@@ -111,7 +112,7 @@ class RedisJsonCacheService(
         if (!enabled) {
             return
         }
-        offloadCacheWork {
+        offloadRedisCacheWork {
             redisResult {
                 val payload = objectMapper.writeValueAsString(value)
                 redisTemplate.opsForValue().set(key, payload, ttl).awaitSingle()
@@ -125,7 +126,7 @@ class RedisJsonCacheService(
         if (!enabled) {
             return false
         }
-        return offloadCacheWork {
+        return offloadRedisCacheWork {
             redisResult { (redisTemplate.delete(key).awaitFirstOrNull() ?: 0L) > 0 }
                 .onFailure { error ->
                     logger.warn("Redis cache delete failed for key={}", key, error)
@@ -137,7 +138,7 @@ class RedisJsonCacheService(
         if (!enabled) {
             return false
         }
-        return offloadCacheWork {
+        return offloadRedisCacheWork {
             val keys =
                 redisResult {
                     redisTemplate
@@ -150,10 +151,10 @@ class RedisJsonCacheService(
                         .awaitSingle()
                 }.onFailure { error ->
                     logger.warn("Redis cache scan failed for pattern={}", pattern, error)
-                }.getOrNull() ?: return@offloadCacheWork false
+                }.getOrNull() ?: return@offloadRedisCacheWork false
 
             if (keys.isEmpty()) {
-                return@offloadCacheWork true
+                return@offloadRedisCacheWork true
             }
 
             redisResult { (redisTemplate.delete(Flux.fromIterable(keys)).awaitFirstOrNull() ?: 0L) >= 0 }
@@ -163,36 +164,32 @@ class RedisJsonCacheService(
         }
     }
 
+    suspend fun writeFreshVersion(key: String): Long? {
+        if (!enabled) {
+            return 0L
+        }
+
+        return offloadRedisCacheWork {
+            val freshVersion = nextFreshVersion()
+            if (persistCacheVersion(redisTemplate, logger, key, freshVersion)) {
+                freshVersion
+            } else {
+                logger.warn("Redis cache version repair could not persist fresh version for key={}", key)
+                null
+            }
+        }
+    }
+
     private fun cacheCounter(
         cacheName: String,
         result: String,
     ) = meterRegistry.counter(CACHE_REQUESTS_METER, "cache", cacheName, "result", result)
 
-    // kotlinx-coroutines-reactor resumes suspended Redis calls on Lettuce I/O threads by default.
-    // Move cache networking + JSON work off that event loop so concurrent cache hits do not queue there.
-    private suspend fun <T> offloadCacheWork(block: suspend () -> T): T = withContext(Dispatchers.IO) { block() }
-
-    private suspend fun <T> redisResult(block: suspend () -> T): Result<T> =
-        runCatching { block() }
-            .onFailure { error ->
-                if (error is CancellationException) {
-                    throw error
-                }
-            }
-
     private suspend fun repairVersionKey(key: String): Long {
-        val freshVersion = REPAIRED_VERSION_SEQUENCE.incrementAndGet()
-        val persisted =
-            redisResult {
-                redisTemplate.opsForValue().set(key, freshVersion.toString()).awaitSingle()
-            }.onFailure { error ->
-                logger.warn("Redis cache version repair failed for key={}", key, error)
-            }.getOrDefault(false)
-
-        if (!persisted) {
+        val freshVersion = nextFreshVersion()
+        if (!persistCacheVersion(redisTemplate, logger, key, freshVersion)) {
             logger.warn("Redis cache version repair could not persist fresh version for key={}", key)
         }
-
         return freshVersion
     }
 }
@@ -201,3 +198,29 @@ suspend inline fun <reified T> RedisJsonCacheService.get(
     cacheName: String,
     key: String,
 ): T? = get(cacheName, key, object : TypeReference<T>() {})
+
+// kotlinx-coroutines-reactor resumes suspended Redis calls on Lettuce I/O threads by default.
+// Move cache networking + JSON work off that event loop so concurrent cache hits do not queue there.
+private suspend fun <T> offloadRedisCacheWork(block: suspend () -> T): T = withContext(Dispatchers.IO) { block() }
+
+private suspend fun <T> redisResult(block: suspend () -> T): Result<T> =
+    runCatching { block() }
+        .onFailure { error ->
+            if (error is CancellationException) {
+                throw error
+            }
+        }
+
+private fun nextFreshVersion(): Long = REPAIRED_VERSION_SEQUENCE.incrementAndGet()
+
+private suspend fun persistCacheVersion(
+    redisTemplate: ReactiveStringRedisTemplate,
+    logger: Logger,
+    key: String,
+    version: Long,
+): Boolean =
+    redisResult {
+        redisTemplate.opsForValue().set(key, version.toString()).awaitSingle()
+    }.onFailure { error ->
+        logger.warn("Redis cache version repair failed for key={}", key, error)
+    }.getOrDefault(false)
