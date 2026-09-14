@@ -1,6 +1,5 @@
 package com.satzwerk.workouts
 
-import com.satzwerk.cache.CacheInvalidationException
 import com.satzwerk.cache.RedisJsonCacheService
 import com.satzwerk.cache.VersionedCacheValue
 import com.satzwerk.cache.get
@@ -47,18 +46,24 @@ class ExerciseCatalogCache(
     }
 
     suspend fun invalidateUser(userId: UUID) {
-        if (cacheService.increment(exerciseCatalogVersionKey(userId)) != null) {
-            return
-        }
-        if (cacheService.increment(exerciseCatalogVersionKey(userId)) != null) {
-            logger.warn("Exercise catalog cache invalidation recovered on retry for userId={}", userId)
+        val versionKey = exerciseCatalogVersionKey(userId)
+        val initialIncrement = cacheService.increment(versionKey)
+
+        if (initialIncrement != null) {
             return
         }
 
-        if (!cacheService.deleteByPattern(exerciseCatalogCachePattern(userId))) {
-            throw CacheInvalidationException("Exercise catalog cache invalidation failed for userId=$userId")
+        if (cacheService.increment(versionKey) != null) {
+            logger.warn("Exercise catalog cache invalidation recovered on retry for userId={}", userId)
+        } else if (!cacheService.deleteByPattern(exerciseCatalogCachePattern(userId))) {
+            logger.error(
+                "Exercise catalog cache invalidation failed after retry and fallback deletion for userId={}; " +
+                    "stale data may persist until TTL expiry",
+                userId,
+            )
+        } else {
+            logger.warn("Exercise catalog cache invalidation fell back to direct key deletion for userId={}", userId)
         }
-        logger.warn("Exercise catalog cache invalidation fell back to direct key deletion for userId={}", userId)
     }
 }
 
@@ -66,7 +71,10 @@ private fun exerciseCatalogCacheKey(
     userId: UUID,
     muscleGroup: String?,
     version: Long,
-): String = "workouts:exercises:list:$userId:v$version:${muscleGroup?.ifBlank { null } ?: "all"}"
+): String {
+    val muscleGroupSegment = muscleGroup?.ifBlank { null } ?: "all"
+    return "workouts:exercises:list:$userId:v$version:$muscleGroupSegment"
+}
 
 private fun exerciseCatalogCachePattern(userId: UUID): String = "workouts:exercises:list:$userId:v*:*"
 

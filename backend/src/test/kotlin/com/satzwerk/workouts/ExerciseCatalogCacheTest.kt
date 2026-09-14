@@ -1,10 +1,8 @@
 package com.satzwerk.workouts
 
-import com.satzwerk.cache.CacheInvalidationException
 import com.satzwerk.cache.RedisJsonCacheService
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
@@ -30,16 +28,15 @@ class ExerciseCatalogCacheTest {
         }
 
     @Test
-    fun `invalidate throws when version bump and fallback deletion both fail`(): Unit =
+    fun `invalidate logs and continues when version bump and fallback deletion both fail`(): Unit =
         runBlocking {
             val userId = UUID.randomUUID()
             whenever(cacheService.increment("workouts:exercises:list:version:$userId")).thenReturn(null)
             whenever(cacheService.deleteByPattern("workouts:exercises:list:$userId:v*:*")).thenReturn(false)
 
-            assertThrows<CacheInvalidationException> {
-                runBlocking {
-                    exerciseCatalogCache.invalidateUser(userId)
-                }
-            }
+            exerciseCatalogCache.invalidateUser(userId)
+
+            verify(cacheService, times(2)).increment("workouts:exercises:list:version:$userId")
+            verify(cacheService).deleteByPattern(eq("workouts:exercises:list:$userId:v*:*"))
         }
 }

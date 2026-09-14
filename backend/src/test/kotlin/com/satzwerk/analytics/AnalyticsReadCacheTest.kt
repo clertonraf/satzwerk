@@ -1,10 +1,8 @@
 package com.satzwerk.analytics
 
-import com.satzwerk.cache.CacheInvalidationException
 import com.satzwerk.cache.RedisJsonCacheService
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
@@ -32,17 +30,17 @@ class AnalyticsReadCacheTest {
         }
 
     @Test
-    fun `invalidate throws when version bump and fallback deletion both fail`(): Unit =
+    fun `invalidate logs and continues when version bump and fallback deletion both fail`(): Unit =
         runBlocking {
             val userId = UUID.randomUUID()
             whenever(cacheService.increment("analytics:version:$userId")).thenReturn(null)
             whenever(cacheService.deleteByPattern("analytics:heatmap:$userId:v*:*:*")).thenReturn(false)
             whenever(cacheService.deleteByPattern("analytics:streak:$userId:v*")).thenReturn(false)
 
-            assertThrows<CacheInvalidationException> {
-                runBlocking {
-                    analyticsReadCache.invalidateUser(userId)
-                }
-            }
+            analyticsReadCache.invalidateUser(userId)
+
+            verify(cacheService, times(2)).increment("analytics:version:$userId")
+            verify(cacheService).deleteByPattern(eq("analytics:heatmap:$userId:v*:*:*"))
+            verify(cacheService).deleteByPattern(eq("analytics:streak:$userId:v*"))
         }
 }

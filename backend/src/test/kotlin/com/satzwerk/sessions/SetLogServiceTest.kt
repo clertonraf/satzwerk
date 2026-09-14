@@ -2,6 +2,7 @@ package com.satzwerk.sessions
 
 import com.satzwerk.common.TransactionRunner
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -33,7 +34,7 @@ class SetLogServiceTest {
             override suspend fun <T> required(block: suspend () -> T): T = block()
 
             override suspend fun afterCommit(block: suspend () -> Unit) {
-                block()
+                runCatching { block() }
             }
         }
 
@@ -95,5 +96,37 @@ class SetLogServiceTest {
             verify(setLogRepo).deleteAllByWorkoutSessionId(sessionId)
             verify(analyticsCache).invalidateUser(userId)
             verify(analyticsCache, never()).invalidateUser(exerciseId)
+        }
+
+    @Test
+    fun `add still returns success when post-commit cache invalidation fails`(): Unit =
+        runBlocking {
+            val queryRepo =
+                mock<SessionQueryRepository> {
+                    onBlocking { findMaxRatioForExercise(any(), any(), any(), anyOrNull()) } doReturn null
+                }
+            val setLogRepo =
+                mock<SetLogRepository> {
+                    onBlocking { save(any()) } doAnswer { invocation ->
+                        val log = invocation.getArgument<SetLog>(0)
+                        log.copy(id = UUID.randomUUID())
+                    }
+                }
+            val analyticsCache =
+                mock<com.satzwerk.analytics.AnalyticsReadCache> {
+                    onBlocking { invalidateUser(userId) } doAnswer {
+                        throw IllegalStateException("redis down")
+                    }
+                }
+            val service = SetLogService(setLogRepo, queryRepo, analyticsCache, inlineTransactionRunner)
+            val request = AddSetLogRequest(exerciseId = exerciseId, setNumber = 1, weight = BigDecimal("80"), reps = 5)
+
+            val response = service.add(session, request)
+
+            assertTrue(response.id.toString().isNotBlank())
+            assertEquals(exerciseId, response.exerciseId)
+            assertEquals(1, response.setNumber)
+            verify(setLogRepo).save(any())
+            verify(analyticsCache).invalidateUser(userId)
         }
 }

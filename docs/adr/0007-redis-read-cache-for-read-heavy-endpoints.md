@@ -37,8 +37,9 @@ Issue #296 explicitly chose Redis over in-memory caching.
   invalidation.
 - If a version bump fails, retry it once. If it still fails, fall back to a
   direct Redis key scan/delete for just that user's cache namespace. If that
-  rare fallback also fails, propagate an error instead of pretending the
-  invalidation succeeded.
+  rare fallback also fails, log an ERROR and continue serving the already
+  committed write; the risk is bounded stale reads until TTL expiry, not a
+  failed write.
 - Cache values are serialized as JSON with the existing Jackson `ObjectMapper`.
 - `Exercise` list entries use **write-driven invalidation** plus a long TTL
   (12 hours). Any create, update, or delete for that user bumps that user's
@@ -73,7 +74,9 @@ Issue #296 explicitly chose Redis over in-memory caching.
 - The cache implementation stays predictable for coroutine code because reads
   and invalidations are explicit in the service layer and register post-commit
   work against the enclosing transaction when one exists, including partner API
-  writes wrapped by `PartnerWritePolicyService`.
+  writes wrapped by `PartnerWritePolicyService`. Post-commit side effects are
+  logged and swallowed centrally so they never turn a committed write into an
+  HTTP error.
 - Local single-node latency may not improve materially; the main benefit is
   reduced repeated Postgres reads and cross-replica cache consistency.
 - `CACHE_ENABLED` is available both as an operational bypass and for local

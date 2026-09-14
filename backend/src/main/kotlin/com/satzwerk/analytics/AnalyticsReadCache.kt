@@ -1,6 +1,5 @@
 package com.satzwerk.analytics
 
-import com.satzwerk.cache.CacheInvalidationException
 import com.satzwerk.cache.RedisJsonCacheService
 import com.satzwerk.cache.VersionedCacheValue
 import com.satzwerk.cache.get
@@ -69,20 +68,28 @@ class AnalyticsReadCache(
     }
 
     suspend fun invalidateUser(userId: UUID) {
-        if (cacheService.increment(analyticsVersionKey(userId)) != null) {
-            return
-        }
-        if (cacheService.increment(analyticsVersionKey(userId)) != null) {
-            logger.warn("Analytics cache invalidation recovered on retry for userId={}", userId)
+        val versionKey = analyticsVersionKey(userId)
+        val initialIncrement = cacheService.increment(versionKey)
+
+        if (initialIncrement != null) {
             return
         }
 
-        val deletedHeatmap = cacheService.deleteByPattern(heatmapCachePattern(userId))
-        val deletedStreak = cacheService.deleteByPattern(streakCachePattern(userId))
-        if (!deletedHeatmap || !deletedStreak) {
-            throw CacheInvalidationException("Analytics cache invalidation failed for userId=$userId")
+        if (cacheService.increment(versionKey) != null) {
+            logger.warn("Analytics cache invalidation recovered on retry for userId={}", userId)
+        } else {
+            val deletedHeatmap = cacheService.deleteByPattern(heatmapCachePattern(userId))
+            val deletedStreak = cacheService.deleteByPattern(streakCachePattern(userId))
+            if (!deletedHeatmap || !deletedStreak) {
+                logger.error(
+                    "Analytics cache invalidation failed after retry and fallback deletion for userId={}; " +
+                        "stale data may persist until TTL expiry",
+                    userId,
+                )
+            } else {
+                logger.warn("Analytics cache invalidation fell back to direct key deletion for userId={}", userId)
+            }
         }
-        logger.warn("Analytics cache invalidation fell back to direct key deletion for userId={}", userId)
     }
 }
 
