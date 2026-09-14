@@ -117,6 +117,171 @@ on the 2 vCPU / 4 GiB Colima VM described above.
   high-infrastructure 8,000-VU / full-infra exercise remains tracked by #297
   and was not attempted here.
 
+## Write-saturation ceiling test — local execution guide
+
+The table above closes the gap for the **resource-constrained 2 vCPU / 4 GiB**
+local baseline, but it does **not** establish the true write-failure ceiling for
+the shipped **3 backend replicas / pool max-size 15** topology. The earlier
+attempt to ramp this workload toward **8,000 VUs** never reached an
+application-level failure point because the **host VM** OOM-killed the k6
+harness first (`exit 137`) at roughly **2,000-2,700 VUs**.
+
+This section documents how to rerun that ceiling study locally on a machine
+with enough Docker/Colima resources to let the application fail on its own
+terms rather than letting the load generator die first.
+
+### 1. Preflight the host VM
+
+Run the new preflight before touching Compose:
+
+```bash
+./scripts/check-perf-host-resources.sh
+```
+
+It uses the documented failed attempt as the sizing floor:
+
+- Observed host-OOM point: about **2,700 VUs** with a **4 GiB** Colima VM.
+- Effective memory floor from that failure point: `4096 MiB / 2700 ≈ 1.52 MiB`
+  per VU.
+- Linear projection for **8,000 VUs**: `8000 × 1.52 MiB ≈ 12.1 GiB`.
+- Recommended starting allocation: **16 GiB RAM**. That is not a claim that
+  16 GiB is the final answer; it is the first sensible tier *above* the
+  extrapolated floor so the run is not parked on the same OOM cliff.
+- CPU scales similarly: `2 vCPU / 2700 × 8000 ≈ 5.9`, rounded up to a
+  starting point of **6 vCPU**.
+
+If the script fails, resize the Docker VM before continuing.
+
+### 2. Raise Colima or Docker Desktop resources
+
+For Colima, restart it with at least the documented starting point:
+
+```bash
+colima stop
+colima start --cpu 6 --memory 16
+```
+
+If you use Docker Desktop instead of Colima, set the Docker VM to at least
+**6 CPUs** and **16 GiB memory** in **Settings → Resources** before proceeding.
+
+### 3. Start the tuned multi-replica stack
+
+Do **not** use `docker-compose.override.yml` for this run — that local-dev file
+forces `backend` back down to **1 replica** so it is intentionally the wrong
+topology for this study. Start only the services the write-saturation run needs:
+`postgres`, `redis`, `traefik`, and `backend`.
+
+From the repo root:
+
+```bash
+cp .env.example .env
+# then set DB_PASSWORD and JWT_SECRET if you have not already
+
+docker build -t ghcr.io/clertonraf/satzwerk-backend:latest ./backend
+
+COMPOSE_PROJECT_NAME=satzwerk-perf \
+BACKEND_REPLICAS=3 \
+R2DBC_POOL_MAX_SIZE=15 \
+docker compose -f docker-compose.yml up -d postgres redis traefik backend
+```
+
+Using `COMPOSE_PROJECT_NAME=satzwerk-perf` makes the Docker network name
+predictable for the k6 container in the next step.
+
+### 4. Run the full local write-saturation ramp
+
+`perf/stress.js` now accepts a custom stage file so the same script can keep
+its small default CI gate while also driving the full local ceiling study. The
+companion stage file `perf/write-saturation-8000-stages.json` ramps from 250 to
+8,000 VUs, holds there for two minutes, then ramps down.
+
+Run it from the repo root:
+
+```bash
+docker rm -f satzwerk-k6-ceiling 2>/dev/null || true
+docker run --name satzwerk-k6-ceiling \
+  --network satzwerk-perf_default \
+  -v "$PWD/perf:/perf:ro" \
+  grafana/k6 run \
+    -e BASE_URL=http://traefik \
+    -e SUMMARY_ENABLED=false \
+    -e MIXED_P95_THRESHOLD_MS=off \
+    -e MIXED_STAGES_FILE=/perf/write-saturation-8000-stages.json \
+    /perf/stress.js
+```
+
+The `SUMMARY_ENABLED=false` flag removes the read-only summary side-scenario so
+this run measures the write-heavy mixed flow only. `MIXED_P95_THRESHOLD_MS=off`
+turns off the CI-oriented 500 ms latency gate, which would otherwise fail the
+run long before the application actually starts erroring.
+
+### 5. What counts as the actual ceiling
+
+For this study, the ceiling is **not** merely the first stage with higher p95
+latency or non-zero R2DBC pending counts. Those signals indicate backpressure
+and queueing, which are expected before failure.
+
+Treat the ceiling as the first VU band where the application starts to produce
+**persistent request failures**, such as:
+
+- `5xx` responses
+- connection resets
+- upstream timeouts
+- requests that fail because the app can no longer complete them in time
+
+When that happens, record both numbers:
+
+1. the **last fully stable stage** (0% HTTP failures, only backpressure), and
+2. the **first failing stage** (errors begin and remain visible in the output).
+
+If the first failing band is too wide for a confident answer, rerun `perf/stress.js`
+with a narrower custom `MIXED_STAGES_JSON='[...]'` centered on that band to
+pinpoint the transition more precisely.
+
+### 6. Troubleshooting host OOM vs. app-level failure
+
+If the run dies around the low-thousands of VUs with no application errors in
+the k6 output, assume **host resource exhaustion first**. The known host-failure
+signature from the earlier attempt is:
+
+- the k6 container exits with **137**
+- Colima's kernel log shows OOM-killer lines
+- backend / Traefik logs do **not** show matching waves of 5xx or connection
+  failures because the load generator died before the app did
+
+Useful checks:
+
+```bash
+docker inspect satzwerk-k6-ceiling --format '{{.State.ExitCode}}'
+docker logs satzwerk-k6-ceiling | tail -50
+colima ssh -- sudo dmesg | grep -Ei 'killed process|out of memory|oom' | tail -20
+COMPOSE_PROJECT_NAME=satzwerk-perf docker compose -f docker-compose.yml logs --tail=100 backend traefik postgres
+```
+
+Interpretation:
+
+- **Exit 137 + OOM log lines** → the Docker VM was still too small; raise
+  Colima/Docker Desktop resources and retry. This is **not** the app ceiling.
+- **k6 completes but reports persistent 5xx/timeouts/resets at a stage** → that
+  is the real application-level ceiling band to record.
+
+### 7. Roll back the temporary perf setup afterward
+
+Tear down the stack, remove the retained k6 container, and return your Docker VM
+to its usual size once you are done:
+
+```bash
+COMPOSE_PROJECT_NAME=satzwerk-perf docker compose -f docker-compose.yml down -v --remove-orphans
+docker rm -f satzwerk-k6-ceiling 2>/dev/null || true
+colima stop
+colima start --cpu 2 --memory 4
+```
+
+If your normal Colima profile uses different values, restore those instead of
+blindly using `2 / 4`. For Docker Desktop, revert the CPU and memory settings in
+**Settings → Resources** after the test so the machine is not left permanently
+over-provisioned.
+
 ## Observing pool saturation via Prometheus metrics
 
 When running a local or CI k6 load test against this baseline, scrape the
