@@ -41,6 +41,7 @@ class SecurityConfig(
             .addFilterBefore(partnerTokenWebFilter, SecurityWebFiltersOrder.AUTHORIZATION)
             .authorizeExchange {
                 it.pathMatchers("/api/auth/**", "/actuator/health", "/actuator/health/**").permitAll()
+                it.pathMatchers("/actuator/prometheus").hasAuthority(AUTHORITY_JWT_SESSION)
                 it.anyExchange().authenticated()
             }
             .build()

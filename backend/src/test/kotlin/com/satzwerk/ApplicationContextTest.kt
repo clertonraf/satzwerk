@@ -1,6 +1,7 @@
 package com.satzwerk
 
 import com.satzwerk.auth.AuthResponse
+import com.satzwerk.auth.CreatedPersonalApiTokenResponse
 import io.micrometer.core.instrument.MeterRegistry
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -38,8 +39,21 @@ class ApplicationContextTest : PostgresTestContainer() {
     }
 
     @Test
-    fun `authenticated prometheus endpoint exposes concrete r2dbc jvm and http metrics`() {
-        val token = registerAndLogin()
+    fun `prometheus endpoint rejects personal api token authentication`() {
+        val jwt = registerAndLogin()
+        val personalApiToken = createPersonalApiToken(jwt)
+
+        webTestClient
+            .get()
+            .uri("/actuator/prometheus")
+            .header("Authorization", "Bearer $personalApiToken")
+            .exchange()
+            .expectStatus().isForbidden
+    }
+
+    @Test
+    fun `jwt-authenticated prometheus endpoint exposes concrete r2dbc jvm and http metrics`() {
+        val jwt = registerAndLogin()
 
         webTestClient
             .get().uri("/actuator/health")
@@ -62,7 +76,7 @@ class ApplicationContextTest : PostgresTestContainer() {
             webTestClient
                 .get()
                 .uri("/actuator/prometheus")
-                .header("Authorization", "Bearer $token")
+                .header("Authorization", "Bearer $jwt")
                 .exchange()
                 .expectStatus().isOk
                 .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_PLAIN)
@@ -100,4 +114,22 @@ class ApplicationContextTest : PostgresTestContainer() {
             .returnResult()
             .responseBody!!
             .accessToken
+
+    private fun createPersonalApiToken(jwt: String): String =
+        webTestClient
+            .post()
+            .uri("/api/tokens")
+            .header("Authorization", "Bearer $jwt")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "name" to "Metrics PAT",
+                    "scopes" to listOf("exercises:read"),
+                ),
+            ).exchange()
+            .expectStatus().isCreated
+            .expectBody(CreatedPersonalApiTokenResponse::class.java)
+            .returnResult()
+            .responseBody!!
+            .token
 }
