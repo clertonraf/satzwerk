@@ -59,8 +59,11 @@ In the production-style multi-replica setup behind Traefik, `docker-compose.yml`
 does not publish a host port for `backend` and Traefik's only router matches
 `/api`, so `/actuator/prometheus` is **not reachable** from outside the Compose
 network today. Scraping it in that topology needs one of: a Prometheus
-container joined to the same Docker network (scraping `backend:8080` directly,
-though this load-balances across replicas rather than identifying one), a
+container joined to the same Docker network (note: scraping `backend:8080`
+directly does **not** load-balance or rotate across replicas — plain Docker
+DNS resolution is cached, so a target configured this way will repeatedly
+hit whichever single replica it first resolved and silently miss the others;
+per-replica discovery is required for full coverage), a
 dedicated private Traefik router/entrypoint for `/actuator/**` restricted to an
 internal network, or an equivalent per-replica private route. That network
 setup is out of scope here — this section only covers local/CI k6 runs, where
