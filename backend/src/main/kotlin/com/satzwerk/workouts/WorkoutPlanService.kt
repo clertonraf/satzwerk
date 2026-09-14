@@ -1,8 +1,10 @@
 package com.satzwerk.workouts
 
+import com.satzwerk.analytics.AnalyticsReadCache
 import com.satzwerk.common.ConflictException
 import com.satzwerk.common.NotFoundException
 import com.satzwerk.common.Owned
+import com.satzwerk.common.TransactionRunner
 import com.satzwerk.common.assertOwner
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
@@ -16,6 +18,8 @@ class WorkoutPlanService(
     private val workoutGroupRepository: WorkoutGroupRepository,
     private val workoutExerciseRepository: WorkoutExerciseRepository,
     private val exerciseRepository: ExerciseRepository,
+    private val analyticsReadCache: AnalyticsReadCache,
+    private val transactionRunner: TransactionRunner,
 ) {
     suspend fun create(
         userId: UUID,
@@ -96,6 +100,9 @@ class WorkoutPlanService(
     ) {
         val plan = getRequiredPlan(userId, planId)
         workoutPlanRepository.deleteById(requireNotNull(plan.id))
+        transactionRunner.afterCommit {
+            analyticsReadCache.invalidateUser(userId)
+        }
     }
 
     @Transactional

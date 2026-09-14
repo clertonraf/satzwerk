@@ -12,6 +12,7 @@ private const val EXERCISE_CATALOG_CACHE = "exercise-catalog"
 private const val EXERCISE_CATALOG_TTL_HOURS = 12L
 private val EXERCISE_CATALOG_TTL: Duration = Duration.ofHours(EXERCISE_CATALOG_TTL_HOURS)
 private const val EXERCISE_CATALOG_VERSION_KEY = "workouts:exercises:list:version"
+private const val EXERCISE_CATALOG_UNFILTERED_SEGMENT = "__unfiltered__"
 
 @Service
 class ExerciseCatalogCache(
@@ -72,7 +73,11 @@ private fun exerciseCatalogCacheKey(
     muscleGroup: String?,
     version: Long,
 ): String {
-    val muscleGroupSegment = muscleGroup?.ifBlank { null } ?: "all"
+    val muscleGroupSegment =
+        muscleGroup
+            ?.ifBlank { null }
+            ?.let { "muscle-group:$it" }
+            ?: EXERCISE_CATALOG_UNFILTERED_SEGMENT
     return "workouts:exercises:list:$userId:v$version:$muscleGroupSegment"
 }
 

@@ -136,10 +136,28 @@ class ExerciseCacheIntegrationTest : PostgresTestContainer() {
         assertEquals(1.0, cacheCounter("exercise-catalog", "hit") - hitBefore)
     }
 
-    private fun listExercises(expectedCount: Int) {
+    @Test
+    fun `exercise cache keeps literal all filter separate from unfiltered list`() {
+        createExercise("Bench Press", "CHEST")
+        val missBefore = cacheCounter("exercise-catalog", "miss")
+        val hitBefore = cacheCounter("exercise-catalog", "hit")
+
+        listExercises(expectedCount = 0, muscleGroup = "all")
+        listExercises(expectedCount = 0, muscleGroup = "all")
+        listExercises(expectedCount = 1)
+        listExercises(expectedCount = 1)
+
+        assertEquals(2.0, cacheCounter("exercise-catalog", "miss") - missBefore)
+        assertEquals(2.0, cacheCounter("exercise-catalog", "hit") - hitBefore)
+    }
+
+    private fun listExercises(
+        expectedCount: Int,
+        muscleGroup: String? = null,
+    ) {
         client
             .get()
-            .uri("/api/exercises")
+            .uri(if (muscleGroup == null) "/api/exercises" else "/api/exercises?muscleGroup=$muscleGroup")
             .header("Authorization", "Bearer $authToken")
             .exchange()
             .expectStatus().isOk

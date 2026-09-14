@@ -43,6 +43,7 @@ class AnalyticsCacheIntegrationTest : PostgresTestContainer() {
 
     private lateinit var authToken: String
     private lateinit var userEmail: String
+    private lateinit var workoutPlanId: UUID
     private lateinit var workoutGroupId: UUID
     private lateinit var exerciseId: UUID
 
@@ -51,8 +52,8 @@ class AnalyticsCacheIntegrationTest : PostgresTestContainer() {
         userEmail = "analytics-cache-${UUID.randomUUID()}@test.com"
         authToken = registerAndLogin(userEmail, "password123", "Analytics User")
         exerciseId = createExercise("Bench Press", "CHEST")
-        val planId = createPlan("Push Pull Legs")
-        workoutGroupId = createGroup(planId, "Push Day", exerciseId)
+        workoutPlanId = createPlan("Push Pull Legs")
+        workoutGroupId = createGroup(workoutPlanId, "Push Day", exerciseId)
     }
 
     @Test
@@ -131,6 +132,58 @@ class AnalyticsCacheIntegrationTest : PostgresTestContainer() {
         getStreak(expectedCurrent = 1, expectedLongest = 1)
 
         deleteSetLog(session.id, setLog.id)
+
+        getHeatmap(today, expectedCount = 0)
+        getStreak(expectedCurrent = 0, expectedLongest = 0)
+
+        assertEquals(2.0, cacheCounter("analytics-heatmap", "miss") - heatmapMissBefore)
+        assertEquals(1.0, cacheCounter("analytics-heatmap", "hit") - heatmapHitBefore)
+        assertEquals(2.0, cacheCounter("analytics-streak", "miss") - streakMissBefore)
+        assertEquals(1.0, cacheCounter("analytics-streak", "hit") - streakHitBefore)
+    }
+
+    @Test
+    fun `analytics cache invalidates after WorkoutGroup delete cascade`() {
+        val today = LocalDate.now(ZoneOffset.UTC)
+        val session = startSession(workoutGroupId)
+        addSetLog(session.id, exerciseId, 1)
+        val heatmapMissBefore = cacheCounter("analytics-heatmap", "miss")
+        val heatmapHitBefore = cacheCounter("analytics-heatmap", "hit")
+        val streakMissBefore = cacheCounter("analytics-streak", "miss")
+        val streakHitBefore = cacheCounter("analytics-streak", "hit")
+
+        getHeatmap(today, expectedCount = 1)
+        getHeatmap(today, expectedCount = 1)
+        getStreak(expectedCurrent = 1, expectedLongest = 1)
+        getStreak(expectedCurrent = 1, expectedLongest = 1)
+
+        deleteGroup(workoutPlanId, workoutGroupId)
+
+        getHeatmap(today, expectedCount = 0)
+        getStreak(expectedCurrent = 0, expectedLongest = 0)
+
+        assertEquals(2.0, cacheCounter("analytics-heatmap", "miss") - heatmapMissBefore)
+        assertEquals(1.0, cacheCounter("analytics-heatmap", "hit") - heatmapHitBefore)
+        assertEquals(2.0, cacheCounter("analytics-streak", "miss") - streakMissBefore)
+        assertEquals(1.0, cacheCounter("analytics-streak", "hit") - streakHitBefore)
+    }
+
+    @Test
+    fun `analytics cache invalidates after WorkoutPlan delete cascade`() {
+        val today = LocalDate.now(ZoneOffset.UTC)
+        val session = startSession(workoutGroupId)
+        addSetLog(session.id, exerciseId, 1)
+        val heatmapMissBefore = cacheCounter("analytics-heatmap", "miss")
+        val heatmapHitBefore = cacheCounter("analytics-heatmap", "hit")
+        val streakMissBefore = cacheCounter("analytics-streak", "miss")
+        val streakHitBefore = cacheCounter("analytics-streak", "hit")
+
+        getHeatmap(today, expectedCount = 1)
+        getHeatmap(today, expectedCount = 1)
+        getStreak(expectedCurrent = 1, expectedLongest = 1)
+        getStreak(expectedCurrent = 1, expectedLongest = 1)
+
+        deletePlan(workoutPlanId)
 
         getHeatmap(today, expectedCount = 0)
         getStreak(expectedCurrent = 0, expectedLongest = 0)
@@ -266,6 +319,27 @@ class AnalyticsCacheIntegrationTest : PostgresTestContainer() {
             .delete()
             .uri("/api/sessions/$sessionId/set-logs/$setLogId")
             .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isNoContent
+    }
+
+    private fun deleteGroup(
+        planId: UUID,
+        groupId: UUID,
+    ) {
+        client
+            .delete()
+            .uri("/api/plans/$planId/groups/$groupId")
+            .headers { it.setBearerAuth(authToken) }
+            .exchange()
+            .expectStatus().isNoContent
+    }
+
+    private fun deletePlan(planId: UUID) {
+        client
+            .delete()
+            .uri("/api/plans/$planId")
+            .headers { it.setBearerAuth(authToken) }
             .exchange()
             .expectStatus().isNoContent
     }

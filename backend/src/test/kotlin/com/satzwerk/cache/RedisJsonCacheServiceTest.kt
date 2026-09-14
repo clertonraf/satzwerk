@@ -6,9 +6,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
@@ -93,6 +95,22 @@ class RedisJsonCacheServiceTest {
         }
 
     @Test
+    fun `get evicts literal null payload and records miss`(): Unit =
+        runBlocking {
+            val key = "analytics:streak:user-1"
+            val service = RedisJsonCacheService(redisTemplate, objectMapper, meterRegistry, enabled = true)
+
+            whenever(valueOperations.get(key)).thenReturn(Mono.just("null"))
+            whenever(redisTemplate.delete(key)).thenReturn(Mono.just(1))
+
+            val actual = service.get<StreakSnapshot>(cacheName = "analytics-streak", key = key)
+
+            assertNull(actual)
+            assertEquals(1.0, counter("analytics-streak", "miss"))
+            verify(redisTemplate).delete(key)
+        }
+
+    @Test
     fun `version reads default to zero and increment returns new value`(): Unit =
         runBlocking {
             val service = RedisJsonCacheService(redisTemplate, objectMapper, meterRegistry, enabled = true)
@@ -104,6 +122,23 @@ class RedisJsonCacheServiceTest {
 
             assertEquals(0L, before)
             assertEquals(1L, after)
+        }
+
+    @Test
+    fun `malformed version payload repairs to a fresh generation instead of reusing zero`(): Unit =
+        runBlocking {
+            val key = "analytics:version:user-1"
+            val persistedVersion = argumentCaptor<String>()
+            val service = RedisJsonCacheService(redisTemplate, objectMapper, meterRegistry, enabled = true)
+            whenever(valueOperations.get(key)).thenReturn(Mono.just("not-a-long"))
+            whenever(redisTemplate.delete(key)).thenReturn(Mono.just(1))
+            whenever(valueOperations.set(eq(key), persistedVersion.capture())).thenReturn(Mono.just(true))
+
+            val repairedVersion = service.getLong(key)
+
+            assertTrue(repairedVersion > 0L)
+            assertEquals(repairedVersion.toString(), persistedVersion.firstValue)
+            verify(redisTemplate).delete(key)
         }
 
     @Test

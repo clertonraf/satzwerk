@@ -15,9 +15,11 @@ import org.springframework.data.redis.core.ScanOptions
 import org.springframework.stereotype.Service
 import reactor.core.publisher.Flux
 import java.time.Duration
+import java.util.concurrent.atomic.AtomicLong
 
 private const val CACHE_REQUESTS_METER = "satzwerk.cache.requests"
 private const val SCAN_BATCH_SIZE = 1_000L
+private val REPAIRED_VERSION_SEQUENCE = AtomicLong(System.currentTimeMillis())
 
 @Service
 class RedisJsonCacheService(
@@ -48,14 +50,17 @@ class RedisJsonCacheService(
                     return@offloadCacheWork null
                 }
 
-                val decoded =
-                    runCatching { objectMapper.readValue(payload, typeReference) as T }
-                        .onFailure { error ->
-                            logger.warn("Redis cache decode failed for key={}", key, error)
-                            delete(key)
-                        }.getOrNull()
+                val decodedResult = runCatching { objectMapper.readValue(payload, typeReference) as T }
+                decodedResult.exceptionOrNull()?.let { error ->
+                    logger.warn("Redis cache decode failed for key={}", key, error)
+                    delete(key)
+                }
+                val decoded = decodedResult.getOrNull()
 
                 if (decoded == null) {
+                    if (decodedResult.isSuccess) {
+                        delete(key)
+                    }
                     cacheCounter(cacheName, "miss").increment()
                     null
                 } else {
@@ -79,7 +84,9 @@ class RedisJsonCacheService(
                             .onFailure { error ->
                                 logger.warn("Redis cache version decode failed for key={}", key, error)
                                 delete(key)
-                            }.getOrDefault(0L)
+                            }.getOrElse {
+                                repairVersionKey(key)
+                            }
                     } ?: 0L
             }
         }
@@ -172,6 +179,22 @@ class RedisJsonCacheService(
                     throw error
                 }
             }
+
+    private suspend fun repairVersionKey(key: String): Long {
+        val freshVersion = REPAIRED_VERSION_SEQUENCE.incrementAndGet()
+        val persisted =
+            redisResult {
+                redisTemplate.opsForValue().set(key, freshVersion.toString()).awaitSingle()
+            }.onFailure { error ->
+                logger.warn("Redis cache version repair failed for key={}", key, error)
+            }.getOrDefault(false)
+
+        if (!persisted) {
+            logger.warn("Redis cache version repair could not persist fresh version for key={}", key)
+        }
+
+        return freshVersion
+    }
 }
 
 suspend inline fun <reified T> RedisJsonCacheService.get(

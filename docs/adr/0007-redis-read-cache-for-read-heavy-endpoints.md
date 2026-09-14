@@ -28,13 +28,16 @@ Issue #296 explicitly chose Redis over in-memory caching.
 - Use **explicit service-layer caching** via `ReactiveStringRedisTemplate`
   wrapped in a small JSON cache service. Do not rely on `@Cacheable`.
 - Cache keys are always scoped by **user ID** and a per-user **version counter**:
-  - `workouts:exercises:list:{userId}:v{version}:{muscleGroup|all}`
+  - `workouts:exercises:list:{userId}:v{version}:{__unfiltered__|muscle-group:<value>}`
   - `analytics:heatmap:{userId}:v{version}:{from}:{to}`
   - `analytics:streak:{userId}:v{version}`
 - Invalidation is **O(1)**: writes bump the relevant per-user version key
   instead of scanning Redis for matching keys. This also prevents stale
   in-flight cache fills from re-populating the active namespace after a newer
   invalidation.
+- If a version key is malformed or corrupted, discard it and repair it to a
+  fresh monotonic generation instead of reusing `v0`, so previously-written
+  `v0` entries can never become live again after repair.
 - If a version bump fails, retry it once. If it still fails, fall back to a
   direct Redis key scan/delete for just that user's cache namespace. If that
   rare fallback also fails, log an ERROR and continue serving the already
