@@ -18,12 +18,29 @@ class PublicScopeTest {
 
     @Test
     fun `declared-scope validation normalises before validating`() {
-        val scopes = validateDeclaredPublicScopes("  EXERCISES:WRITE, analytics:read metrics:read exercises:write ")
+        val scopes = validateDeclaredPublicScopes("  EXERCISES:WRITE, analytics:read exercises:write ")
 
         assertEquals(
-            "${PublicScope.ANALYTICS_READ} ${PublicScope.EXERCISES_WRITE} ${PublicScope.METRICS_READ}",
+            "${PublicScope.ANALYTICS_READ} ${PublicScope.EXERCISES_WRITE}",
             scopes,
         )
+    }
+
+    @Test
+    fun `partner declared-scope validation rejects metrics read`() {
+        val error =
+            assertThrows<BadRequestException> {
+                validateDeclaredPublicScopes(PublicScope.METRICS_READ)
+            }
+
+        assertEquals("Unknown scopes: ${PublicScope.METRICS_READ}", error.message)
+    }
+
+    @Test
+    fun `partner declared-scope validation still accepts every non-metrics scope`() {
+        val scopes = validateDeclaredPublicScopes(PublicScope.partnerGrantable.joinToString(" "))
+
+        assertEquals(PublicScope.partnerGrantable.sorted().joinToString(" "), scopes)
     }
 
     @Test
@@ -37,5 +54,29 @@ class PublicScopeTest {
             }
 
         assertEquals("Scopes not declared by app: plans:write", error.message)
+    }
+
+    @Test
+    fun `partner grant validation rejects metrics read even when legacy app declares it`() {
+        val error =
+            assertThrows<BadRequestException> {
+                validateGrantedPublicScopes(
+                    grantedScopes = PublicScope.METRICS_READ,
+                    declaredScopes = "${PublicScope.EXERCISES_READ} ${PublicScope.METRICS_READ}",
+                )
+            }
+
+        assertEquals("Unknown scopes: ${PublicScope.METRICS_READ}", error.message)
+    }
+
+    @Test
+    fun `partner grant validation still accepts every non-metrics scope`() {
+        val scopes =
+            validateGrantedPublicScopes(
+                grantedScopes = PublicScope.partnerGrantable.joinToString(" "),
+                declaredScopes = PublicScope.partnerGrantable.joinToString(" "),
+            )
+
+        assertEquals(PublicScope.partnerGrantable.sorted().joinToString(" "), scopes)
     }
 }
