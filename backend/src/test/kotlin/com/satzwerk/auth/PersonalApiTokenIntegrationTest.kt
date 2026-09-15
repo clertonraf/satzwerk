@@ -55,6 +55,15 @@ class PersonalApiTokenIntegrationTest : PostgresTestContainer() {
     }
 
     @Test
+    fun `create accepts metrics read scope`() {
+        val jwt = registerAndGetJwt("pat-metrics@test.com")
+        val resp = createToken(jwt, "Metrics Scraper", listOf(PublicScope.METRICS_READ))
+
+        assertEquals(listOf(PublicScope.METRICS_READ), resp.scopes)
+        assertEquals("Metrics Scraper", resp.name)
+    }
+
+    @Test
     fun `create rejects unknown scope`() {
         val jwt = registerAndGetJwt("pat-bad-scope@test.com")
         client.post().uri("/api/tokens")

@@ -33,8 +33,9 @@ The public API supports two principal types:
 2. **Partner app grant** — a partner app acts only after a Satzwerk user grants explicit consent to the app's declared
    scopes.
 
-Both principal types use the same scope vocabulary. Every accepted request resolves to exactly one Satzwerk user. No
-public principal may access data for any other user.
+Both principal types share the same resource-based scope naming scheme, but not every scope is available to both
+principal types. Every accepted request resolves to exactly one Satzwerk user. No public principal may access data for
+any other user.
 
 ### 2. Scope model
 
@@ -48,6 +49,7 @@ Scopes are resource-based and split into read and write capabilities.
 | Analytics | `analytics:read` | n/a | **Heatmap**, summary metrics, personal-record style analytics |
 | Measurements | `measurements:read` | `measurements:write` | **BodyMeasurement** |
 | Medications | `medications:read` | `medications:write` | **Medication**, **MedicationLog**, adherence analytics |
+| Operator metrics | `metrics:read` | n/a | `/actuator/prometheus` for first-party Personal API Tokens; not available to partner-app grants |
 
 Rules:
 
@@ -55,6 +57,8 @@ Rules:
 - `analytics:read` does not imply access to raw workout data. It only covers analytics endpoints.
 - Write scopes do not imply read scopes. If a client needs both, it must be granted both.
 - Partner apps may request only declared scopes. Users grant or deny those scopes explicitly.
+- `metrics:read` is reserved for first-party Personal API Tokens and is not declarable or grantable through partner-app
+  consent flows.
 - Personal automation tokens may be created only with scopes chosen by the user at token creation time.
 
 ### 3. Consent and ownership boundaries

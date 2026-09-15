@@ -23,6 +23,9 @@ class PartnerAppIntegrationTest : PostgresTestContainer() {
     @Autowired
     lateinit var partnerAppService: PartnerAppService
 
+    @Autowired
+    lateinit var partnerAppRepository: PartnerAppRepository
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private fun registerAndLogin(suffix: String = UUID.randomUUID().toString()): String {
@@ -136,6 +139,27 @@ class PartnerAppIntegrationTest : PostgresTestContainer() {
     }
 
     @Test
+    fun `register partner app rejects metrics read scope`() {
+        val token = registerAndLogin()
+        client
+            .post()
+            .uri("/api/partner-apps")
+            .contentType(MediaType.APPLICATION_JSON)
+            .headers { it.setBearerAuth(token) }
+            .bodyValue(
+                mapOf(
+                    "name" to "Metrics App",
+                    "description" to "App with unusable metrics scope",
+                    "redirectUri" to "https://metrics.example/callback",
+                    "scopes" to PublicScope.METRICS_READ,
+                ),
+            ).exchange()
+            .expectStatus().isBadRequest
+            .expectBody()
+            .jsonPath("$.error").isEqualTo("Unknown scopes: ${PublicScope.METRICS_READ}")
+    }
+
+    @Test
     fun `list partner apps returns registered apps without client secret`() {
         val token = registerAndLogin()
         registerApp(token, scopes = "exercises:read")
@@ -192,6 +216,39 @@ class PartnerAppIntegrationTest : PostgresTestContainer() {
             .expectStatus().isBadRequest
             .expectBody()
             .jsonPath("$.error").isEqualTo("Scopes not declared by app: sessions:write")
+    }
+
+    @Test
+    fun `grant rejects metrics read for legacy app declarations`() {
+        val token = registerAndLogin("legacy-metrics")
+        val app =
+            runBlocking {
+                partnerAppRepository.save(
+                    PartnerApp(
+                        name = "Legacy Metrics App",
+                        description = "Seeded with now-invalid partner scope",
+                        redirectUri = "https://legacy.example/callback",
+                        clientId = "satzwerk_legacy_metrics",
+                        clientSecretHash = "not-used-in-grant-flow",
+                        scopes = "${PublicScope.EXERCISES_READ} ${PublicScope.METRICS_READ}",
+                    ),
+                )
+            }
+
+        client
+            .post()
+            .uri("/api/partner-grants")
+            .contentType(MediaType.APPLICATION_JSON)
+            .headers { it.setBearerAuth(token) }
+            .bodyValue(
+                mapOf(
+                    "clientId" to app.clientId,
+                    "grantedScopes" to PublicScope.METRICS_READ,
+                ),
+            ).exchange()
+            .expectStatus().isBadRequest
+            .expectBody()
+            .jsonPath("$.error").isEqualTo("Unknown scopes: ${PublicScope.METRICS_READ}")
     }
 
     @Test

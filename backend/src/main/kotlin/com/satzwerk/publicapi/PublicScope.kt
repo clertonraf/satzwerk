@@ -34,6 +34,8 @@ object PublicScope {
             MEASUREMENTS_READ, MEASUREMENTS_WRITE,
             MEDICATIONS_READ, MEDICATIONS_WRITE,
         )
+
+    val partnerGrantable = all - METRICS_READ
 }
 
 fun validatePublicScopes(scopes: List<String>) {
@@ -44,7 +46,7 @@ fun validatePublicScopes(scopes: List<String>) {
 
 fun validateDeclaredPublicScopes(scopes: String): String {
     val normalisedScopes = normalisePublicScopes(scopes)
-    val invalid = parsePublicScopes(normalisedScopes).filter { it !in PublicScope.all }
+    val invalid = findUnknownScopes(normalisedScopes, PublicScope.partnerGrantable)
     if (invalid.isNotEmpty()) throw BadRequestException("Unknown scopes: ${invalid.joinToString()}")
     return normalisedScopes
 }
@@ -54,10 +56,12 @@ fun validateGrantedPublicScopes(
     declaredScopes: String,
 ): String {
     val normalisedGrantedScopes = normalisePublicScopes(grantedScopes)
+    val invalid = findUnknownScopes(normalisedGrantedScopes, PublicScope.partnerGrantable)
+    if (invalid.isNotEmpty()) throw BadRequestException("Unknown scopes: ${invalid.joinToString()}")
     val declaredScopeSet = parsePublicScopes(declaredScopes).toSet()
-    val invalid = parsePublicScopes(normalisedGrantedScopes).filter { it !in declaredScopeSet }
-    if (invalid.isNotEmpty()) {
-        throw BadRequestException("Scopes not declared by app: ${invalid.joinToString()}")
+    val undeclared = parsePublicScopes(normalisedGrantedScopes).filter { it !in declaredScopeSet }
+    if (undeclared.isNotEmpty()) {
+        throw BadRequestException("Scopes not declared by app: ${undeclared.joinToString()}")
     }
     return normalisedGrantedScopes
 }
@@ -86,6 +90,11 @@ internal fun normalisePublicScopes(scopes: String): String =
         .distinct()
         .sorted()
         .joinToString(" ")
+
+private fun findUnknownScopes(
+    scopes: String,
+    allowedScopes: Set<String>,
+): List<String> = parsePublicScopes(scopes).filter { it !in allowedScopes }
 
 private fun parsePublicScopes(scopes: String): List<String> =
     scopes
