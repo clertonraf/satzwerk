@@ -4,6 +4,7 @@ export const ALL_SCOPES = [
   'analytics:read',
   'exercises:read',
   'exercises:write',
+  'metrics:read',
   'measurements:read',
   'measurements:write',
   'medications:read',
