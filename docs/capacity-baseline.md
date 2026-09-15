@@ -55,16 +55,18 @@ effectively claims one vCPU of budget.
 
 | Host size | Backend budget with shipped defaults | Guidance |
 | --- | --- | --- |
-| **2 vCPU** | `2 × 1.0 = 2.0 vCPU` | **Use `BACKEND_REPLICAS=2` (shipped default).** This matches the host size originally used to tune the local baseline and avoids reserving more CPU than the machine can provide. |
+| **2 vCPU** | `2 × 1.0 = 2.0 vCPU` | **Start with `BACKEND_REPLICAS=2` (shipped default).** This matches the measured baseline host. Do not raise this host class to 3 replicas; if you need more explicit CPU headroom for Traefik, Postgres, Redis, or the OS, lower `BACKEND_CPU_LIMIT` before adding replicas. |
 | **4+ vCPU** | `3 × 1.0 = 3.0 vCPU` | **`BACKEND_REPLICAS=3` is a reasonable opt-in.** It leaves at least ~1 vCPU of headroom on a 4 vCPU host for Traefik, Postgres, Redis, and the OS, while preserving the `3 × 15 = 45` Postgres connection budget proven in #295. |
 
 The revert in #308 is based on an oversubscription regression observed after
-shipping the 3-replica default on the same 2 vCPU host class. At **500 VUs** on
-the read endpoint, throughput collapsed from the original **2-replica baseline**
-of **2,435 req/s** (p95 **511 ms**) to **381 req/s** (p95 **6.1 s**) with
-**0% HTTP errors** when the host was forced to run **3 replicas × 1.0 CPU**.
-That is a pure backpressure/queueing regression, not an application failure,
-and is the reason the shipped default is back to 2 replicas.
+shipping the 3-replica default on the same 2 vCPU host class. At **1,500 VUs**
+on the read endpoint, throughput collapsed from the original **2-replica
+baseline** of **2,435 req/s** (p95 **511 ms**) to **381 req/s** (p95
+**6.1 s**) with **0% HTTP errors** when the host was forced to run
+**3 replicas × 1.0 CPU**. During a separate **500-VU** `docker stats` sample of
+that topology, each backend replica was already using about **45-49% CPU** and
+Traefik was around **28% CPU**, which is consistent with host-level CPU
+oversubscription rather than an application failure.
 
 ## Documented local write-throughput SLO for the 3-replica opt-in topology
 
@@ -139,11 +141,11 @@ on the 2 vCPU / 4 GiB Colima VM described above.
   honors the explicit flags: `MaxHeapSize=536870912` (512MB),
   `InitialHeapSize=268435456` (256MB), `MaxMetaspaceSize=134217728` (128MB),
   `UseContainerSupport=true`.
-- All three tuned-default replicas started and passed `/actuator/health`
+- All three explicit opt-in replicas started and passed `/actuator/health`
   checks together with Postgres and Traefik.
 - The prior doc's **unestablished-number gap for this local
   resource-constrained baseline** is now replaced with a real measured SLO and
-  saturation table for the shipped default config. The separate
+  saturation table for the explicit 3-replica opt-in config. The separate
   high-infrastructure 8,000-VU / full-infra exercise remains tracked by #297
   and was not attempted here.
 

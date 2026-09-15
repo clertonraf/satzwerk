@@ -31,11 +31,13 @@ Issue #308 reverts the shipped Compose default replica count from **3** back to
 The follow-up high-concurrency read test used the same **2 vCPU** host class
 that originally informed #295/#303. With `BACKEND_CPU_LIMIT=1.0`, the 3-replica
 default budgeted **3.0 vCPUs** for the backend alone before Traefik, Postgres,
-Redis, and the OS were counted, so the host was oversubscribed. At **500 VUs**,
-throughput collapsed from **2,435 req/s** (p95 **511 ms**) on the 2-replica
-baseline to **381 req/s** (p95 **6.1 s**) on the oversubscribed 3-replica
-setup, with **0% HTTP errors**. That points to CPU backpressure and queueing,
-not an application-level failure.
+Redis, and the OS were counted, so the host was oversubscribed. At
+**1,500 VUs**, throughput collapsed from **2,435 req/s** (p95 **511 ms**) on
+the 2-replica baseline to **381 req/s** (p95 **6.1 s**) on the oversubscribed
+3-replica setup, with **0% HTTP errors**. A separate **500-VU** `docker stats`
+sample on the same host showed the three backend replicas plus Traefik already
+consuming more than 2 vCPUs of aggregate CPU time. That points to CPU
+backpressure and queueing, not an application-level failure.
 
 This does not change the core connection-budget decision in this ADR:
 
