@@ -282,8 +282,10 @@ describe('SettingsPage', () => {
       await user.click(screen.getByRole('button', { name: /create token/i }))
       const nameInput = await screen.findByLabelText(/token name/i)
       await user.type(nameInput, 'Prometheus Scraper')
-      await user.click(screen.getByLabelText('metrics:read'))
       expect(screen.getByText(/read-only access to prometheus metrics/i)).toBeInTheDocument()
+      const metricsScope = screen.getByRole('checkbox', { name: 'metrics:read' })
+      expect(metricsScope).toHaveAccessibleDescription('Read-only access to Prometheus metrics.')
+      await user.click(metricsScope)
 
       await user.click(screen.getByRole('button', { name: /^create token$/i }))
 

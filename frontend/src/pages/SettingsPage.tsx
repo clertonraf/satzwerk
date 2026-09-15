@@ -364,26 +364,35 @@ export default function SettingsPage() {
             <fieldset className="space-y-2">
               <legend className="text-sm font-medium">Scopes</legend>
               <div className="grid gap-2 md:grid-cols-2">
-                {ALL_SCOPES.map((scope) => (
-                  <label
-                    key={scope}
-                    className="flex cursor-pointer items-start gap-2 rounded-md border border-border p-2 text-sm"
-                  >
-                    <input
-                      type="checkbox"
-                      aria-label={scope}
-                      checked={selectedScopes.has(scope)}
-                      onChange={() => toggleScope(scope)}
-                      className="mt-0.5 rounded"
-                    />
-                    <span className="space-y-0.5">
-                      <span className="block font-medium">{scope}</span>
-                      <span className="block text-xs text-muted-foreground">
-                        {TOKEN_SCOPE_DESCRIPTIONS[scope]}
+                {ALL_SCOPES.map((scope) => {
+                  const scopeId = scope.replace(':', '-')
+                  const labelId = `${scopeId}-label`
+                  const descriptionId = `${scopeId}-description`
+
+                  return (
+                    <label
+                      key={scope}
+                      className="flex cursor-pointer items-start gap-2 rounded-md border border-border p-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        aria-labelledby={labelId}
+                        aria-describedby={descriptionId}
+                        checked={selectedScopes.has(scope)}
+                        onChange={() => toggleScope(scope)}
+                        className="mt-0.5 rounded"
+                      />
+                      <span className="space-y-0.5">
+                        <span id={labelId} className="block font-medium">
+                          {scope}
+                        </span>
+                        <span id={descriptionId} className="block text-xs text-muted-foreground">
+                          {TOKEN_SCOPE_DESCRIPTIONS[scope]}
+                        </span>
                       </span>
-                    </span>
-                  </label>
-                ))}
+                    </label>
+                  )
+                })}
               </div>
             </fieldset>
             {tokenError && <p className="text-sm text-destructive">{tokenError}</p>}
