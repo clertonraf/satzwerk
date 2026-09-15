@@ -7,7 +7,7 @@ import axios from 'axios'
 import SettingsPage from '../SettingsPage'
 import { exportService } from '@/services/exportService'
 import { partnerGrantsApi } from '@/services/partnerGrantsApi'
-import { personalApiTokenService } from '@/services/personalApiTokenService'
+import { ALL_SCOPES, personalApiTokenService } from '@/services/personalApiTokenService'
 
 vi.mock('@/services/exportService', () => ({
   exportService: {
@@ -23,26 +23,20 @@ vi.mock('@/services/partnerGrantsApi', () => ({
   },
 }))
 
-vi.mock('@/services/personalApiTokenService', () => ({
-  personalApiTokenService: {
-    list: vi.fn(),
-    create: vi.fn(),
-    revoke: vi.fn(),
-  },
-  ALL_SCOPES: [
-    'analytics:read',
-    'exercises:read',
-    'exercises:write',
-    'measurements:read',
-    'measurements:write',
-    'medications:read',
-    'medications:write',
-    'plans:read',
-    'plans:write',
-    'sessions:read',
-    'sessions:write',
-  ],
-}))
+vi.mock('@/services/personalApiTokenService', async () => {
+  const actual = await vi.importActual<typeof import('@/services/personalApiTokenService')>(
+    '@/services/personalApiTokenService'
+  )
+
+  return {
+    ...actual,
+    personalApiTokenService: {
+      list: vi.fn(),
+      create: vi.fn(),
+      revoke: vi.fn(),
+    },
+  }
+})
 
 const mockDownload = exportService.downloadExport as ReturnType<typeof vi.fn>
 const mockImport = exportService.importData as ReturnType<typeof vi.fn>
@@ -228,6 +222,10 @@ describe('SettingsPage', () => {
   // ── Personal API Tokens ───────────────────────────────────────────────────
 
   describe('Personal API Tokens section', () => {
+    it('includes metrics:read in the frontend scope catalog', () => {
+      expect(ALL_SCOPES).toContain('metrics:read')
+    })
+
     it('renders the token section heading and create button', async () => {
       mockList.mockResolvedValueOnce([])
       renderPage()
@@ -265,6 +263,38 @@ describe('SettingsPage', () => {
       expect(await screen.findByRole('dialog')).toBeInTheDocument()
       expect(screen.getByLabelText(/token name/i)).toBeInTheDocument()
       expect(screen.getByText('analytics:read')).toBeInTheDocument()
+    })
+
+    it('lists metrics:read with a description and submits it on create', async () => {
+      const user = userEvent.setup()
+      mockList.mockResolvedValueOnce([])
+      mockCreate.mockResolvedValueOnce({
+        id: 'metrics-token-id',
+        name: 'Prometheus Scraper',
+        scopes: ['metrics:read'],
+        createdAt: '2026-09-15T00:00:00Z',
+        lastUsedAt: null,
+        token: 'satzwerk_metricsreadtoken',
+      })
+      mockList.mockResolvedValueOnce([])
+      renderPage()
+
+      await user.click(screen.getByRole('button', { name: /create token/i }))
+      const nameInput = await screen.findByLabelText(/token name/i)
+      await user.type(nameInput, 'Prometheus Scraper')
+      expect(screen.getByText(/read-only access to prometheus metrics/i)).toBeInTheDocument()
+      const metricsScope = screen.getByRole('checkbox', { name: 'metrics:read' })
+      expect(metricsScope).toHaveAccessibleDescription('Read-only access to Prometheus metrics.')
+      await user.click(metricsScope)
+
+      await user.click(screen.getByRole('button', { name: /^create token$/i }))
+
+      await waitFor(() =>
+        expect(mockCreate).toHaveBeenCalledWith({
+          name: 'Prometheus Scraper',
+          scopes: ['metrics:read'],
+        })
+      )
     })
 
     it('displays one-time token value after successful creation', async () => {

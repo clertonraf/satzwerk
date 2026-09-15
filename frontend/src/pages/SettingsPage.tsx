@@ -23,6 +23,21 @@ import {
 import { partnerGrantsApi } from '@/services/partnerGrantsApi'
 import { queryKeys } from '@/services/queryKeys'
 
+const TOKEN_SCOPE_DESCRIPTIONS: Record<TokenScope, string> = {
+  'analytics:read': 'Read-only access to analytics data.',
+  'exercises:read': 'Read-only access to your exercises.',
+  'exercises:write': 'Create and update your exercises.',
+  'metrics:read': 'Read-only access to Prometheus metrics.',
+  'measurements:read': 'Read-only access to body measurements.',
+  'measurements:write': 'Create and update body measurements.',
+  'medications:read': 'Read-only access to medications and medication logs.',
+  'medications:write': 'Create and update medications and medication logs.',
+  'plans:read': 'Read-only access to workout plans.',
+  'plans:write': 'Create and update workout plans.',
+  'sessions:read': 'Read-only access to workout sessions and set logs.',
+  'sessions:write': 'Create and update workout sessions and set logs.',
+}
+
 export default function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [exportError, setExportError] = useState<string | null>(null)
@@ -348,18 +363,36 @@ export default function SettingsPage() {
             </div>
             <fieldset className="space-y-2">
               <legend className="text-sm font-medium">Scopes</legend>
-              <div className="grid grid-cols-2 gap-1">
-                {ALL_SCOPES.map((scope) => (
-                  <label key={scope} className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedScopes.has(scope)}
-                      onChange={() => toggleScope(scope)}
-                      className="rounded"
-                    />
-                    {scope}
-                  </label>
-                ))}
+              <div className="grid gap-2 md:grid-cols-2">
+                {ALL_SCOPES.map((scope) => {
+                  const scopeId = scope.replace(':', '-')
+                  const labelId = `${scopeId}-label`
+                  const descriptionId = `${scopeId}-description`
+
+                  return (
+                    <label
+                      key={scope}
+                      className="flex cursor-pointer items-start gap-2 rounded-md border border-border p-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        aria-labelledby={labelId}
+                        aria-describedby={descriptionId}
+                        checked={selectedScopes.has(scope)}
+                        onChange={() => toggleScope(scope)}
+                        className="mt-0.5 rounded"
+                      />
+                      <span className="space-y-0.5">
+                        <span id={labelId} className="block font-medium">
+                          {scope}
+                        </span>
+                        <span id={descriptionId} className="block text-xs text-muted-foreground">
+                          {TOKEN_SCOPE_DESCRIPTIONS[scope]}
+                        </span>
+                      </span>
+                    </label>
+                  )
+                })}
               </div>
             </fieldset>
             {tokenError && <p className="text-sm text-destructive">{tokenError}</p>}
