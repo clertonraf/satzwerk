@@ -14,14 +14,16 @@ default pooled connection budget from `2 x 10 = 20` to **`3 x 15 = 45`**.
 
 This remains inside the original ADR decision boundary:
 
-- Postgres still ships with `max_connections=150`, so the tuned default leaves
+- Postgres still ships with `max_connections=150`, so that historical 3-replica
+  default leaves
   **105 connections of headroom** for Flyway, administration, metrics scrapes,
   and future services.
 - The PgBouncer deferral logic is unchanged: this is still a modest replica
   count, not the "tens of replicas" scale where a separate pooler becomes worth
   its operational cost.
-- The revisit triggers below still apply unchanged; a default of 3 replicas and
-  pool size 15 does not by itself push the system near those triggers.
+- The revisit triggers below still applied unchanged to that 3-replica
+  configuration; a pool size of 15 at that scale did not by itself push the
+  system near those triggers.
 
 ## Update (#308)
 

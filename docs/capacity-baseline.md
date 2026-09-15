@@ -44,18 +44,20 @@ pool/replica tuning pass from #295, and the replica-default guardrail from
 
 ## Backend replica sizing guardrail (#308)
 
-The Compose default now follows a simple CPU-sizing guardrail:
+The Compose default now follows a two-part CPU-sizing guardrail:
 
-> Keep `BACKEND_REPLICAS × BACKEND_CPU_LIMIT` at or below the host's available
-> vCPU count, then leave extra headroom for Traefik, Postgres, Redis, and the
-> OS.
+> **Hard ceiling:** keep `BACKEND_REPLICAS × BACKEND_CPU_LIMIT` at or below the
+> host's available vCPU count.
+>
+> **Preferred target:** stay below that ceiling whenever possible so Traefik,
+> Postgres, Redis, and the OS still have explicit CPU headroom.
 
 With the shipped defaults, `BACKEND_CPU_LIMIT=1.0`, so each backend replica
 effectively claims one vCPU of budget.
 
 | Host size | Example backend budget | Guidance |
 | --- | --- | --- |
-| **2 vCPU** | `2 × 1.0 = 2.0 vCPU` | **Start with `BACKEND_REPLICAS=2` (shipped default).** This matches the measured baseline host. Do not raise this host class to 3 replicas; if you need more explicit CPU headroom for Traefik, Postgres, Redis, or the OS, lower `BACKEND_CPU_LIMIT` before adding replicas. |
+| **2 vCPU** | `2 × 1.0 = 2.0 vCPU` | **Start with `BACKEND_REPLICAS=2` (shipped default).** This matches the measured baseline host, but it sits at the backend-only hard ceiling. Do not raise this host class to 3 replicas; if you need more explicit CPU headroom for Traefik, Postgres, Redis, or the OS, lower `BACKEND_CPU_LIMIT` before adding replicas. |
 | **4+ vCPU** | `3 × 1.0 = 3.0 vCPU` | **`BACKEND_REPLICAS=3` is a reasonable opt-in.** It leaves at least ~1 vCPU of headroom on a 4 vCPU host for Traefik, Postgres, Redis, and the OS, while preserving the `3 × 15 = 45` Postgres connection budget proven in #295. |
 
 The revert in #308 is based on an oversubscription regression observed after
