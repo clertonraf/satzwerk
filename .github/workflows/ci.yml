@@ -26,6 +26,8 @@ jobs:
           filters: |
             backend:
               - 'backend/**'
+              - 'docker-compose.yml'
+              - 'scripts/**'
               - '.github/workflows/**'
             frontend:
               - 'frontend/**'
@@ -38,6 +40,8 @@ jobs:
     if: needs.changes.outputs.backend == 'true'
     steps:
       - uses: actions/checkout@v4
+      - name: Verify Compose R2DBC pool wiring
+        run: ./scripts/check-compose-r2dbc-pool-wiring.sh
       - uses: actions/setup-java@v4
         with:
           java-version: '21'
