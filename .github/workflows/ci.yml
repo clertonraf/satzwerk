@@ -272,6 +272,16 @@ jobs:
     needs: [publish, release]
     if: always() && needs.publish.result == 'success' && (needs.release.result == 'success' || needs.release.result == 'skipped')
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate checked-out production compose file
+        run: |
+          for required_var in $(grep -oE '\$\{[A-Z0-9_]+\}' docker-compose.yml | tr -d '${}' | sort -u); do
+            export "${required_var}=check"
+          done
+
+          docker compose -f docker-compose.yml config > /dev/null
+
       - name: Redeploy stack on Portainer
         env:
           PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
@@ -303,14 +313,19 @@ jobs:
             exit 1
           fi
 
-          STACK_FILE=$(${CURL_GET} \
+          STACK_ENV=$(${CURL_GET} \
             -H "X-API-Key: ${PORTAINER_TOKEN}" \
-            "${PORTAINER_URL}/api/stacks/${STACK_ID}/file" \
-            | jq -r '.StackFileContent')
+            "${PORTAINER_URL}/api/stacks/${STACK_ID}" \
+            | jq -c '.Env // []')
 
+          # Read the checked-out docker-compose.yml from this workflow commit
+          # instead of re-submitting Portainer's stored stack file. Reusing
+          # Portainer's own saved copy can hide drift when the stored stack
+          # definition falls behind the repo and causes stale production deploys.
           PAYLOAD=$(jq -n \
-            --arg content "${STACK_FILE}" \
-            '{"pullImage": true, "prune": false, "stackFileContent": $content}')
+            --rawfile content docker-compose.yml \
+            --argjson env "${STACK_ENV}" \
+            '{"pullImage": true, "prune": false, "env": $env, "stackFileContent": $content}')
 
           # Trigger the redeploy.  Portainer's stack-update call is synchronous
           # and blocks while Docker pulls the new arm64 images (~2-3 min).
