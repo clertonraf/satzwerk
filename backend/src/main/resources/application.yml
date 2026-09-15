@@ -7,9 +7,9 @@ spring:
     password: ${DB_PASSWORD:satzwerk}
     pool:
       enabled: true
-      # max-size is deliberately capped per instance: with the default 3 backend replicas,
-      # a pool size of 15 reserves at most 45 Postgres connections, leaving headroom under
-      # the shared 150-connection budget for Flyway, health checks, and other clients.
+      # max-size is deliberately capped per instance: with the default 2 backend replicas,
+      # a pool size of 15 reserves 30 Postgres connections, and the documented 3-replica
+      # opt-in still reserves only 45, leaving headroom under the shared 150-connection budget.
       # Raise this only in lockstep with the replica count and Postgres connection budget.
       initial-size: ${R2DBC_POOL_INITIAL_SIZE:5}
       max-size: ${R2DBC_POOL_MAX_SIZE:15}

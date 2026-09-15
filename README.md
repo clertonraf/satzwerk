@@ -24,13 +24,16 @@ across all `backend` replicas (see `BACKEND_REPLICAS` below).
 
 ```bash
 cp .env.example .env
-# Set BACKEND_REPLICAS (default 3), strong DB_PASSWORD and JWT_SECRET
+# Set BACKEND_REPLICAS (default 2), strong DB_PASSWORD and JWT_SECRET
 docker compose -f docker-compose.yml up -d
 ```
 
 Traefik load-balances requests across `BACKEND_REPLICAS` backend instances over
 plain HTTP; it does not currently terminate TLS. Put a TLS-terminating reverse
 proxy or managed load balancer in front of this stack for public production use.
+The shipped Compose default is `BACKEND_REPLICAS=2`; see
+`docs/capacity-baseline.md` before opting into `BACKEND_REPLICAS=3` on hosts
+with more CPU headroom.
 
 ## Development (without Docker)
 

@@ -5,7 +5,7 @@ services:
     platform: linux/arm64
     restart: unless-stopped
     # Connection budget sized for (backend replicas x R2DBC pool max-size) + headroom.
-    # The default 3 x 15 backend pool budget reserves 45 of the 150 available connections.
+    # The default 2 x 15 backend pool budget reserves 30 of the 150 available connections.
     # See docs/adr/0005-postgres-connection-budget.md for the full rationale.
     command: ["postgres", "-c", "max_connections=${POSTGRES_MAX_CONNECTIONS:-150}", "-c", "shared_buffers=${POSTGRES_SHARED_BUFFERS:-256MB}"]
     environment:
@@ -52,7 +52,9 @@ services:
     # route to this service directly (e.g. nginx `proxy_pass http://backend:8080`) —
     # plain Docker DNS resolution is cached and does not rebalance across replicas.
     deploy:
-      replicas: ${BACKEND_REPLICAS:-3}
+      # The shipped default matches the documented 2 vCPU host baseline.
+      # See docs/capacity-baseline.md before opting into 3 replicas on larger hosts.
+      replicas: ${BACKEND_REPLICAS:-2}
       resources:
         # Keep memory.limit in sync with the -Xmx/-XX:MaxMetaspaceSize flags
         # baked into backend/Dockerfile (JAVA_OPTS) — the JVM needs headroom

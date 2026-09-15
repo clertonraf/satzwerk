@@ -1,8 +1,9 @@
 # Backend capacity baseline (resource-constrained)
 
 Records the local capacity baseline for the resource-constrained Docker stack
-after explicit container limits (#286), Prometheus pool metrics (#294), and the
-pool/replica tuning pass from #295.
+after explicit container limits (#286), Prometheus pool metrics (#294), the
+pool/replica tuning pass from #295, and the replica-default guardrail from
+#308.
 
 ## Test environment and method
 
@@ -24,24 +25,58 @@ pool/replica tuning pass from #295.
   `r2dbc_pool_max_allocated_connections` were scraped every 3 seconds from each
   backend replica's `/actuator/prometheus` endpoint and summed per sample.
 
-## Tuned default configuration
+## Shipped configuration and 3-replica opt-in
 
 - `docker-compose.yml` `backend.deploy.resources.limits`: `cpus: 1.0`,
   `memory: 768M` (per replica), reservations `cpus: 0.5`, `memory: 512M`.
 - JVM flags baked into `backend/Dockerfile` via `JAVA_OPTS`:
   `-XX:+UseContainerSupport -Xms256m -Xmx512m -XX:MaxMetaspaceSize=128m`.
 - **R2DBC pool `max-size=15` per backend replica** (#295).
-- **3 backend replicas behind Traefik by default** (#295).
-- Postgres `max_connections=150` (#284), so the default backend pool budget is
-  `3 × 15 = 45` connections, leaving **105 connections of headroom** for
+- **2 backend replicas behind Traefik by default** (#308), which matches the
+  2 vCPU host class used to tune the local baseline.
+- **`BACKEND_REPLICAS=3` is an explicit opt-in** for larger hosts, not the
+  shipped default.
+- Postgres `max_connections=150` (#284), so the shipped backend pool budget is
+  `2 × 15 = 30` connections, leaving **120 connections of headroom** for
   Flyway, health checks, PAT/JWT-authenticated Prometheus scrapes, and other
-  non-backend clients.
+  non-backend clients. Opting into 3 replicas raises that backend budget to
+  `3 × 15 = 45`, which still fits comfortably inside the same Postgres budget.
 
-## Documented local write-throughput SLO
+## Backend replica sizing guardrail (#308)
 
-For the resource-constrained self-hosted baseline above, Satzwerk should
-support **40 concurrent write-heavy API clients** against the existing k6 mixed
-scenario with:
+The Compose default now follows a two-part CPU-sizing guardrail:
+
+> **Hard ceiling:** keep `BACKEND_REPLICAS × BACKEND_CPU_LIMIT` at or below the
+> host's available vCPU count.
+>
+> **Preferred target:** stay below that ceiling whenever possible so Traefik,
+> Postgres, Redis, and the OS still have explicit CPU headroom.
+
+With the shipped defaults, `BACKEND_CPU_LIMIT=1.0`, so each backend replica
+effectively claims one vCPU of budget.
+
+| Host size | Example backend budget | Guidance |
+| --- | --- | --- |
+| **2 vCPU** | `2 × 1.0 = 2.0 vCPU` | **Start with `BACKEND_REPLICAS=2` (shipped default).** This matches the measured baseline host, but it sits at the backend-only hard ceiling. Do not raise this host class to 3 replicas; if you need more explicit CPU headroom for Traefik, Postgres, Redis, or the OS, lower `BACKEND_CPU_LIMIT` before adding replicas. |
+| **4+ vCPU** | `3 × 1.0 = 3.0 vCPU` | **`BACKEND_REPLICAS=3` is a reasonable opt-in.** It leaves at least ~1 vCPU of headroom on a 4 vCPU host for Traefik, Postgres, Redis, and the OS, while preserving the `3 × 15 = 45` Postgres connection budget proven in #295. |
+
+The revert in #308 is based on an oversubscription regression observed after
+shipping the 3-replica default on the same 2 vCPU host class. At **1,500 VUs**
+on the read endpoint, throughput collapsed from the original **2-replica
+baseline** of **2,435 req/s** (p95 **511 ms**) to **381 req/s** (p95
+**6.1 s**) with **0% HTTP errors** when the host was forced to run
+**3 replicas × 1.0 CPU**. During a separate **500-VU** `docker stats` sample of
+that topology, each backend replica was already using about **45-49% CPU** and
+Traefik was around **28% CPU**, leaving little headroom before Postgres, Redis,
+and the OS were counted. That is consistent with host-level CPU backpressure
+rather than an application failure.
+
+## Historical 3-replica tuning results on the 2-vCPU baseline host
+
+Before #308 reverted the default, issue #295 recorded the following 3-replica /
+pool-15 mixed-workload result on the same 2 vCPU baseline host: Satzwerk
+supported **40 concurrent write-heavy API clients** against the existing k6
+mixed scenario with:
 
 - `http_req_failed = 0%`
 - aggregated `r2dbc_pool_pending_connections` staying effectively at zero
@@ -49,13 +84,13 @@ scenario with:
 - p95 request latency staying below the **1.5s ad-hoc saturation ceiling used
   for this local study** (`http_req_duration p95 ≈ 1.18s`)
 
-This is the recorded local SLO because it was the highest observed load that
-met all three criteria above at once: 0% errors, near-zero pool queueing, and
-the study's 1.5s latency ceiling. At **50** concurrent clients, the same
-3-replica / pool-15 setup still stayed error-free with zero pending samples,
-but crossed the latency ceiling (`p95 ≈ 1.55s`), so 50 is better treated as
-the beginning of saturation for this local study rather than the default target
-for a modest self-hosted gym tracker.
+This is the recorded local SLO for that historical study because it was the
+highest observed load that met all three criteria above at once: 0% errors,
+near-zero pool queueing, and the study's 1.5s latency ceiling. At **50**
+concurrent clients, the same 3-replica / pool-15 setup still stayed error-free
+with zero pending samples, but crossed the latency ceiling (`p95 ≈ 1.55s`), so
+50 is better treated as the beginning of saturation for that historical
+configuration.
 
 ## Relation to the repo's actual CI perf gate
 
@@ -78,10 +113,11 @@ That difference matters:
 There is also a topology difference: `.github/workflows/perf.yml` currently runs
 the same `perf/stress.js` script on a GitHub-hosted runner against a Compose
 stack forced to **`BACKEND_REPLICAS=1`** via `.env` plus
-`docker-compose.override.yml`, so it does **not** exercise the same 3-replica
-resource-constrained topology measured here. I did not re-run that CI workflow
-after changing the defaults, so whether the workflow currently passes with the
-new pool default in its single-replica setup remains an open verification gap.
+`docker-compose.override.yml`, so it does **not** exercise the same explicit
+3-replica resource-constrained topology measured here. I did not re-run that CI
+workflow after changing the defaults, so whether the workflow currently passes
+with the new pool default in its single-replica setup remains an open
+verification gap.
 
 ## Measured combinations
 
@@ -97,7 +133,7 @@ on the 2 vCPU / 4 GiB Colima VM described above.
 | 10 × 3 | 40 | 74.0 | 1.23 s | 0.00% | 0.2 / 2 | 24 / 30 | Third replica helps; still slower than 15 × 3. |
 | 15 × 3 | 20 | 56.7 | 449 ms | 0.00% | 0.1 / 1 | 8 / 45 | Last measured point that stayed under the CI mixed-scenario 500 ms p95 gate. |
 | 15 × 3 | 25 | 67.4 | 529 ms | 0.00% | 0.0 / 0 | 11 / 45 | First measured point above the CI mixed-scenario 500 ms p95 gate. |
-| **15 × 3 (chosen default)** | **40** | **78.8** | **1.18 s** | **0.00%** | **0.2 / 2** | **23 / 45** | Best balance of throughput, latency, and near-zero pending connections. |
+| **15 × 3 (historical 3-replica default)** | **40** | **78.8** | **1.18 s** | **0.00%** | **0.2 / 2** | **23 / 45** | Best balance within the original 2-vCPU tuning study, but not the current recommendation for that host size after #308. |
 | 15 × 3 | 50 | 81.2 | 1.55 s | 0.00% | 0.0 / 0 | 38 / 45 | Error-free, but over this study's 1.5s saturation ceiling. |
 
 ## What was verified locally
@@ -109,11 +145,11 @@ on the 2 vCPU / 4 GiB Colima VM described above.
   honors the explicit flags: `MaxHeapSize=536870912` (512MB),
   `InitialHeapSize=268435456` (256MB), `MaxMetaspaceSize=134217728` (128MB),
   `UseContainerSupport=true`.
-- All three tuned-default replicas started and passed `/actuator/health`
+- All three historically tested replicas started and passed `/actuator/health`
   checks together with Postgres and Traefik.
 - The prior doc's **unestablished-number gap for this local
   resource-constrained baseline** is now replaced with a real measured SLO and
-  saturation table for the shipped default config. The separate
+  saturation table for the historical 3-replica / pool-15 config. The separate
   high-infrastructure 8,000-VU / full-infra exercise remains tracked by #297
   and was not attempted here.
 
@@ -121,7 +157,7 @@ on the 2 vCPU / 4 GiB Colima VM described above.
 
 The table above closes the gap for the **resource-constrained 2 vCPU / 4 GiB**
 local baseline, but it does **not** establish the true write-failure ceiling for
-the shipped **3 backend replicas / pool max-size 15** topology. The earlier
+the explicit **3 backend replicas / pool max-size 15** topology. The earlier
 attempt to ramp this workload toward **8,000 VUs** never reached an
 application-level failure point because the **host VM** OOM-killed the k6
 harness first (`exit 137`) at roughly **2,000-2,700 VUs**.
@@ -371,7 +407,7 @@ triple-digit regression, but it also does not demonstrate the intended benefit.
 
 To measure the scenario issue #296 actually targets, I added
 `perf/read-cache-under-write-contention.js` and reran the comparison against
-the default **3-backend-replica** topology with simultaneous read and write
+the explicit **3-backend-replica** topology with simultaneous read and write
 traffic.
 
 #### Method
