@@ -53,7 +53,7 @@ The Compose default now follows a simple CPU-sizing guardrail:
 With the shipped defaults, `BACKEND_CPU_LIMIT=1.0`, so each backend replica
 effectively claims one vCPU of budget.
 
-| Host size | Backend budget with shipped defaults | Guidance |
+| Host size | Example backend budget | Guidance |
 | --- | --- | --- |
 | **2 vCPU** | `2 × 1.0 = 2.0 vCPU` | **Start with `BACKEND_REPLICAS=2` (shipped default).** This matches the measured baseline host. Do not raise this host class to 3 replicas; if you need more explicit CPU headroom for Traefik, Postgres, Redis, or the OS, lower `BACKEND_CPU_LIMIT` before adding replicas. |
 | **4+ vCPU** | `3 × 1.0 = 3.0 vCPU` | **`BACKEND_REPLICAS=3` is a reasonable opt-in.** It leaves at least ~1 vCPU of headroom on a 4 vCPU host for Traefik, Postgres, Redis, and the OS, while preserving the `3 × 15 = 45` Postgres connection budget proven in #295. |
@@ -65,14 +65,16 @@ baseline** of **2,435 req/s** (p95 **511 ms**) to **381 req/s** (p95
 **6.1 s**) with **0% HTTP errors** when the host was forced to run
 **3 replicas × 1.0 CPU**. During a separate **500-VU** `docker stats` sample of
 that topology, each backend replica was already using about **45-49% CPU** and
-Traefik was around **28% CPU**, which is consistent with host-level CPU
-oversubscription rather than an application failure.
+Traefik was around **28% CPU**, leaving little headroom before Postgres, Redis,
+and the OS were counted. That is consistent with host-level CPU backpressure
+rather than an application failure.
 
-## Documented local write-throughput SLO for the 3-replica opt-in topology
+## Historical 3-replica tuning results on the 2-vCPU baseline host
 
-For the explicit 3-replica / pool-15 topology measured in #295, Satzwerk should
-support **40 concurrent write-heavy API clients** against the existing k6 mixed
-scenario with:
+Before #308 reverted the default, issue #295 recorded the following 3-replica /
+pool-15 mixed-workload result on the same 2 vCPU baseline host: Satzwerk
+supported **40 concurrent write-heavy API clients** against the existing k6
+mixed scenario with:
 
 - `http_req_failed = 0%`
 - aggregated `r2dbc_pool_pending_connections` staying effectively at zero
@@ -80,13 +82,13 @@ scenario with:
 - p95 request latency staying below the **1.5s ad-hoc saturation ceiling used
   for this local study** (`http_req_duration p95 ≈ 1.18s`)
 
-This is the recorded local SLO because it was the highest observed load that
-met all three criteria above at once: 0% errors, near-zero pool queueing, and
-the study's 1.5s latency ceiling. At **50** concurrent clients, the same
-3-replica / pool-15 setup still stayed error-free with zero pending samples,
-but crossed the latency ceiling (`p95 ≈ 1.55s`), so 50 is better treated as
-the beginning of saturation for this local study rather than the default target
-for the 3-replica opt-in topology.
+This is the recorded local SLO for that historical study because it was the
+highest observed load that met all three criteria above at once: 0% errors,
+near-zero pool queueing, and the study's 1.5s latency ceiling. At **50**
+concurrent clients, the same 3-replica / pool-15 setup still stayed error-free
+with zero pending samples, but crossed the latency ceiling (`p95 ≈ 1.55s`), so
+50 is better treated as the beginning of saturation for that historical
+configuration.
 
 ## Relation to the repo's actual CI perf gate
 
@@ -129,7 +131,7 @@ on the 2 vCPU / 4 GiB Colima VM described above.
 | 10 × 3 | 40 | 74.0 | 1.23 s | 0.00% | 0.2 / 2 | 24 / 30 | Third replica helps; still slower than 15 × 3. |
 | 15 × 3 | 20 | 56.7 | 449 ms | 0.00% | 0.1 / 1 | 8 / 45 | Last measured point that stayed under the CI mixed-scenario 500 ms p95 gate. |
 | 15 × 3 | 25 | 67.4 | 529 ms | 0.00% | 0.0 / 0 | 11 / 45 | First measured point above the CI mixed-scenario 500 ms p95 gate. |
-| **15 × 3 (documented opt-in)** | **40** | **78.8** | **1.18 s** | **0.00%** | **0.2 / 2** | **23 / 45** | Best balance of throughput, latency, and near-zero pending connections for the 3-replica host budget. |
+| **15 × 3 (historical 3-replica default)** | **40** | **78.8** | **1.18 s** | **0.00%** | **0.2 / 2** | **23 / 45** | Best balance within the original 2-vCPU tuning study, but not the current recommendation for that host size after #308. |
 | 15 × 3 | 50 | 81.2 | 1.55 s | 0.00% | 0.0 / 0 | 38 / 45 | Error-free, but over this study's 1.5s saturation ceiling. |
 
 ## What was verified locally
@@ -141,11 +143,11 @@ on the 2 vCPU / 4 GiB Colima VM described above.
   honors the explicit flags: `MaxHeapSize=536870912` (512MB),
   `InitialHeapSize=268435456` (256MB), `MaxMetaspaceSize=134217728` (128MB),
   `UseContainerSupport=true`.
-- All three explicit opt-in replicas started and passed `/actuator/health`
+- All three historically tested replicas started and passed `/actuator/health`
   checks together with Postgres and Traefik.
 - The prior doc's **unestablished-number gap for this local
   resource-constrained baseline** is now replaced with a real measured SLO and
-  saturation table for the explicit 3-replica opt-in config. The separate
+  saturation table for the historical 3-replica / pool-15 config. The separate
   high-infrastructure 8,000-VU / full-infra exercise remains tracked by #297
   and was not attempted here.
 

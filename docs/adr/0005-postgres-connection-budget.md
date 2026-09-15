@@ -8,7 +8,7 @@ a conservative per-instance `max-size` of 10. This ADR sizes Postgres's
 
 ## Update (#295)
 
-Issue #295 tuned the shipped defaults from `max-size=10` / `2` replicas to
+At the time, issue #295 tuned the shipped defaults from `max-size=10` / `2` replicas to
 `max-size=15` / `3` replicas after a local saturation study. That changes the
 default pooled connection budget from `2 x 10 = 20` to **`3 x 15 = 45`**.
 
@@ -35,9 +35,10 @@ Redis, and the OS were counted, so the host was oversubscribed. At
 **1,500 VUs**, throughput collapsed from **2,435 req/s** (p95 **511 ms**) on
 the 2-replica baseline to **381 req/s** (p95 **6.1 s**) on the oversubscribed
 3-replica setup, with **0% HTTP errors**. A separate **500-VU** `docker stats`
-sample on the same host showed the three backend replicas plus Traefik already
-consuming more than 2 vCPUs of aggregate CPU time. That points to CPU
-backpressure and queueing, not an application-level failure.
+sample on the same host showed the three backend replicas already using about
+45-49% CPU each, with Traefik around 28% CPU, leaving little headroom before
+Postgres, Redis, and the OS were counted. That points to CPU backpressure and
+queueing, not an application-level failure.
 
 This does not change the core connection-budget decision in this ADR:
 
