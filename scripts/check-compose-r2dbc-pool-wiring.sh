@@ -26,10 +26,11 @@ render_pool_size() {
   local override_value=${1-}
 
   if [ -n "$override_value" ]; then
-    DB_PASSWORD=check JWT_SECRET=check R2DBC_POOL_MAX_SIZE="$override_value" \
+    COMPOSE_DISABLE_ENV_FILE=1 DB_PASSWORD=check JWT_SECRET=check R2DBC_POOL_MAX_SIZE="$override_value" \
       docker compose -f "$COMPOSE_FILE" config --format json
   else
-    DB_PASSWORD=check JWT_SECRET=check docker compose -f "$COMPOSE_FILE" config --format json
+    env -u R2DBC_POOL_MAX_SIZE COMPOSE_DISABLE_ENV_FILE=1 DB_PASSWORD=check JWT_SECRET=check \
+      docker compose -f "$COMPOSE_FILE" config --format json
   fi | python3 -c 'import json, sys
 data = json.load(sys.stdin)
 services = data.get("services", {})
