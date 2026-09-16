@@ -31,7 +31,12 @@ services:
       retries: 5
 
   traefik:
-    image: traefik:v3.3
+    # v3.3's Docker provider hardcodes an old (1.24) Docker API client version;
+    # Docker Engine 29+ raised its minimum supported API version to 1.40 and
+    # rejects it outright ("client version 1.24 is too old"), breaking all
+    # container discovery. Fixed upstream in v3.6.1 (negotiates dynamically).
+    # See https://github.com/traefik/traefik/issues/12270.
+    image: traefik:v3.6
     platform: linux/arm64
     restart: unless-stopped
     command:
@@ -118,6 +123,13 @@ services:
     image: ghcr.io/clertonraf/satzwerk-parser:latest
     platform: linux/arm64
     restart: unless-stopped
+    # Required per the satzwerk-parser README — the service refuses to start
+    # without CONNECTION_SESSION_SECRET (min 32 chars). This was previously
+    # undeclared here, so the service could only work if started/managed
+    # outside this compose file with the var set some other way.
+    environment:
+      CONNECTION_SESSION_SECRET: ${CONNECTION_SESSION_SECRET}
+      CONNECTION_SESSION_TTL_SECONDS: ${CONNECTION_SESSION_TTL_SECONDS:-900}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || curl -sf http://localhost:8080/actuator/health || exit 0"]
       interval: 15s
