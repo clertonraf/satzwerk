@@ -78,10 +78,18 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"
       - "traefik.http.routers.backend.entrypoints=web"
+      # #327 fail-fast guardrail: the 3-replica write-saturation study stayed
+      # error-free at 250 VUs (~153 req/s) and first failed at 500 VUs, so cap
+      # sustained ingress well below that ceiling and keep the burst aligned to
+      # the shipped 2-replica pool budget (2 × 15 = 30 connections).
+      - "traefik.http.routers.backend.middlewares=backend-ratelimit@docker"
       - "traefik.http.routers.backend.service=backend"
       - "traefik.http.routers.backend-metrics.rule=Path(`/actuator/prometheus`)"
       - "traefik.http.routers.backend-metrics.entrypoints=metrics"
       - "traefik.http.routers.backend-metrics.service=backend"
+      - "traefik.http.middlewares.backend-ratelimit.ratelimit.average=80"
+      - "traefik.http.middlewares.backend-ratelimit.ratelimit.burst=30"
+      - "traefik.http.middlewares.backend-ratelimit.ratelimit.sourcecriterion.requesthost=true"
       - "traefik.http.services.backend.loadbalancer.server.port=8080"
     environment:
       SPRING_PROFILES_ACTIVE: prod

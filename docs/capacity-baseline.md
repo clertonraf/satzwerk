@@ -378,6 +378,49 @@ harness died around 2,700 VUs on a 4 GiB VM; that failure mode is now closed).
   with a larger pool will measure the real application response, not another
   host-resource artifact.
 
+## Traefik fail-fast guardrail on the backend router (#327)
+
+`docker-compose.yml` now attaches a dedicated Traefik rate-limit middleware to
+the public `/api` router:
+
+- `traefik.http.middlewares.backend-ratelimit.ratelimit.average=80`
+- `traefik.http.middlewares.backend-ratelimit.ratelimit.burst=30`
+- `traefik.http.middlewares.backend-ratelimit.ratelimit.sourcecriterion.requesthost=true`
+
+The math is intentionally conservative:
+
+- The last fully stable write-saturation stage admitted **6,865 requests in 45
+  seconds at 250 VUs**, i.e. `6865 / 45 ≈ 152.6 req/s`, with **0% failures**.
+- The first failing stage admitted **7,823 requests in 45 seconds at 500 VUs**,
+  i.e. `7823 / 45 ≈ 173.8 req/s`, and already produced **1.94% failures** from
+  pool-acquire timeouts.
+- The shipped Traefik gate therefore caps sustained ingress at **80 req/s**,
+  which is about **52%** of the last stable stage throughput and about **46%**
+  of the first failing stage throughput. That is deliberately well below the
+  measured knee so overload is rejected at the edge instead of being forwarded
+  into the R2DBC pool's 3-second acquire timeout.
+- The **30-request burst** matches the shipped default backend pool budget
+  behind the route (`2 backend replicas × 15 R2DBC connections = 30`). This
+  still allows short legitimate spikes, but it avoids letting one
+  instantaneous burst inject more write-heavy work than the default backend
+  topology can plausibly service immediately.
+
+`sourceCriterion.requestHost=true` is also deliberate. Traefik's default rate
+limit source is the remote client IP, which would create one bucket per caller.
+For Satzwerk's single public API host that is the wrong overload guardrail: the
+problem in #309 was **aggregate** router-to-backend pressure. Grouping by
+request host makes all traffic for the public API hostname share the same
+bucket, so the middleware sheds load for the whole backend route rather than
+only throttling whichever individual client happens to be the noisiest.
+
+Operationally, once the shared bucket is empty Traefik now returns **HTTP 429
+Too Many Requests** at the edge on `/api` instead of forwarding the request
+into backend pool exhaustion. Issue #325's backend-side `503` mapping is still
+complementary when it is present, because any requests that do reach a fully
+exhausted pool surface as `503 Service Unavailable` instead of a generic `500`,
+but the primary goal here is to make overload fail fast *before* the request
+spends the full `R2DBC_POOL_MAX_ACQUIRE_TIME` in queue.
+
 ## Observing pool saturation via Prometheus metrics
 
 When running a local or CI k6 load test against this baseline, scrape the
