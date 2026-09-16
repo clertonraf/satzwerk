@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import axios from 'axios'
@@ -12,8 +12,6 @@ vi.mock('@/services/authService', () => ({
     login: vi.fn(),
   },
 }))
-
-const mockLogin = authService.login as ReturnType<typeof vi.fn>
 
 function makeAxiosError(status: number | null, data?: unknown, hasRequest = true) {
   const err = new axios.AxiosError('error', undefined, undefined, hasRequest ? {} : undefined, status !== null
@@ -29,9 +27,15 @@ async function submitForm(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('LoginPage', () => {
+  beforeEach(() => {
+    vi.mocked(authService.login).mockReset()
+    useAuthStore.setState({ accessToken: null, csrfToken: null, user: null, isRestoring: false })
+    localStorage.clear()
+  })
+
   afterEach(() => {
-    useAuthStore.setState({ accessToken: null, user: null })
-    localStorage.removeItem('refreshToken')
+    useAuthStore.setState({ accessToken: null, csrfToken: null, user: null, isRestoring: false })
+    localStorage.clear()
     vi.clearAllMocks()
   })
 
@@ -45,6 +49,28 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/password/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /log in/i })).toBeInTheDocument()
+  })
+
+  it('stores the access token and csrf token in memory after login', async () => {
+    const user = userEvent.setup()
+    vi.mocked(authService.login).mockResolvedValueOnce({
+      accessToken: 'access-token',
+      csrfToken: 'csrf-token',
+    })
+
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    )
+
+    await submitForm(user)
+
+    await waitFor(() => {
+      expect(useAuthStore.getState().accessToken).toBe('access-token')
+      expect(useAuthStore.getState().csrfToken).toBe('csrf-token')
+      expect(localStorage.getItem('refreshToken')).toBeNull()
+    })
   })
 
   it('shows validation error for invalid email', async () => {
@@ -64,7 +90,7 @@ describe('LoginPage', () => {
 
   it('shows "Incorrect email or password" on 401', async () => {
     const user = userEvent.setup()
-    mockLogin.mockRejectedValueOnce(makeAxiosError(401))
+    vi.mocked(authService.login).mockRejectedValueOnce(makeAxiosError(401))
 
     render(<MemoryRouter><LoginPage /></MemoryRouter>)
     await submitForm(user)
@@ -74,7 +100,7 @@ describe('LoginPage', () => {
 
   it('shows connectivity message on network error (no response)', async () => {
     const user = userEvent.setup()
-    mockLogin.mockRejectedValueOnce(makeAxiosError(null, undefined, true))
+    vi.mocked(authService.login).mockRejectedValueOnce(makeAxiosError(null, undefined, true))
 
     render(<MemoryRouter><LoginPage /></MemoryRouter>)
     await submitForm(user)
@@ -84,7 +110,7 @@ describe('LoginPage', () => {
 
   it('shows generic message on Axios error with no response and no request (setup/cancellation error)', async () => {
     const user = userEvent.setup()
-    mockLogin.mockRejectedValueOnce(makeAxiosError(null, undefined, false))
+    vi.mocked(authService.login).mockRejectedValueOnce(makeAxiosError(null, undefined, false))
 
     render(<MemoryRouter><LoginPage /></MemoryRouter>)
     await submitForm(user)
@@ -94,7 +120,7 @@ describe('LoginPage', () => {
 
   it('shows rate-limit message on 429', async () => {
     const user = userEvent.setup()
-    mockLogin.mockRejectedValueOnce(makeAxiosError(429))
+    vi.mocked(authService.login).mockRejectedValueOnce(makeAxiosError(429))
 
     render(<MemoryRouter><LoginPage /></MemoryRouter>)
     await submitForm(user)
@@ -104,7 +130,7 @@ describe('LoginPage', () => {
 
   it('shows server-error message on 500', async () => {
     const user = userEvent.setup()
-    mockLogin.mockRejectedValueOnce(makeAxiosError(500))
+    vi.mocked(authService.login).mockRejectedValueOnce(makeAxiosError(500))
 
     render(<MemoryRouter><LoginPage /></MemoryRouter>)
     await submitForm(user)
@@ -114,7 +140,7 @@ describe('LoginPage', () => {
 
   it('shows server-error message on 503', async () => {
     const user = userEvent.setup()
-    mockLogin.mockRejectedValueOnce(makeAxiosError(503))
+    vi.mocked(authService.login).mockRejectedValueOnce(makeAxiosError(503))
 
     render(<MemoryRouter><LoginPage /></MemoryRouter>)
     await submitForm(user)
@@ -124,7 +150,7 @@ describe('LoginPage', () => {
 
   it('shows backend message on other HTTP error when message is present', async () => {
     const user = userEvent.setup()
-    mockLogin.mockRejectedValueOnce(makeAxiosError(422, { message: 'Account suspended' }))
+    vi.mocked(authService.login).mockRejectedValueOnce(makeAxiosError(422, { message: 'Account suspended' }))
 
     render(<MemoryRouter><LoginPage /></MemoryRouter>)
     await submitForm(user)
@@ -134,7 +160,7 @@ describe('LoginPage', () => {
 
   it('shows generic message on other HTTP error when no backend message', async () => {
     const user = userEvent.setup()
-    mockLogin.mockRejectedValueOnce(makeAxiosError(422, {}))
+    vi.mocked(authService.login).mockRejectedValueOnce(makeAxiosError(422, {}))
 
     render(<MemoryRouter><LoginPage /></MemoryRouter>)
     await submitForm(user)

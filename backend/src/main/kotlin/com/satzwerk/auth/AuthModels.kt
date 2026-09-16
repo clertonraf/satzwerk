@@ -20,19 +20,15 @@ data class LoginRequest(
     val password: String,
 )
 
-data class RefreshRequest(
-    @field:NotBlank
-    val refreshToken: String,
-)
-
 data class AuthResponse(
     val accessToken: String,
-    val refreshToken: String,
+    val csrfToken: String,
 )
 
 data class TokenPair(
     val accessToken: String,
     val refreshToken: String,
+    val csrfToken: String,
 )
 
 class DuplicateEmailException(email: String) : RuntimeException("User already exists for email: $email")

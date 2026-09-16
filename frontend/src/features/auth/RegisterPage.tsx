@@ -3,7 +3,6 @@ import { isAxiosError } from 'axios'
 import { useForm } from 'react-hook-form'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
-import { tokenService } from '@/services/tokenService'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -27,6 +26,7 @@ type RegisterFormValues = z.infer<typeof registerSchema>
 export default function RegisterPage() {
   const accessToken = useAuthStore((state) => state.accessToken)
   const setAccessToken = useAuthStore((state) => state.setAccessToken)
+  const setCsrfToken = useAuthStore((state) => state.setCsrfToken)
   const navigate = useNavigate()
   const {
     register,
@@ -50,7 +50,7 @@ export default function RegisterPage() {
     try {
       const response = await authService.register(values)
       setAccessToken(response.accessToken)
-      tokenService.saveRefreshToken(response.refreshToken)
+      setCsrfToken(response.csrfToken)
       navigate('/', { replace: true })
     } catch (error) {
       if (isAxiosError(error) && error.response?.status === 409) {

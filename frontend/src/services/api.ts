@@ -1,8 +1,9 @@
 import axios, { type AxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/store/auth'
+import { authService } from '@/services/authService'
 import { tokenService } from '@/services/tokenService'
 
-export const api = axios.create({ baseURL: '/api' })
+export const api = axios.create({ baseURL: '/api', withCredentials: true })
 
 api.interceptors.request.use((config) => {
   const token = tokenService.getAccessToken()
@@ -53,21 +54,17 @@ api.interceptors.response.use(
 
     original._retry = true
     isRefreshing = true
+    original.headers ??= {}
 
     try {
-      const refreshToken = tokenService.getRefreshToken()
-
-      if (!refreshToken) {
-        throw new Error('No refresh token')
-      }
-
-      const { data } = await axios.post('/api/auth/refresh', { refreshToken })
+      const data = await authService.refresh()
       useAuthStore.getState().setAccessToken(data.accessToken)
-      tokenService.saveRefreshToken(data.refreshToken)
+      useAuthStore.getState().setCsrfToken(data.csrfToken)
       flushQueue(null, data.accessToken)
       original.headers.Authorization = `Bearer ${data.accessToken}`
       return api(original)
     } catch (refreshError) {
+      await authService.logout().catch(() => undefined)
       flushQueue(refreshError)
       useAuthStore.getState().logout()
       throw refreshError
