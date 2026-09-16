@@ -414,8 +414,10 @@ To run Prometheus on that same network, use the committed
 `docker-compose.monitoring.yml` overlay plus
 `monitoring/prometheus/prometheus.yml`. The scrape config uses
 `bearer_token_file` so the long-lived PAT never needs to be inlined into
-Compose or the Prometheus config. The overlay mounts that file into the
-Prometheus container as a Compose secret at `/run/secrets/metrics-pat`:
+Compose or the Prometheus config. The overlay mounts both
+`monitoring/prometheus/prometheus.yml` and
+`monitoring/prometheus/alerts.yml` into the Prometheus container, while the
+PAT itself is mounted as a Compose secret at `/run/secrets/metrics-pat`:
 
 ```yaml
 scrape_configs:
@@ -499,6 +501,32 @@ During a healthy run, `r2dbc.pool.pending` should stay near zero and
 pending requests climb and stay high while `http.server.requests` latency
 degrades, treat that as evidence that the pool is saturated before adjusting
 any sizing values.
+
+The committed Prometheus rules in `monitoring/prometheus/alerts.yml` turn that
+guidance into proactive alerts. Because the production scrape path is the
+load-balanced `traefik:8082` endpoint, the rules use a 5-minute lookback window
+with a **6-sample threshold** instead of plain `for: 5m`: that tolerates
+round-robin scrapes alternating between replicas while still requiring repeated
+over-threshold observations before firing.
+
+- `R2DBCPoolPendingSustained` (`warning`): fires when
+  `sum_over_time((r2dbc_pool_pending_connections > bool 0)[5m:15s]) >= 6`.
+  Issue #309 showed that sustained waiters are the earliest real-time signal
+  that the pool is already saturated, so this warning should trigger immediate
+  investigation even before request failures spike.
+- `R2DBCPoolNearSaturation` (`critical`): fires when
+  `sum_over_time(((r2dbc_pool_acquired_connections /
+  clamp_min(r2dbc_pool_max_allocated_connections, 1)) > bool 0.9)[5m:15s]) >=
+  6`. The 90% threshold gives operators time to react before the pool fully
+  exhausts and pending waiters climb.
+
+When either alert fires, first confirm the current request pattern via
+`http_server_requests_seconds*`, then inspect recent deploys, load tests, or
+background jobs that might be driving write pressure. If the load is expected,
+scale backend replicas and/or raise the database pool ceiling only after
+confirming the database itself still has headroom; otherwise, reduce or pause
+the offending traffic source before users start seeing connection-acquisition
+failures.
 
 ## Redis read-cache A/B baseline for issue #296
 
