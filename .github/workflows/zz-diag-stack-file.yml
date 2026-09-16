@@ -1,0 +1,26 @@
+name: Diagnose Portainer stack file (read-only)
+on:
+  workflow_dispatch:
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch and inspect stack file (no secrets printed)
+        env:
+          PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
+          PORTAINER_TOKEN: ${{ secrets.PORTAINER_TOKEN }}
+        run: |
+          set -euo pipefail
+          CURL_GET="curl -fsSL --max-time 30 --retry 3 --retry-delay 10 --retry-connrefused"
+          ENDPOINT_ID=$(${CURL_GET} -H "X-API-Key: ${PORTAINER_TOKEN}" "${PORTAINER_URL}/api/endpoints" | jq '.[] | select(.Name == "princess-celestia") | .Id')
+          STACK_ID=$(${CURL_GET} -H "X-API-Key: ${PORTAINER_TOKEN}" "${PORTAINER_URL}/api/stacks" | jq ".[] | select(.Name == \"satzwerk\" and .EndpointId == ${ENDPOINT_ID}) | .Id")
+          STACK_FILE=$(${CURL_GET} -H "X-API-Key: ${PORTAINER_TOKEN}" "${PORTAINER_URL}/api/stacks/${STACK_ID}/file" | jq -r '.StackFileContent')
+          echo "$STACK_FILE" > /tmp/stackfile.yml
+          echo "=== postgres service block ==="
+          awk '/^  postgres:/,/^  redis:/' /tmp/stackfile.yml | grep -v -E "DB_PASSWORD|JWT_SECRET" || true
+          echo "=== does file contain literal 'DB_PASSWORD:' with a hardcoded (non \${) value? ==="
+          grep -n "DB_PASSWORD" /tmp/stackfile.yml | sed -E 's/(DB_PASSWORD:\s*)\$\{DB_PASSWORD\}/\1<<TEMPLATED-OK>>/' | sed -E 's/(DB_PASSWORD:\s*)[^$].*/\1<<LITERAL-VALUE-FOUND>>/'
+          grep -n "JWT_SECRET" /tmp/stackfile.yml | sed -E 's/(JWT_SECRET:\s*)\$\{JWT_SECRET\}/\1<<TEMPLATED-OK>>/' | sed -E 's/(JWT_SECRET:\s*)[^$].*/\1<<LITERAL-VALUE-FOUND>>/'
+          echo "=== file line count and md5 (to compare vs repo) ==="
+          wc -l /tmp/stackfile.yml
+          md5sum /tmp/stackfile.yml
