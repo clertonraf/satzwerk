@@ -1,5 +1,6 @@
 package com.satzwerk.common.async
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -13,6 +14,8 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import kotlin.time.DurationUnit
+import kotlin.time.toDuration
 
 class InProcessAsyncWorkQueueTest {
     @Test
@@ -116,6 +119,31 @@ class InProcessAsyncWorkQueueTest {
             }
         }
 
+    @Test
+    fun `stop cancels a blocked worker after the grace timeout`(): Unit =
+        runBlocking {
+            val handlerStarted = CountDownLatch(1)
+            val blocker = CompletableDeferred<Unit>()
+
+            val elapsed =
+                measureElapsed {
+                    withQueue(
+                        handler = { _: String ->
+                            handlerStarted.countDown()
+                            blocker.await()
+                        },
+                    ) { queue ->
+                        assertTrue(queue.submit("first"))
+                        assertTrue(handlerStarted.await(2, TimeUnit.SECONDS))
+
+                        queue.stop(gracefulShutdownTimeoutMillis = 50)
+                        assertFalse(queue.submit("late"))
+                    }
+                }
+
+            assertTrue(elapsed <= 500L)
+        }
+
     private suspend fun withQueue(
         capacity: Int = 4,
         handler: suspend (String) -> Unit,
@@ -138,5 +166,11 @@ class InProcessAsyncWorkQueueTest {
             scope.cancel()
             dispatcher.close()
         }
+    }
+
+    private suspend fun measureElapsed(block: suspend () -> Unit): Long {
+        val startedAt = System.nanoTime()
+        block()
+        return (System.nanoTime() - startedAt).toDuration(DurationUnit.NANOSECONDS).inWholeMilliseconds
     }
 }

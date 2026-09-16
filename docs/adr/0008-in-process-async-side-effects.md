@@ -51,10 +51,14 @@ already committed.
   to retry later from another trigger.
 - The queue must stay **bounded**. If it is full, log and drop the work item
   instead of blocking the request thread/coroutine and reintroducing backpressure
-  onto the write path.
+  onto the write path. Overload logging should be sampled or aggregated so the
+  drop path does not become its own synchronous bottleneck.
 - This pattern is explicitly **single-JVM-per-replica**. Each backend replica
   owns its own worker and in-memory queue; queued items are not shared across
   replicas and are lost on process crash or restart.
+- Queue shutdown must be **bounded**. Give the worker a short grace period to
+  finish buffered work, then cancel and drop any remaining buffered items rather
+  than hanging application shutdown indefinitely.
 
 Minimal reference shape:
 
