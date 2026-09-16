@@ -27,6 +27,10 @@ on:
         description: "BACKEND_REPLICAS override for this host (leave default unless host capacity changes)"
         required: false
         default: "2"
+      frontend_port:
+        description: "Host port for frontend (must match the port already in production use, e.g. 3100)"
+        required: false
+        default: "3100"
 
 jobs:
   set-stack-env:
@@ -41,6 +45,7 @@ jobs:
           PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
           PORTAINER_TOKEN: ${{ secrets.PORTAINER_TOKEN }}
           BACKEND_REPLICAS_OVERRIDE: ${{ github.event.inputs.backend_replicas }}
+          FRONTEND_PORT_OVERRIDE: ${{ github.event.inputs.frontend_port }}
         run: |
           set -euo pipefail
 
@@ -108,21 +113,35 @@ jobs:
           echo "::add-mask::${JWT_SECRET}"
 
           # Preserve every existing Env entry except the keys we are about to
-          # set explicitly, so unrelated production overrides (e.g. FRONTEND_PORT)
-          # are never dropped by this workflow.
-          MANAGED_KEYS='["DB_PASSWORD","JWT_SECRET","BACKEND_REPLICAS"]'
+          # set explicitly, so unrelated production overrides are never
+          # dropped by this workflow.
+          # NOTE: FRONTEND_PORT was previously baked as a literal port mapping
+          # in the stack's stored compose file (same anomaly as the secrets),
+          # never as an actual Env entry — so it must be set explicitly here
+          # too, or a fresh compose file push silently reverts it to the
+          # repo's ${FRONTEND_PORT:-8080} default.
+          MANAGED_KEYS='["DB_PASSWORD","JWT_SECRET","BACKEND_REPLICAS","FRONTEND_PORT"]'
           EXISTING_ENV=$(echo "${STACK_JSON}" | jq --argjson managed "${MANAGED_KEYS}" \
             '[(.Env // [])[] | select(.name as $n | $managed | index($n) | not)]')
+
+          EXISTING_FRONTEND_PORT=$(echo "${STACK_JSON}" | jq -r '(.Env // [])[] | select(.name == "FRONTEND_PORT") | .value')
+          if [ -n "${EXISTING_FRONTEND_PORT}" ]; then
+            FRONTEND_PORT="${EXISTING_FRONTEND_PORT}"
+          else
+            FRONTEND_PORT="${FRONTEND_PORT_OVERRIDE}"
+          fi
 
           NEW_ENV=$(jq -n \
             --argjson existing "${EXISTING_ENV}" \
             --arg dbpass "${DB_PASSWORD}" \
             --arg jwt "${JWT_SECRET}" \
             --arg replicas "${BACKEND_REPLICAS_OVERRIDE}" \
+            --arg frontendport "${FRONTEND_PORT}" \
             '$existing + [
               {"name":"DB_PASSWORD","value":$dbpass},
               {"name":"JWT_SECRET","value":$jwt},
-              {"name":"BACKEND_REPLICAS","value":$replicas}
+              {"name":"BACKEND_REPLICAS","value":$replicas},
+              {"name":"FRONTEND_PORT","value":$frontendport}
             ]')
 
           PAYLOAD=$(jq -n \
