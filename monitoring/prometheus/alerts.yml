@@ -1,0 +1,31 @@
+groups:
+  - name: satzwerk-r2dbc-pool
+    rules:
+      - alert: R2DBCPoolPendingSustained
+        expr: r2dbc_pool_pending_connections > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: R2DBC connection requests are waiting on the pool
+          description: >-
+            The R2DBC pool has had pending connection requests for more than
+            five minutes. Issue #309 showed sustained waiters are the earliest
+            real-time signal that the configured pool is saturated. Check
+            request latency, backend error rate, and current database load
+            before user-facing failures increase.
+      - alert: R2DBCPoolNearSaturation
+        expr: >-
+          r2dbc_pool_acquired_connections
+          / clamp_min(r2dbc_pool_max_allocated_connections, 1) > 0.9
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: R2DBC connection pool is above 90% utilization
+          description: >-
+            The R2DBC pool has been above 90% of its configured maximum for
+            more than five minutes. This is the pre-exhaustion signal that led
+            to pending waiters during the #309 write-saturation test. Confirm
+            whether traffic is expected, then scale capacity or reduce the
+            workload before connection acquisition starts failing.
