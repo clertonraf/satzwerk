@@ -325,31 +325,92 @@ backend's `/actuator/prometheus` endpoint alongside the usual latency/error
 summary so you can correlate request pressure with pool behavior. In local
 Docker dev, `docker-compose.override.yml` maps the backend to host port 8083.
 Create a dedicated Personal API Token scoped to `metrics:read`, then use that
-long-lived token for scraping:
+long-lived token for scraping. The token-creation request itself must be
+authenticated with any first-party JWT session access token:
 
 ```bash
 METRICS_PAT=$(curl -s http://localhost:8083/api/tokens \
-  -H "Authorization: Bearer <jwt-session-token>" \
+  -H "Authorization: Bearer $JWT_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"Prometheus scrape","scopes":["metrics:read"]}' | jq -r '.token')
 
 curl -H "Authorization: Bearer $METRICS_PAT" http://localhost:8083/actuator/prometheus
 ```
 
-In the production-style multi-replica setup behind Traefik, `docker-compose.yml`
-does not publish a host port for `backend` and Traefik's only router matches
-`/api`, so `/actuator/prometheus` is **not reachable** from outside the Compose
-network today. Scraping it in that topology needs one of: a Prometheus
-container joined to the same Docker network (note: scraping `backend:8080`
-directly does **not** load-balance or rotate across replicas — plain Docker
-DNS resolution is cached, so a target configured this way will repeatedly
-hit whichever single replica it first resolved and silently miss the others;
-per-replica discovery is required for full coverage), a
-dedicated private Traefik router/entrypoint for `/actuator/**` restricted to an
-internal network, or an equivalent per-replica private route. That network
-setup is out of scope here — this section only covers local/CI k6 runs, where
-the host-published port above is sufficient; see #302 for production-topology
-Prometheus scraping before relying on it operationally.
+For the production-style multi-replica topology in `docker-compose.yml`, the
+supported scrape path is now an internal-only Traefik entrypoint:
+
+- `traefik` listens on `metrics` at container port `8082`
+  (`--entrypoints.metrics.address=:8082`)
+- `backend` adds a dedicated router with
+  ``traefik.http.routers.backend-metrics.rule=Path(`/actuator/prometheus`)``
+  and `traefik.http.routers.backend-metrics.entrypoints=metrics`
+- the existing `/api` router is pinned to `entrypoints=web`, so the public HTTP
+  entrypoint does not expose `/actuator/prometheus`
+- no host port is published for `metrics`, so only containers on the same
+  Docker network can reach `http://traefik:8082/actuator/prometheus`
+
+To run Prometheus on that same network, use the committed
+`docker-compose.monitoring.yml` overlay plus
+`monitoring/prometheus/prometheus.yml`. The scrape config uses
+`bearer_token_file` so the long-lived PAT never needs to be inlined into
+Compose or the Prometheus config. The overlay mounts that file into the
+Prometheus container as a Compose secret at `/run/secrets/metrics-pat`:
+
+```yaml
+scrape_configs:
+  - job_name: satzwerk-backend-cluster
+    metrics_path: /actuator/prometheus
+    bearer_token_file: /run/secrets/metrics-pat
+    static_configs:
+      - targets: ["traefik:8082"]
+```
+
+That target is intentionally cluster-level: Traefik round-robins requests
+across backend replicas, so it gives Prometheus one stable internal scrape path
+for operational monitoring and alerting, but it is not the same per-replica
+sampling method used to produce the aggregated pool-capacity measurements
+earlier in this document.
+
+Create the token file locally, then start the monitoring overlay:
+
+```bash
+# Use the same COMPOSE_PROJECT_NAME value you used when starting the base stack.
+export COMPOSE_PROJECT_NAME=satzwerk
+NETWORK_NAME="${COMPOSE_PROJECT_NAME}_default"
+
+install -d -m 700 monitoring/prometheus/secrets
+(umask 077 && printf '%s\n' "$METRICS_PAT" > monitoring/prometheus/secrets/metrics-pat)
+
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d prometheus
+```
+
+That setup was verified locally with a same-network curl container:
+
+```bash
+docker run --rm \
+  --network "$NETWORK_NAME" \
+  curlimages/curl:8.10.1 \
+  -H "Authorization: Bearer $METRICS_PAT" \
+  http://traefik:8082/actuator/prometheus | head
+```
+
+The public router still blocks the metrics path because it only matches `/api`.
+From that same Docker network, the following request returns `404 page not found`
+instead of Prometheus output:
+
+```bash
+docker run --rm --network "$NETWORK_NAME" curlimages/curl:8.10.1 \
+  -i http://traefik/actuator/prometheus
+```
+
+With the overlay running, Prometheus itself should also report the cluster
+target as `up`:
+
+```bash
+docker run --rm --network "$NETWORK_NAME" curlimages/curl:8.10.1 \
+  http://prometheus:9090/api/v1/targets
+```
 
 For quick ad-hoc manual sampling, a JWT obtained via `/api/auth/login` still
 works, but it follows `jwt.expiry-ms` in `application.yml` and expires after

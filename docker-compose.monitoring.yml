@@ -1,0 +1,22 @@
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    secrets:
+      - source: metrics_pat
+        target: metrics-pat
+    depends_on:
+      - traefik
+      - backend
+
+volumes:
+  prometheus_data:
+
+secrets:
+  metrics_pat:
+    file: ./monitoring/prometheus/secrets/metrics-pat
