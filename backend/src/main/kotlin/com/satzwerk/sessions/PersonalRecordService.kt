@@ -69,13 +69,17 @@ internal suspend fun SessionQueryRepository.calculateIsPr(
     reps: Int,
     existing: SetLogRef? = null,
 ): Boolean {
-    if (reps <= 0) return false
+    val currentRatio = calculatePrRatio(weight, reps) ?: return false
     val beforeDate = existing?.loggedAt ?: Instant.now()
     val prevMaxRatio =
         findMaxRatioForExercise(userId, exerciseId, beforeDate, existing?.id)
-    val currentRatio = weight.divide(reps.toBigDecimal(), PR_RATIO_SCALE, RoundingMode.HALF_UP)
     return prevMaxRatio == null || currentRatio > prevMaxRatio
 }
+
+internal fun calculatePrRatio(
+    weight: BigDecimal,
+    reps: Int,
+): BigDecimal? = if (reps <= 0) null else weight.divide(reps.toBigDecimal(), PR_RATIO_SCALE, RoundingMode.HALF_UP)
 
 private data class OneRepMaxRange(val minKg: BigDecimal?, val maxKg: BigDecimal?, val epleyKg: BigDecimal?)
 
