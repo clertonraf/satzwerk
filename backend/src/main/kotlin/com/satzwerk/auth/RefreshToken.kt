@@ -14,6 +14,8 @@ data class RefreshToken(
     val userId: UUID,
     @Column("token_hash")
     val tokenHash: String,
+    @Column("csrf_token_hash")
+    val csrfTokenHash: String,
     @Column("expires_at")
     val expiresAt: Instant,
     @Column("revoked_at")

@@ -1,5 +1,6 @@
 package com.satzwerk.auth
 
+import com.satzwerk.common.ForbiddenException
 import com.satzwerk.users.User
 import com.satzwerk.users.UserRepository
 import org.slf4j.LoggerFactory
@@ -50,18 +51,16 @@ class AuthService(
         return issueTokenPair(requireNotNull(user.id))
     }
 
-    suspend fun refresh(rawRefreshToken: String): TokenPair {
-        val token =
-            refreshTokenRepository.findByTokenHash(jwtService.sha256(rawRefreshToken))
-                ?: throw InvalidRefreshTokenException()
-
-        if (token.revokedAt != null || token.expiresAt.isBefore(Instant.now())) {
-            throw InvalidRefreshTokenException()
-        }
+    suspend fun refresh(
+        rawRefreshToken: String,
+        csrfHeaderToken: String?,
+        csrfCookieToken: String?,
+    ): TokenPair {
+        val token = requireActiveRefreshToken(rawRefreshToken)
+        validateCsrfToken(token, csrfHeaderToken, csrfCookieToken)
 
         refreshTokenRepository.save(token.copy(revokedAt = Instant.now()))
         val pair = issueTokenPair(token.userId)
-        // Cleanup runs best-effort: a transient DB error must not roll back the completed rotation.
         try {
             cleanupOldTokens()
         } catch (e: DataAccessException) {
@@ -69,6 +68,14 @@ class AuthService(
         }
         return pair
     }
+
+    suspend fun logout(rawRefreshToken: String?) {
+        rawRefreshToken
+            ?.takeUnless(String::isBlank)
+            ?.let { revokeRefreshTokenIfActive(it) }
+    }
+
+    fun refreshTokenMaxAgeSeconds(): Long = jwtService.refreshTokenMaxAgeSeconds()
 
     private suspend fun cleanupOldTokens() {
         val cutoff = Instant.now().minusSeconds(REFRESH_TOKEN_RETENTION_DAYS * SECONDS_PER_DAY)
@@ -78,16 +85,60 @@ class AuthService(
 
     private suspend fun issueTokenPair(userId: java.util.UUID): TokenPair {
         val rawRefreshToken = jwtService.generateRefreshToken()
+        val rawCsrfToken = jwtService.generateCsrfToken()
         refreshTokenRepository.save(
             RefreshToken(
                 userId = userId,
                 tokenHash = jwtService.sha256(rawRefreshToken),
+                csrfTokenHash = jwtService.sha256(rawCsrfToken),
                 expiresAt = jwtService.refreshTokenExpiresAt(),
             ),
         )
         return TokenPair(
             accessToken = jwtService.generateAccessToken(userId),
             refreshToken = rawRefreshToken,
+            csrfToken = rawCsrfToken,
         )
     }
+
+    private suspend fun requireActiveRefreshToken(rawRefreshToken: String): RefreshToken {
+        val token =
+            refreshTokenRepository.findByTokenHash(jwtService.sha256(rawRefreshToken))
+                ?: throw InvalidRefreshTokenException()
+
+        if (token.revokedAt != null || token.expiresAt.isBefore(Instant.now())) {
+            throw InvalidRefreshTokenException()
+        }
+
+        return token
+    }
+
+    private fun validateCsrfToken(
+        token: RefreshToken,
+        csrfHeaderToken: String?,
+        csrfCookieToken: String?,
+    ) {
+        val csrfHeader = requireCsrfHeaderToken(csrfHeaderToken)
+        val csrfCookie = requireCsrfCookieToken(csrfCookieToken)
+        val matchesStoredHash = token.csrfTokenHash == jwtService.sha256(csrfHeader)
+
+        if (csrfHeader != csrfCookie || !matchesStoredHash) {
+            throw ForbiddenException("CSRF token mismatch")
+        }
+    }
+
+    private suspend fun revokeRefreshTokenIfActive(rawRefreshToken: String) {
+        val token = refreshTokenRepository.findByTokenHash(jwtService.sha256(rawRefreshToken)) ?: return
+        if (token.revokedAt == null) {
+            refreshTokenRepository.save(token.copy(revokedAt = Instant.now()))
+        }
+    }
 }
+
+private fun requireCsrfHeaderToken(csrfHeaderToken: String?): String =
+    csrfHeaderToken?.takeUnless(String::isBlank)
+        ?: throw ForbiddenException("Missing CSRF token header")
+
+private fun requireCsrfCookieToken(csrfCookieToken: String?): String =
+    csrfCookieToken?.takeUnless(String::isBlank)
+        ?: throw ForbiddenException("Missing CSRF token cookie")

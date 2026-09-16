@@ -11,6 +11,8 @@ import java.util.Date
 import java.util.UUID
 import javax.crypto.SecretKey
 
+private const val MILLIS_PER_SECOND = 1000L
+
 @Service
 class JwtService(
     jwtProperties: JwtProperties,
@@ -34,7 +36,11 @@ class JwtService(
 
     fun generateRefreshToken(): String = UUID.randomUUID().toString()
 
+    fun generateCsrfToken(): String = UUID.randomUUID().toString()
+
     fun refreshTokenExpiresAt(): Instant = Instant.now().plusMillis(refreshExpiryMs)
+
+    fun refreshTokenMaxAgeSeconds(): Long = refreshExpiryMs / MILLIS_PER_SECOND
 
     fun validateAccessToken(token: String): UUID =
         UUID.fromString(

@@ -1,21 +1,20 @@
 import { useEffect } from 'react'
-import axios from 'axios'
-import { useAuthStore } from '@/store/auth'
+import { authService } from '@/services/authService'
 import { tokenService } from '@/services/tokenService'
+import { useAuthStore } from '@/store/auth'
 
 export function useRestoreSession() {
   useEffect(() => {
-    const refreshToken = tokenService.getRefreshToken()
-
-    if (!refreshToken) {
+    if (!tokenService.hasRefreshSession()) {
+      useAuthStore.getState().setIsRestoring(false)
       return
     }
 
-    axios
-      .post<{ accessToken: string; refreshToken: string }>('/api/auth/refresh', { refreshToken })
-      .then(({ data }) => {
+    authService
+      .refresh()
+      .then((data) => {
         useAuthStore.getState().setAccessToken(data.accessToken)
-        tokenService.saveRefreshToken(data.refreshToken)
+        useAuthStore.getState().setCsrfToken(data.csrfToken)
       })
       .catch(() => {
         useAuthStore.getState().logout()

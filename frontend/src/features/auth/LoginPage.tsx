@@ -3,7 +3,6 @@ import { isAxiosError } from 'axios'
 import { useForm } from 'react-hook-form'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
-import { tokenService } from '@/services/tokenService'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -26,6 +25,7 @@ type LoginFormValues = z.infer<typeof loginSchema>
 export default function LoginPage() {
   const accessToken = useAuthStore((state) => state.accessToken)
   const setAccessToken = useAuthStore((state) => state.setAccessToken)
+  const setCsrfToken = useAuthStore((state) => state.setCsrfToken)
   const navigate = useNavigate()
   const location = useLocation()
   const redirectTo = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/'
@@ -50,7 +50,7 @@ export default function LoginPage() {
     try {
       const response = await authService.login(values)
       setAccessToken(response.accessToken)
-      tokenService.saveRefreshToken(response.refreshToken)
+      setCsrfToken(response.csrfToken)
       navigate(redirectTo, { replace: true })
     } catch (error) {
       let message = 'Unable to log in right now'
