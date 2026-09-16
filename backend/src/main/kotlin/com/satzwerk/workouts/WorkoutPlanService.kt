@@ -110,8 +110,8 @@ class WorkoutPlanService(
         workoutPlanRepository.deleteById(requireNotNull(plan.id))
         transactionRunner.afterCommit {
             workoutReadCaches.workoutPlanReadCache.invalidateList(userId)
-            workoutReadCaches.workoutPlanReadCache.invalidateDetail(userId, planId)
-            workoutReadCaches.workoutGroupReadCache.invalidatePlan(userId, planId)
+            workoutReadCaches.workoutPlanReadCache.deleteDetail(userId, planId)
+            workoutReadCaches.workoutGroupReadCache.deletePlan(userId, planId)
             analyticsReadCache.invalidateUser(userId)
         }
     }

@@ -152,6 +152,14 @@ class WorkoutPlanReadCache(
             )
         }
     }
+
+    suspend fun deleteDetail(
+        userId: UUID,
+        planId: UUID,
+    ) {
+        cacheService.deleteByPattern(workoutPlanDetailCachePattern(userId, planId))
+        cacheService.delete(workoutPlanDetailVersionKey(userId, planId))
+    }
 }
 
 internal fun workoutPlanListCacheKey(

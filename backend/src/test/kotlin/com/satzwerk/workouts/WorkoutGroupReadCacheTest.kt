@@ -69,6 +69,18 @@ class WorkoutGroupReadCacheTest {
         }
 
     @Test
+    fun `delete plan removes payloads and version key`(): Unit =
+        runBlocking {
+            val userId = UUID.randomUUID()
+            val planId = UUID.randomUUID()
+
+            workoutGroupReadCache.deletePlan(userId, planId)
+
+            verify(cacheService).deleteByPattern(eq("workouts:groups:$userId:$planId:v*"))
+            verify(cacheService).delete("workouts:groups:version:$userId:$planId")
+        }
+
+    @Test
     fun `cache key keeps plans separate within a user`() {
         val userId = UUID.randomUUID()
         val firstPlanId = UUID.randomUUID()

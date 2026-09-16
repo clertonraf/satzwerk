@@ -81,7 +81,6 @@ class WorkoutGroupServiceTest {
                     analyticsReadCache = analyticsReadCache,
                     transactionRunner = inlineTransactionRunner,
                 )
-
             service.delete(userId, planId, groupId)
             verify(workoutGroupReadCache).invalidatePlan(userId, planId)
             verify(workoutGroupReadCache).invalidatePlan(userId, planId)

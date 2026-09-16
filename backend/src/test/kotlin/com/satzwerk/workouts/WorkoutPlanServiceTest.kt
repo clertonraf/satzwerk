@@ -152,7 +152,7 @@ class WorkoutPlanServiceTest {
         }
 
     @Test
-    fun `delete invalidates analytics list detail and group caches after commit`(): Unit =
+    fun `delete invalidates list cache and removes plan-scoped caches after commit`(): Unit =
         runBlocking {
             val workoutPlanReadCache: WorkoutPlanReadCache = mock()
             val workoutGroupReadCache: WorkoutGroupReadCache = mock()
@@ -168,8 +168,8 @@ class WorkoutPlanServiceTest {
             service.delete(userId, planId)
 
             verify(workoutPlanReadCache).invalidateList(userId)
-            verify(workoutPlanReadCache).invalidateDetail(userId, planId)
-            verify(workoutGroupReadCache).invalidatePlan(userId, planId)
+            verify(workoutPlanReadCache).deleteDetail(userId, planId)
+            verify(workoutGroupReadCache).deletePlan(userId, planId)
             verify(analyticsReadCache).invalidateUser(userId)
         }
 
