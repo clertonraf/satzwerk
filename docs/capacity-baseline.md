@@ -318,7 +318,8 @@ To run Prometheus on that same network, use the committed
 `docker-compose.monitoring.yml` overlay plus
 `monitoring/prometheus/prometheus.yml`. The scrape config uses
 `bearer_token_file` so the long-lived PAT never needs to be inlined into
-Compose or the Prometheus config:
+Compose or the Prometheus config. The overlay mounts that file into the
+Prometheus container as a Compose secret at `/run/secrets/metrics-pat`:
 
 ```yaml
 scrape_configs:
@@ -353,10 +354,9 @@ That setup was verified locally with a same-network curl container:
 ```bash
 docker run --rm \
   --network "$NETWORK_NAME" \
-  -v "$PWD/monitoring/prometheus/secrets:/run/secrets:ro" \
   curlimages/curl:8.10.1 \
-  sh -c 'curl -sf -H "Authorization: Bearer $(cat /run/secrets/metrics-pat)" \
-    http://traefik:8082/actuator/prometheus | head'
+  -H "Authorization: Bearer $METRICS_PAT" \
+  http://traefik:8082/actuator/prometheus | head
 ```
 
 The public router still blocks the metrics path because it only matches `/api`.
@@ -366,6 +366,14 @@ instead of Prometheus output:
 ```bash
 docker run --rm --network "$NETWORK_NAME" curlimages/curl:8.10.1 \
   -i http://traefik/actuator/prometheus
+```
+
+With the overlay running, Prometheus itself should also report the cluster
+target as `up`:
+
+```bash
+docker run --rm --network "$NETWORK_NAME" curlimages/curl:8.10.1 \
+  http://prometheus:9090/api/v1/targets
 ```
 
 For quick ad-hoc manual sampling, a JWT obtained via `/api/auth/login` still

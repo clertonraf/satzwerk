@@ -6,12 +6,17 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      # Create monitoring/prometheus/secrets/metrics-pat locally before startup.
-      - ./monitoring/prometheus/secrets:/run/secrets:ro
       - prometheus_data:/prometheus
+    secrets:
+      - source: metrics_pat
+        target: metrics-pat
     depends_on:
       - traefik
       - backend
 
 volumes:
   prometheus_data:
+
+secrets:
+  metrics_pat:
+    file: ./monitoring/prometheus/secrets/metrics-pat
