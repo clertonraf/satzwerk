@@ -139,9 +139,22 @@ jobs:
 
           case "${HTTP_CODE}" in
             200|202)
-              echo "Portainer completed the update synchronously (HTTP ${HTTP_CODE})."
-              jq -r '"Stack id=\(.Id) status=\(.Status)"' /tmp/portainer_deploy.json 2>/dev/null || true
-              exit 0
+              RESPONSE_STATUS=$(jq -r '.Status // empty' /tmp/portainer_deploy.json 2>/dev/null || echo "")
+              echo "Portainer accepted the update (HTTP ${HTTP_CODE}, stack status=${RESPONSE_STATUS:-unknown})."
+              if [ "${RESPONSE_STATUS}" = "1" ]; then
+                echo "Stack is already active. Update succeeded."
+                exit 0
+              fi
+              # Status 3 = Deploying (in progress), 4 = Error, anything else:
+              # fall through to the poll loop below rather than declaring success
+              # prematurely — the deploy job in ci.yml made this same mistake
+              # historically by treating any 200/202 as done.
+              if [ "${RESPONSE_STATUS}" = "4" ]; then
+                echo "Portainer reports the stack deployment errored (status=4)." >&2
+                cat /tmp/portainer_deploy.json >&2
+                exit 1
+              fi
+              echo "Deployment in progress — polling for completion..."
               ;;
             504|000)
               echo "Proxy/curl timeout (HTTP ${HTTP_CODE}, curl exit ${CURL_EXIT}) — Portainer is applying the update. Polling for completion..."
@@ -184,6 +197,11 @@ jobs:
                 if [ "${STACK_STATUS}" = "1" ]; then
                   echo "Stack is active. Update succeeded."
                   exit 0
+                fi
+                if [ "${STACK_STATUS}" = "4" ]; then
+                  echo "Portainer reports the stack deployment errored (status=4)." >&2
+                  cat /tmp/portainer_poll.json >&2
+                  exit 1
                 fi
                 ;;
               4[0-9][0-9])
