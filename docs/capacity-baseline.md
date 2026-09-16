@@ -150,8 +150,9 @@ on the 2 vCPU / 4 GiB Colima VM described above.
 - The prior doc's **unestablished-number gap for this local
   resource-constrained baseline** is now replaced with a real measured SLO and
   saturation table for the historical 3-replica / pool-15 config. The separate
-  high-infrastructure 8,000-VU / full-infra exercise remains tracked by #297
-  and was not attempted here.
+  high-infrastructure 8,000-VU / full-infra exercise, previously tracked by
+  #297/#309, was completed on 2026-09-16 on a 6 vCPU / 18 GiB Colima VM — see
+  **"Result: measured write-saturation ceiling (resolves #309)"** below.
 
 ## Write-saturation ceiling test — local execution guide
 
@@ -317,6 +318,65 @@ If your normal Colima profile uses different values, restore those instead of
 blindly using `2 / 4`. For Docker Desktop, revert the CPU and memory settings in
 **Settings → Resources** after the test so the machine is not left permanently
 over-provisioned.
+
+### Result: measured write-saturation ceiling (resolves #309)
+
+Run completed 2026-09-16 on a Colima VM resized to **6 vCPU / 18 GiB** (per the
+preflight script's recommendation), against the **3 backend replicas / R2DBC
+pool max-size 15** topology, full `perf/write-saturation-8000-stages.json`
+ramp (250 → 8,000 VUs). The harness itself completed cleanly this time — no
+host OOM, no `exit 137`, no container restarts — confirming the failures
+below are a genuine **application-level** ceiling, not a repeat of the earlier
+test-harness collapse (`docs/capacity-baseline.md` previously noted the
+harness died around 2,700 VUs on a 4 GiB VM; that failure mode is now closed).
+
+| Stage window | Target VUs | Requests in window | Failed | Failure rate |
+|---|---|---|---|---|
+| 0–45s | 250 | 6,865 | 0 | **0.00%** |
+| 45–90s | 500 | 7,823 | 152 | **1.94%** |
+| 90–150s | 1,000 | 10,142 | 1,733 | 17.09% |
+| 150–210s | 2,000 | 11,642 | 9,949 | 85.46% |
+| 210–270s | 3,000 | 21,922 | 21,606 | 98.56% |
+| 270–330s | 4,000 | 31,622 | 31,547 | 99.76% |
+| 330–390s | 5,000 | 40,632 | 40,277 | 99.13% |
+| 390–450s | 6,000 | 44,706 | 44,695 | 99.98% |
+| 450–510s | 7,000 | 35,048 | 34,899 | 99.57% |
+| 510–570s | 8,000 (ramp) | 40,607 | 40,453 | 99.62% |
+| 570–690s | 8,000 (hold) | 70,470 | 70,279 | 99.73% |
+| 690–750s | ramp down | 15,624 | 15,198 | 97.27% |
+
+- **Last fully stable stage: 250 VUs** (0% HTTP failures — only the expected
+  backpressure/latency increase, no errors).
+- **First failing stage: 500 VUs**, where failures already exceed the 1%
+  threshold (1.94%) and climb sharply from there — by 1,000 VUs the failure
+  rate is 17%, and by 2,000 VUs the system has essentially collapsed (85%+).
+  There is no wide, ambiguous transition band here; the collapse is steep
+  between 250 and 2,000 VUs, so no narrower re-run was needed to pinpoint it
+  further.
+- **Root cause, confirmed via `backend` container logs** (not inferred): the
+  dominant failure signature is HTTP 500 (300,449 of the failed requests),
+  and grepping backend logs for the same window shows **227,250 occurrences**
+  of:
+  ```
+  io.r2dbc.spi.R2dbcTimeoutException: Connection acquisition timed out after 3000ms
+  ```
+  i.e. genuine **R2DBC connection-pool exhaustion**, not network resets or
+  load-generator timeouts (only 335 client-side `request timeout` errors and
+  10,244 Traefik 502s were observed — both a small minority next to the 500s).
+  This is the expected binding constraint for this topology: 3 replicas ×
+  pool max-size 15 = **45 total DB connections**, which saturates almost
+  immediately once concurrent in-flight writes exceed roughly that number by
+  a wide margin.
+- **Practical takeaway**: for this specific replica/pool configuration, the
+  write-heavy ceiling is **~250–500 concurrent VUs**, not 8,000 — the pool
+  budget, not CPU or host memory, is the limiting factor. Reaching a materially
+  higher VU ceiling requires raising `R2DBC_POOL_MAX_SIZE` and/or
+  `BACKEND_REPLICAS` (mindful of the CPU-oversubscription guardrail from #308)
+  and re-running this same ramp to find the new pool-bound ceiling, rather than
+  provisioning more raw CPU/memory — this run's clean completion (no host OOM)
+  demonstrates the *harness* is no longer the bottleneck, so any future re-run
+  with a larger pool will measure the real application response, not another
+  host-resource artifact.
 
 ## Observing pool saturation via Prometheus metrics
 
