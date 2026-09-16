@@ -240,7 +240,7 @@ docker run --name satzwerk-k6-ceiling \
   --network satzwerk-perf_default \
   -v "$PWD/perf:/perf:ro" \
   grafana/k6 run \
-    -e BASE_URL=http://traefik \
+    -e BASE_URL=http://backend:8080 \
     -e SUMMARY_ENABLED=false \
     -e MIXED_P95_THRESHOLD_MS=off \
     -e MIXED_STAGES_FILE=/perf/write-saturation-8000-stages.json \
@@ -250,7 +250,11 @@ docker run --name satzwerk-k6-ceiling \
 The `SUMMARY_ENABLED=false` flag removes the read-only summary side-scenario so
 this run measures the write-heavy mixed flow only. `MIXED_P95_THRESHOLD_MS=off`
 turns off the CI-oriented 500 ms latency gate, which would otherwise fail the
-run long before the application actually starts erroring.
+run long before the application actually starts erroring. The `BASE_URL` now
+points straight at `backend:8080` on the Docker network, not `traefik`, so this
+procedure still measures the **backend pool ceiling** after #327 added a
+Traefik fail-fast rate limit on the public `/api` router. Use `BASE_URL=http://traefik`
+only when you specifically want to validate the edge limiter's `429` behavior.
 
 ### 5. What counts as the actual ceiling
 
@@ -385,7 +389,7 @@ the public `/api` router:
 
 - `traefik.http.middlewares.backend-ratelimit.ratelimit.average=80`
 - `traefik.http.middlewares.backend-ratelimit.ratelimit.burst=30`
-- `traefik.http.middlewares.backend-ratelimit.ratelimit.sourcecriterion.requesthost=true`
+- `traefik.http.middlewares.backend-ratelimit.ratelimit.sourcecriterion.requestheadername=X-RateLimit-Bucket`
 
 The math is intentionally conservative:
 
@@ -405,13 +409,12 @@ The math is intentionally conservative:
   instantaneous burst inject more write-heavy work than the default backend
   topology can plausibly service immediately.
 
-`sourceCriterion.requestHost=true` is also deliberate. Traefik's default rate
-limit source is the remote client IP, which would create one bucket per caller.
-For Satzwerk's single public API host that is the wrong overload guardrail: the
-problem in #309 was **aggregate** router-to-backend pressure. Grouping by
-request host makes all traffic for the public API hostname share the same
-bucket, so the middleware sheds load for the whole backend route rather than
-only throttling whichever individual client happens to be the noisiest.
+The limiter does **not** key off the request host anymore. The frontend nginx
+proxy now overwrites `X-RateLimit-Bucket: backend-api` before forwarding `/api`
+traffic to Traefik, and the Traefik middleware groups requests by that fixed
+header. That closes the obvious host-header bypass: even though nginx still
+accepts arbitrary `Host` values (`server_name _;`), all public API traffic now
+lands in the same shared bucket before Traefik forwards anything to the backend.
 
 Operationally, once the shared bucket is empty Traefik now returns **HTTP 429
 Too Many Requests** at the edge on `/api` instead of forwarding the request

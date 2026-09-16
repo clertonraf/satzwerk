@@ -89,7 +89,7 @@ services:
       - "traefik.http.routers.backend-metrics.service=backend"
       - "traefik.http.middlewares.backend-ratelimit.ratelimit.average=80"
       - "traefik.http.middlewares.backend-ratelimit.ratelimit.burst=30"
-      - "traefik.http.middlewares.backend-ratelimit.ratelimit.sourcecriterion.requesthost=true"
+      - "traefik.http.middlewares.backend-ratelimit.ratelimit.sourcecriterion.requestheadername=X-RateLimit-Bucket"
       - "traefik.http.services.backend.loadbalancer.server.port=8080"
     environment:
       SPRING_PROFILES_ACTIVE: prod
