@@ -240,7 +240,7 @@ docker run --name satzwerk-k6-ceiling \
   --network satzwerk-perf_default \
   -v "$PWD/perf:/perf:ro" \
   grafana/k6 run \
-    -e BASE_URL=http://traefik \
+    -e BASE_URL=http://backend:8080 \
     -e SUMMARY_ENABLED=false \
     -e MIXED_P95_THRESHOLD_MS=off \
     -e MIXED_STAGES_FILE=/perf/write-saturation-8000-stages.json \
@@ -250,7 +250,11 @@ docker run --name satzwerk-k6-ceiling \
 The `SUMMARY_ENABLED=false` flag removes the read-only summary side-scenario so
 this run measures the write-heavy mixed flow only. `MIXED_P95_THRESHOLD_MS=off`
 turns off the CI-oriented 500 ms latency gate, which would otherwise fail the
-run long before the application actually starts erroring.
+run long before the application actually starts erroring. The `BASE_URL` now
+points straight at `backend:8080` on the Docker network, not `traefik`, so this
+procedure still measures the **backend pool ceiling** after #327 added a
+Traefik fail-fast rate limit on the public `/api` router. Use `BASE_URL=http://traefik`
+only when you specifically want to validate the edge limiter's `429` behavior.
 
 ### 5. What counts as the actual ceiling
 
@@ -377,6 +381,48 @@ harness died around 2,700 VUs on a 4 GiB VM; that failure mode is now closed).
   demonstrates the *harness* is no longer the bottleneck, so any future re-run
   with a larger pool will measure the real application response, not another
   host-resource artifact.
+
+## Traefik fail-fast guardrail on the backend router (#327)
+
+`docker-compose.yml` now attaches a dedicated Traefik rate-limit middleware to
+the public `/api` router:
+
+- `traefik.http.middlewares.backend-ratelimit.ratelimit.average=80`
+- `traefik.http.middlewares.backend-ratelimit.ratelimit.burst=30`
+- `traefik.http.middlewares.backend-ratelimit.ratelimit.sourcecriterion.requestheadername=X-RateLimit-Bucket`
+
+The math is intentionally conservative:
+
+- The last fully stable write-saturation stage admitted **6,865 requests in 45
+  seconds at 250 VUs**, i.e. `6865 / 45 ≈ 152.6 req/s`, with **0% failures**.
+- The first failing stage admitted **7,823 requests in 45 seconds at 500 VUs**,
+  i.e. `7823 / 45 ≈ 173.8 req/s`, and already produced **1.94% failures** from
+  pool-acquire timeouts.
+- The shipped Traefik gate therefore caps sustained ingress at **80 req/s**,
+  which is about **52%** of the last stable stage throughput and about **46%**
+  of the first failing stage throughput. That is deliberately well below the
+  measured knee so overload is rejected at the edge instead of being forwarded
+  into the R2DBC pool's 3-second acquire timeout.
+- The **30-request burst** matches the shipped default backend pool budget
+  behind the route (`2 backend replicas × 15 R2DBC connections = 30`). This
+  still allows short legitimate spikes, but it avoids letting one
+  instantaneous burst inject more write-heavy work than the default backend
+  topology can plausibly service immediately.
+
+The limiter does **not** key off the request host anymore. The frontend nginx
+proxy now overwrites `X-RateLimit-Bucket: backend-api` before forwarding `/api`
+traffic to Traefik, and the Traefik middleware groups requests by that fixed
+header. That closes the obvious host-header bypass: even though nginx still
+accepts arbitrary `Host` values (`server_name _;`), all public API traffic now
+lands in the same shared bucket before Traefik forwards anything to the backend.
+
+Operationally, once the shared bucket is empty Traefik now returns **HTTP 429
+Too Many Requests** at the edge on `/api` instead of forwarding the request
+into backend pool exhaustion. Issue #325's backend-side `503` mapping is still
+complementary when it is present, because any requests that do reach a fully
+exhausted pool surface as `503 Service Unavailable` instead of a generic `500`,
+but the primary goal here is to make overload fail fast *before* the request
+spends the full `R2DBC_POOL_MAX_ACQUIRE_TIME` in queue.
 
 ## Observing pool saturation via Prometheus metrics
 
