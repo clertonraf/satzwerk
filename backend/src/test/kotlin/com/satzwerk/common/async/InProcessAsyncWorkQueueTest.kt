@@ -62,6 +62,60 @@ class InProcessAsyncWorkQueueTest {
             assertEquals(listOf("first", "second"), processed)
         }
 
+    @Test
+    fun `worker keeps processing later items after one handler failure`(): Unit =
+        runBlocking {
+            val processed = CopyOnWriteArrayList<String>()
+            val firstAttemptDone = CountDownLatch(1)
+            val secondAttemptDone = CountDownLatch(1)
+
+            withQueue(
+                handler = { item ->
+                    if (item == "first") {
+                        firstAttemptDone.countDown()
+                        error("boom")
+                    }
+
+                    processed += item
+                    secondAttemptDone.countDown()
+                },
+            ) { queue ->
+                assertTrue(queue.submit("first"))
+                assertTrue(queue.submit("second"))
+
+                assertTrue(firstAttemptDone.await(2, TimeUnit.SECONDS))
+                assertTrue(secondAttemptDone.await(2, TimeUnit.SECONDS))
+            }
+
+            assertEquals(listOf("second"), processed)
+        }
+
+    @Test
+    fun `submit rejects work after the worker scope is cancelled`(): Unit =
+        runBlocking {
+            val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+            val parentJob = SupervisorJob()
+            val scope = CoroutineScope(parentJob + dispatcher)
+            val queue =
+                InProcessAsyncWorkQueue(
+                    name = "test-queue",
+                    capacity = 1,
+                    scope = scope,
+                    handler = { _: String -> },
+                )
+
+            try {
+                parentJob.cancel()
+                queue.awaitWorkerCompletion()
+
+                assertFalse(queue.submit("late"))
+            } finally {
+                queue.stop()
+                scope.cancel()
+                dispatcher.close()
+            }
+        }
+
     private suspend fun withQueue(
         capacity: Int = 4,
         handler: suspend (String) -> Unit,

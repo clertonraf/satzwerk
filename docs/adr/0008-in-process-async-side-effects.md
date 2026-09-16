@@ -18,8 +18,9 @@ solving the measured bottleneck.
 
 The backend already has one useful post-write boundary today:
 
-- `transactionRunner.afterCommit { ... }` runs work only after the enclosing
-  transaction commits.
+- `transactionRunner.afterCommit { ... }` runs work after the enclosing
+  transaction commits when a transaction is active, and runs immediately when
+  no transaction is active.
 - `R2dbcTransactionRunner` logs and swallows post-commit failures centrally, so a
   side effect failure does not turn an already committed write into an HTTP
   error.

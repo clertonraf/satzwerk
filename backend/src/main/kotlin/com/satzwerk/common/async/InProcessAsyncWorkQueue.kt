@@ -1,5 +1,6 @@
 package com.satzwerk.common.async
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -22,10 +23,19 @@ class InProcessAsyncWorkQueue<T>(
             for (item in channel) {
                 runCatching { handler(item) }
                     .onFailure { error ->
+                        if (error is CancellationException) {
+                            throw error
+                        }
                         logger.error("Async work item failed on queue {}", queueName, error)
                     }
             }
         }
+
+    init {
+        worker.invokeOnCompletion { error ->
+            channel.close(error)
+        }
+    }
 
     fun submit(item: T): Boolean {
         val result = channel.trySend(item)
@@ -39,6 +49,10 @@ class InProcessAsyncWorkQueue<T>(
 
     suspend fun stop() {
         channel.close()
+        worker.join()
+    }
+
+    internal suspend fun awaitWorkerCompletion() {
         worker.join()
     }
 }
