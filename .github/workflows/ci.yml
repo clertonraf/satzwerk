@@ -286,8 +286,7 @@ jobs:
 
           docker compose -f docker-compose.yml config > /dev/null
 
-      - name: Fetch Portainer stack metadata
-        id: stack_metadata
+      - name: Redeploy stack on Portainer
         env:
           PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
           PORTAINER_TOKEN: ${{ secrets.PORTAINER_TOKEN }}
@@ -323,22 +322,10 @@ jobs:
             "${PORTAINER_URL}/api/stacks/${STACK_ID}" \
             | jq -c '.Env // []')
 
-          {
-            echo "endpoint_id=${ENDPOINT_ID}"
-            echo "stack_id=${STACK_ID}"
-            printf 'stack_env=%s\n' "${STACK_ENV}"
-          } >> "${GITHUB_OUTPUT}"
-
-      # Guard against the #315 production incident: once #306 started syncing
-      # the repo's real docker-compose.yml, an empty/incomplete Portainer Env
-      # array could silently redeploy with missing required secrets and
-      # crash-loop services like postgres before a human noticed.
-      - name: Validate Portainer stack env against required compose vars
-        env:
-          STACK_ENV: ${{ steps.stack_metadata.outputs.stack_env }}
-        run: |
-          set -euo pipefail
-
+          # Guard against the #315 production incident: once #306 started syncing
+          # the repo's real docker-compose.yml, an empty/incomplete Portainer Env
+          # array could silently redeploy with missing required secrets and
+          # crash-loop services like postgres before a human noticed.
           REQUIRED_VARS=$(grep -oE '\$\{[A-Z0-9_]+\}' docker-compose.yml | tr -d '${}' | sort -u)
           MISSING_VARS=()
 
@@ -352,16 +339,6 @@ jobs:
             echo "::error::Portainer stack 'satzwerk' is missing required environment variables referenced by docker-compose.yml: ${MISSING_VARS[*]}. Refusing to redeploy because #315 showed that syncing the repo compose file with an empty or incomplete Portainer Env array can crash-loop production services. Add the missing stack variables in Portainer before rerunning deploy." >&2
             exit 1
           fi
-
-      - name: Redeploy stack on Portainer
-        env:
-          PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
-          PORTAINER_TOKEN: ${{ secrets.PORTAINER_TOKEN }}
-          ENDPOINT_ID: ${{ steps.stack_metadata.outputs.endpoint_id }}
-          STACK_ID: ${{ steps.stack_metadata.outputs.stack_id }}
-          STACK_ENV: ${{ steps.stack_metadata.outputs.stack_env }}
-        run: |
-          set -euo pipefail
 
           # Read the checked-out docker-compose.yml from this workflow commit
           # instead of re-submitting Portainer's stored stack file. Reusing
