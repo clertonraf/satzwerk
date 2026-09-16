@@ -38,6 +38,10 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
+      # Internal-only metrics entrypoint. No host port is published in this
+      # production-style compose file, so only containers on the same Docker
+      # network can reach traefik:8082/actuator/prometheus.
+      - "--entrypoints.metrics.address=:8082"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
@@ -66,6 +70,11 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.routers.backend.service=backend"
+      - "traefik.http.routers.backend-metrics.rule=Path(`/actuator/prometheus`)"
+      - "traefik.http.routers.backend-metrics.entrypoints=metrics"
+      - "traefik.http.routers.backend-metrics.service=backend"
       - "traefik.http.services.backend.loadbalancer.server.port=8080"
     environment:
       SPRING_PROFILES_ACTIVE: prod

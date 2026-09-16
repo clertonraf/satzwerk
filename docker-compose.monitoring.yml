@@ -1,0 +1,13 @@
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # Create monitoring/prometheus/secrets/metrics-pat locally before startup.
+      - ./monitoring/prometheus/secrets:/run/secrets:ro
+    depends_on:
+      - traefik
+      - backend

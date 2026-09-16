@@ -289,31 +289,76 @@ backend's `/actuator/prometheus` endpoint alongside the usual latency/error
 summary so you can correlate request pressure with pool behavior. In local
 Docker dev, `docker-compose.override.yml` maps the backend to host port 8083.
 Create a dedicated Personal API Token scoped to `metrics:read`, then use that
-long-lived token for scraping:
+long-lived token for scraping. The token-creation request itself must be
+authenticated with any first-party JWT session access token:
 
 ```bash
 METRICS_PAT=$(curl -s http://localhost:8083/api/tokens \
-  -H "Authorization: Bearer <jwt-session-token>" \
+  -H "Authorization: Bearer $JWT_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"Prometheus scrape","scopes":["metrics:read"]}' | jq -r '.token')
 
 curl -H "Authorization: Bearer $METRICS_PAT" http://localhost:8083/actuator/prometheus
 ```
 
-In the production-style multi-replica setup behind Traefik, `docker-compose.yml`
-does not publish a host port for `backend` and Traefik's only router matches
-`/api`, so `/actuator/prometheus` is **not reachable** from outside the Compose
-network today. Scraping it in that topology needs one of: a Prometheus
-container joined to the same Docker network (note: scraping `backend:8080`
-directly does **not** load-balance or rotate across replicas — plain Docker
-DNS resolution is cached, so a target configured this way will repeatedly
-hit whichever single replica it first resolved and silently miss the others;
-per-replica discovery is required for full coverage), a
-dedicated private Traefik router/entrypoint for `/actuator/**` restricted to an
-internal network, or an equivalent per-replica private route. That network
-setup is out of scope here — this section only covers local/CI k6 runs, where
-the host-published port above is sufficient; see #302 for production-topology
-Prometheus scraping before relying on it operationally.
+For the production-style multi-replica topology in `docker-compose.yml`, the
+supported scrape path is now an internal-only Traefik entrypoint:
+
+- `traefik` listens on `metrics` at container port `8082`
+  (`--entrypoints.metrics.address=:8082`)
+- `backend` adds a dedicated router with
+  ``traefik.http.routers.backend-metrics.rule=Path(`/actuator/prometheus`)``
+  and `traefik.http.routers.backend-metrics.entrypoints=metrics`
+- the existing `/api` router is pinned to `entrypoints=web`, so the public HTTP
+  entrypoint does not expose `/actuator/prometheus`
+- no host port is published for `metrics`, so only containers on the same
+  Docker network can reach `http://traefik:8082/actuator/prometheus`
+
+To run Prometheus on that same network, use the committed
+`docker-compose.monitoring.yml` overlay plus
+`monitoring/prometheus/prometheus.yml`. The scrape config uses
+`bearer_token_file` so the long-lived PAT never needs to be inlined into
+Compose or the Prometheus config:
+
+```yaml
+scrape_configs:
+  - job_name: satzwerk-backend
+    metrics_path: /actuator/prometheus
+    bearer_token_file: /run/secrets/metrics-pat
+    static_configs:
+      - targets: ["traefik:8082"]
+```
+
+Create the token file locally, then start the monitoring overlay:
+
+```bash
+mkdir -p monitoring/prometheus/secrets
+printf '%s\n' "$METRICS_PAT" > monitoring/prometheus/secrets/metrics-pat
+
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+```
+
+That setup was verified locally with a same-network curl container:
+
+```bash
+# If you set COMPOSE_PROJECT_NAME, replace satzwerk_default with
+# "${COMPOSE_PROJECT_NAME}_default".
+docker run --rm \
+  --network satzwerk_default \
+  -v "$PWD/monitoring/prometheus/secrets:/run/secrets:ro" \
+  curlimages/curl:8.10.1 \
+  sh -c 'curl -sf -H "Authorization: Bearer $(cat /run/secrets/metrics-pat)" \
+    http://traefik:8082/actuator/prometheus | head'
+```
+
+The public router still blocks the metrics path because it only matches `/api`.
+From that same Docker network, the following request returns `404 page not found`
+instead of Prometheus output:
+
+```bash
+docker run --rm --network satzwerk_default curlimages/curl:8.10.1 \
+  -i http://traefik/actuator/prometheus
+```
 
 For quick ad-hoc manual sampling, a JWT obtained via `/api/auth/login` still
 works, but it follows `jwt.expiry-ms` in `application.yml` and expires after
