@@ -1,0 +1,201 @@
+name: Bootstrap Portainer Stack Env (satzwerk)
+
+# One-off / repeatable ops workflow for issue #315: the production `satzwerk`
+# Portainer stack (id=7, environment `princess-celestia`) has never had
+# DB_PASSWORD/JWT_SECRET configured, so postgres has never started successfully
+# and backend/traefik have never been created.
+#
+# This workflow:
+#   1. Fetches the stack's current Env array (preserving every existing key,
+#      e.g. FRONTEND_PORT, which is already set to a non-default value in
+#      production — see docker inspect evidence in issue #315).
+#   2. Generates fresh DB_PASSWORD/JWT_SECRET values at runtime (never
+#      committed, masked in logs) if they are still unset, and applies an
+#      explicit BACKEND_REPLICAS override sized for this host's shared 4 vCPU
+#      capacity (see issue #308 — the repo's default of 3 replicas x 1.0 CPU
+#      each oversubscribes small/shared hosts).
+#   3. Pushes the updated Env + current stack file back to Portainer, which
+#      redeploys the stack, then polls for the stack to become active.
+#
+# Safe to re-run: existing Env values are preserved, and DB_PASSWORD/JWT_SECRET
+# are only generated if not already present (so re-running does not rotate
+# secrets for an already-initialized stack).
+on:
+  workflow_dispatch:
+    inputs:
+      backend_replicas:
+        description: "BACKEND_REPLICAS override for this host (leave default unless host capacity changes)"
+        required: false
+        default: "2"
+
+jobs:
+  set-stack-env:
+    name: Set stack env vars and redeploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set Portainer stack env and trigger redeploy
+        env:
+          PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
+          PORTAINER_TOKEN: ${{ secrets.PORTAINER_TOKEN }}
+          BACKEND_REPLICAS_OVERRIDE: ${{ github.event.inputs.backend_replicas }}
+        run: |
+          set -euo pipefail
+
+          CURL_GET="curl -fsSL --max-time 30 --retry 3 --retry-delay 10 --retry-connrefused"
+
+          ENDPOINT_ID=$(${CURL_GET} \
+            -H "X-API-Key: ${PORTAINER_TOKEN}" \
+            "${PORTAINER_URL}/api/endpoints" \
+            | jq '.[] | select(.Name == "princess-celestia") | .Id')
+
+          if [ -z "${ENDPOINT_ID}" ]; then
+            echo "Error: Portainer environment 'princess-celestia' not found." >&2
+            exit 1
+          fi
+
+          STACK_ID=$(${CURL_GET} \
+            -H "X-API-Key: ${PORTAINER_TOKEN}" \
+            "${PORTAINER_URL}/api/stacks" \
+            | jq ".[] | select(.Name == \"satzwerk\" and .EndpointId == ${ENDPOINT_ID}) | .Id")
+
+          if [ -z "${STACK_ID}" ]; then
+            echo "Error: Portainer stack 'satzwerk' not found on environment ${ENDPOINT_ID}." >&2
+            exit 1
+          fi
+
+          STACK_JSON=$(${CURL_GET} \
+            -H "X-API-Key: ${PORTAINER_TOKEN}" \
+            "${PORTAINER_URL}/api/stacks/${STACK_ID}")
+
+          STACK_FILE=$(${CURL_GET} \
+            -H "X-API-Key: ${PORTAINER_TOKEN}" \
+            "${PORTAINER_URL}/api/stacks/${STACK_ID}/file" \
+            | jq -r '.StackFileContent')
+
+          # Only generate secrets if not already present — re-running this
+          # workflow must never silently rotate a live DB password/JWT secret.
+          EXISTING_DB_PASSWORD=$(echo "${STACK_JSON}" | jq -r '(.Env // [])[] | select(.name == "DB_PASSWORD") | .value')
+          EXISTING_JWT_SECRET=$(echo "${STACK_JSON}" | jq -r '(.Env // [])[] | select(.name == "JWT_SECRET") | .value')
+
+          if [ -n "${EXISTING_DB_PASSWORD}" ]; then
+            DB_PASSWORD="${EXISTING_DB_PASSWORD}"
+            echo "DB_PASSWORD already set on the stack — leaving unchanged."
+          else
+            DB_PASSWORD=$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9')
+            echo "Generated a new DB_PASSWORD."
+          fi
+
+          if [ -n "${EXISTING_JWT_SECRET}" ]; then
+            JWT_SECRET="${EXISTING_JWT_SECRET}"
+            echo "JWT_SECRET already set on the stack — leaving unchanged."
+          else
+            JWT_SECRET=$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9')
+            echo "Generated a new JWT_SECRET."
+          fi
+
+          echo "::add-mask::${DB_PASSWORD}"
+          echo "::add-mask::${JWT_SECRET}"
+
+          # Preserve every existing Env entry except the keys we are about to
+          # set explicitly, so unrelated production overrides (e.g. FRONTEND_PORT)
+          # are never dropped by this workflow.
+          MANAGED_KEYS='["DB_PASSWORD","JWT_SECRET","BACKEND_REPLICAS"]'
+          EXISTING_ENV=$(echo "${STACK_JSON}" | jq --argjson managed "${MANAGED_KEYS}" \
+            '[(.Env // [])[] | select(.name as $n | $managed | index($n) | not)]')
+
+          NEW_ENV=$(jq -n \
+            --argjson existing "${EXISTING_ENV}" \
+            --arg dbpass "${DB_PASSWORD}" \
+            --arg jwt "${JWT_SECRET}" \
+            --arg replicas "${BACKEND_REPLICAS_OVERRIDE}" \
+            '$existing + [
+              {"name":"DB_PASSWORD","value":$dbpass},
+              {"name":"JWT_SECRET","value":$jwt},
+              {"name":"BACKEND_REPLICAS","value":$replicas}
+            ]')
+
+          PAYLOAD=$(jq -n \
+            --arg content "${STACK_FILE}" \
+            --argjson env "${NEW_ENV}" \
+            '{"pullImage": true, "prune": false, "stackFileContent": $content, "env": $env}')
+
+          echo "Updating stack env and triggering redeploy..."
+          set +e
+          curl -sL \
+            -o /tmp/portainer_deploy.json \
+            -w "%{http_code}" \
+            --max-time 180 \
+            -X PUT \
+            -H "X-API-Key: ${PORTAINER_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "${PAYLOAD}" \
+            "${PORTAINER_URL}/api/stacks/${STACK_ID}?endpointId=${ENDPOINT_ID}" \
+            > /tmp/portainer_http_code.txt 2>/tmp/portainer_curl_err.txt
+          CURL_EXIT=$?
+          set -e
+
+          HTTP_CODE=$(cat /tmp/portainer_http_code.txt 2>/dev/null || echo "000")
+          [ -z "${HTTP_CODE}" ] && HTTP_CODE="000"
+
+          case "${HTTP_CODE}" in
+            200|202)
+              echo "Portainer completed the update synchronously (HTTP ${HTTP_CODE})."
+              jq -r '"Stack id=\(.Id) status=\(.Status)"' /tmp/portainer_deploy.json 2>/dev/null || true
+              exit 0
+              ;;
+            504|000)
+              echo "Proxy/curl timeout (HTTP ${HTTP_CODE}, curl exit ${CURL_EXIT}) — Portainer is applying the update. Polling for completion..."
+              ;;
+            4[0-9][0-9])
+              echo "Client error HTTP ${HTTP_CODE} — check PORTAINER_URL and PORTAINER_TOKEN." >&2
+              cat /tmp/portainer_deploy.json >&2
+              exit 1
+              ;;
+            *)
+              echo "Unexpected HTTP ${HTTP_CODE} (curl exit ${CURL_EXIT})." >&2
+              cat /tmp/portainer_deploy.json >&2
+              cat /tmp/portainer_curl_err.txt >&2
+              exit 1
+              ;;
+          esac
+
+          MAX_WAIT=300
+          INTERVAL=20
+          ELAPSED=0
+
+          while [ "${ELAPSED}" -lt "${MAX_WAIT}" ]; do
+            sleep "${INTERVAL}"
+            ELAPSED=$((ELAPSED + INTERVAL))
+
+            set +e
+            POLL_RESPONSE=$(curl -sL --max-time 15 \
+              -o /tmp/portainer_poll.json \
+              -w "%{http_code}" \
+              -H "X-API-Key: ${PORTAINER_TOKEN}" \
+              "${PORTAINER_URL}/api/stacks/${STACK_ID}" \
+              2>/dev/null)
+            POLL_EXIT=$?
+            set -e
+
+            case "${POLL_RESPONSE}" in
+              200)
+                STACK_STATUS=$(jq -r '.Status' /tmp/portainer_poll.json 2>/dev/null || echo "unknown")
+                echo "  [${ELAPSED}s/${MAX_WAIT}s] Stack status: ${STACK_STATUS}"
+                if [ "${STACK_STATUS}" = "1" ]; then
+                  echo "Stack is active. Update succeeded."
+                  exit 0
+                fi
+                ;;
+              4[0-9][0-9])
+                echo "Poll error HTTP ${POLL_RESPONSE} — check PORTAINER_URL and PORTAINER_TOKEN." >&2
+                cat /tmp/portainer_poll.json >&2
+                exit 1
+                ;;
+              *)
+                echo "  [${ELAPSED}s/${MAX_WAIT}s] Poll returned HTTP ${POLL_RESPONSE} (exit ${POLL_EXIT}), retrying..."
+                ;;
+            esac
+          done
+
+          echo "Timed out waiting for stack to become active after ${MAX_WAIT}s." >&2
+          exit 1
