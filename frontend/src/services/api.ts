@@ -64,7 +64,6 @@ api.interceptors.response.use(
       original.headers.Authorization = `Bearer ${data.accessToken}`
       return api(original)
     } catch (refreshError) {
-      await authService.logout().catch(() => undefined)
       flushQueue(refreshError)
       useAuthStore.getState().logout()
       throw refreshError

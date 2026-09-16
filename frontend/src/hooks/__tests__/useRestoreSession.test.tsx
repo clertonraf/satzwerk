@@ -44,12 +44,11 @@ describe('useRestoreSession', () => {
   it('logs out when refresh fails', async () => {
     document.cookie = 'refresh_csrf=reload-csrf-token; path=/'
     vi.mocked(authService.refresh).mockRejectedValue(new Error('forbidden'))
-    vi.mocked(authService.logout).mockResolvedValue(undefined)
 
     renderHook(() => useRestoreSession())
 
     await waitFor(() => {
-      expect(vi.mocked(authService.logout)).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(authService.logout)).not.toHaveBeenCalled()
       expect(useAuthStore.getState().accessToken).toBeNull()
       expect(useAuthStore.getState().csrfToken).toBeNull()
       expect(useAuthStore.getState().isRestoring).toBe(false)

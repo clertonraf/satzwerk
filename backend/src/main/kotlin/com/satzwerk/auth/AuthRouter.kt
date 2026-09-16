@@ -1,5 +1,6 @@
 package com.satzwerk.auth
 
+import com.satzwerk.common.BadRequestException
 import com.satzwerk.common.ErrorResponse
 import com.satzwerk.common.RequestContext
 import com.satzwerk.common.body
@@ -8,6 +9,7 @@ import com.satzwerk.common.validateOrBadRequest
 import jakarta.validation.Validator
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.codec.CodecException
 import org.springframework.core.env.Environment
 import org.springframework.http.HttpStatus
 import org.springframework.web.reactive.function.server.ServerRequest
@@ -89,7 +91,7 @@ private suspend fun refresh(
 ): ServerResponse =
     handleErrors {
         try {
-            val legacyRequest = request.awaitBodyOrNull<LegacyRefreshRequest>()
+            val legacyRequest = request.legacyRefreshRequest()
             val refreshToken = request.cookieValue(REFRESH_COOKIE_NAME)
 
             if (refreshToken == null && !legacyRequest?.refreshToken.isNullOrBlank()) {
@@ -146,3 +148,10 @@ private fun ServerRequest.cookieValue(name: String): String? = cookies().getFirs
 private data class LegacyRefreshRequest(
     val refreshToken: String? = null,
 )
+
+private suspend fun ServerRequest.legacyRefreshRequest(): LegacyRefreshRequest? =
+    try {
+        awaitBodyOrNull<LegacyRefreshRequest>()
+    } catch (e: CodecException) {
+        throw BadRequestException("Invalid request body: ${e.message ?: "malformed input"}", e)
+    }

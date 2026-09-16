@@ -16,8 +16,7 @@ export function useRestoreSession() {
         useAuthStore.getState().setAccessToken(data.accessToken)
         useAuthStore.getState().setCsrfToken(data.csrfToken)
       })
-      .catch(async () => {
-        await authService.logout().catch(() => undefined)
+      .catch(() => {
         useAuthStore.getState().logout()
       })
       .finally(() => {
