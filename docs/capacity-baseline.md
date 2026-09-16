@@ -447,6 +447,46 @@ capacity work should assume that simply multiplying pool size / replica count
 is **not** enough to claim a proportionally higher supported concurrency
 figure.
 
+## SetLog single-round-trip follow-up (#331)
+
+Issue #331 changed `SetLogService.add()` from a transactional **read-then-save**
+sequence to a single `INSERT ... SELECT ... RETURNING` statement that computes
+`is_pr` inside the write itself. To isolate the pool-hold-time effect from all
+other variables, the same `perf/write-saturation-8000-stages.json` discovery
+ramp was run twice on **2026-09-16** with the same temporary perf profile:
+
+- **Host runtime:** Colima resized to **6 vCPU / 18 GiB**
+- **Topology under test:** `BACKEND_REPLICAS=3`, `R2DBC_POOL_MAX_SIZE=15`
+  (**45 pooled connections total**)
+- **Ingress path:** direct to `backend:8080` from the k6 container
+  (`BASE_URL=http://backend:8080`), intentionally bypassing Traefik's rate
+  limit from #327
+- **Workload:** `SUMMARY_ENABLED=false`,
+  `MIXED_P95_THRESHOLD_MS=off`,
+  `MIXED_STAGES_FILE=/perf/write-saturation-8000-stages.json`
+- **A/B method:** first run on `origin/main`, second run on the #331 branch
+
+| Stage window | Target VUs | Before (`origin/main`) | After (#331) |
+| --- | ---: | ---: | ---: |
+| 0–45s | 250 | 2,774 req / 43 failed / **1.55%** | 3,619 req / 13 failed / **0.36%** |
+| 45–90s | 500 | 2,647 req / 680 failed / **25.69%** | 3,925 req / 595 failed / **15.16%** |
+| 90–150s | 1,000 | 5,679 req / 5,214 failed / **91.81%** | 5,815 req / 4,222 failed / **72.61%** |
+| 150–210s | 2,000 | 12,878 req / 12,855 failed / **99.82%** | 12,498 req / 12,417 failed / **99.35%** |
+
+Interpretation:
+
+- The optimization restored the **250-VU** stage to below the repo's **1% HTTP
+  failure threshold** in this rerun (**1.55% → 0.36%**) while also increasing
+  admitted throughput from **61.6 req/s** to **80.4 req/s**.
+- The **first failing stage** in this A/B rerun moved from **250 VUs** on
+  `origin/main` to **500 VUs** after #331, and the 500-VU window admitted
+  materially more work (**2,647 → 3,925 requests**, about **+48%**) while the
+  failure rate dropped from **25.69%** to **15.16%**.
+- Later stages still collapse on both runs because the deployment is still
+  bounded by the same **45-connection** pool budget; #331 reduces **per-write
+  connection hold time**, but it does **not** change the steady-state
+  connection count available once the ramp moves deep into overload.
+
 ## Traefik fail-fast guardrail on the backend router (#327)
 
 `docker-compose.yml` now attaches a dedicated Traefik rate-limit middleware to
