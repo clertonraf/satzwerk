@@ -22,6 +22,14 @@ class PlanImportServiceTest {
     private val exerciseResolver: ExerciseResolver = mock()
     private val planImportParsingAdapters: PlanImportParsingAdapters = mock()
     private val exerciseCatalogCache: ExerciseCatalogCache = mock()
+    private val workoutPlanReadCache: WorkoutPlanReadCache = mock()
+    private val workoutGroupReadCache: WorkoutGroupReadCache = mock()
+    private val workoutReadCaches =
+        WorkoutReadCaches(
+            exerciseCatalogCache = exerciseCatalogCache,
+            workoutPlanReadCache = workoutPlanReadCache,
+            workoutGroupReadCache = workoutGroupReadCache,
+        )
     private val inlineTransactionRunner =
         object : TransactionRunner {
             override suspend fun <T> required(block: suspend () -> T): T = block()
@@ -40,7 +48,7 @@ class PlanImportServiceTest {
                     workoutExerciseRepository = workoutExerciseRepository,
                     exerciseResolver = exerciseResolver,
                     planImportParsingAdapters = planImportParsingAdapters,
-                    exerciseCatalogCache = exerciseCatalogCache,
+                    workoutReadCaches = workoutReadCaches,
                 ),
             transactionRunner = inlineTransactionRunner,
         )
@@ -93,6 +101,48 @@ class PlanImportServiceTest {
             assertEquals(AdvancedTechnique.REST_PAUSE.name, savedExercises[0].advancedTechnique)
             assertEquals(0, savedExercises[0].reps)
             assertEquals(true, savedExercises[0].toFailure)
+        }
+
+    @Test
+    fun `import invalidates plan list detail and group caches after commit`(): Unit =
+        runBlocking {
+            val userId = UUID.randomUUID()
+            val planId = UUID.randomUUID()
+            val groupId = UUID.randomUUID()
+            val exerciseId = UUID.randomUUID()
+            val filePart = mockFilePart()
+            val parsedResponse = parsedResponse()
+
+            whenever(planParser.parse(filePart)).thenReturn(parsedResponse)
+            whenever(planImportParsingAdapters.normalizeFilename("Push_Pull-Legs.xlsx")).thenReturn("Push Pull Legs")
+            whenever(planImportParsingAdapters.parseTechnique("Rest Pause Cluster"))
+                .thenReturn(AdvancedTechnique.REST_PAUSE.name)
+            whenever(planImportParsingAdapters.parseReps(parsedResponse.workouts[0].exercises[0].reps))
+                .thenReturn(PlanImportReps(reps = 8, toFailure = false))
+            whenever(exerciseResolver.resolve(userId, mapOf("Bench Press" to "CHEST"))).thenReturn(
+                ExerciseResolution(
+                    exercisesByNameLower =
+                        mapOf(
+                            "bench press" to
+                                Exercise(
+                                    id = exerciseId,
+                                    userId = userId,
+                                    name = "Bench Press",
+                                    muscleGroup = "CHEST",
+                                ),
+                        ),
+                    createdCount = 1,
+                ),
+            )
+            stubPersistence(userId, planId, groupId)
+            whenever(workoutExerciseRepository.saveAll(any<Iterable<WorkoutExercise>>())).thenReturn(flowOf())
+
+            service.import(userId, filePart)
+
+            verify(workoutPlanReadCache).invalidateList(userId)
+            verify(workoutPlanReadCache).invalidateDetail(userId, planId)
+            verify(workoutGroupReadCache).invalidatePlan(userId, planId)
+            verify(exerciseCatalogCache).invalidateUser(userId)
         }
 
     private fun mockFilePart(): FilePart =

@@ -11,7 +11,9 @@ import java.util.UUID
 @Service
 class ExerciseService(
     private val exerciseRepository: ExerciseRepository,
+    private val workoutExerciseRepository: WorkoutExerciseRepository,
     private val exerciseCatalogCache: ExerciseCatalogCache,
+    private val workoutPlanReadCache: WorkoutPlanReadCache,
     private val transactionRunner: TransactionRunner,
 ) {
     suspend fun create(
@@ -59,6 +61,7 @@ class ExerciseService(
         request: UpdateExerciseRequest,
     ): ExerciseResponse {
         val existing = getRequiredExercise(userId, exerciseId)
+        val affectedPlanIds = workoutExerciseRepository.findDistinctWorkoutPlanIdsByExerciseId(exerciseId)
         val updated =
             exerciseRepository.save(
                 existing.copy(
@@ -72,6 +75,9 @@ class ExerciseService(
             )
         transactionRunner.afterCommit {
             exerciseCatalogCache.invalidateUser(userId)
+            affectedPlanIds.forEach { planId ->
+                workoutPlanReadCache.invalidateDetail(userId, planId)
+            }
         }
 
         return ExerciseResponse.from(updated)
@@ -82,9 +88,13 @@ class ExerciseService(
         exerciseId: UUID,
     ) {
         val exercise = getRequiredExercise(userId, exerciseId)
+        val affectedPlanIds = workoutExerciseRepository.findDistinctWorkoutPlanIdsByExerciseId(exerciseId)
         exerciseRepository.deleteById(requireNotNull(exercise.id))
         transactionRunner.afterCommit {
             exerciseCatalogCache.invalidateUser(userId)
+            affectedPlanIds.forEach { planId ->
+                workoutPlanReadCache.invalidateDetail(userId, planId)
+            }
         }
     }
 
