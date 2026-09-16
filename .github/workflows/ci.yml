@@ -280,7 +280,7 @@ jobs:
 
       - name: Validate checked-out production compose file
         run: |
-          for required_var in $(grep -oE '\$\{[A-Z0-9_]+\}' docker-compose.yml | tr -d '${}' | sort -u); do
+          for required_var in $( (grep -oE '\$\{[A-Z0-9_]+\}' docker-compose.yml || true) | tr -d '${}' | sort -u ); do
             export "${required_var}=check"
           done
 
@@ -321,6 +321,24 @@ jobs:
             -H "X-API-Key: ${PORTAINER_TOKEN}" \
             "${PORTAINER_URL}/api/stacks/${STACK_ID}" \
             | jq -c '.Env // []')
+
+          # Guard against the #315 production incident: once #306 started syncing
+          # the repo's real docker-compose.yml, an empty/incomplete Portainer Env
+          # array could silently redeploy with missing required secrets and
+          # crash-loop services like postgres before a human noticed.
+          REQUIRED_VARS=$( (grep -oE '\$\{[A-Z0-9_]+\}' docker-compose.yml || true) | tr -d '${}' | sort -u )
+          MISSING_VARS=()
+
+          for required_var in ${REQUIRED_VARS}; do
+            if ! jq -e --arg required_var "${required_var}" 'map(.name) | index($required_var)' <<< "${STACK_ENV}" > /dev/null; then
+              MISSING_VARS+=("${required_var}")
+            fi
+          done
+
+          if [ "${#MISSING_VARS[@]}" -gt 0 ]; then
+            echo "::error::Portainer stack 'satzwerk' is missing required environment variables referenced by docker-compose.yml: ${MISSING_VARS[*]}. Refusing to redeploy because #315 showed that syncing the repo compose file with an empty or incomplete Portainer Env array can crash-loop production services. Add the missing stack variables in Portainer before rerunning deploy." >&2
+            exit 1
+          fi
 
           # Read the checked-out docker-compose.yml from this workflow commit
           # instead of re-submitting Portainer's stored stack file. Reusing
