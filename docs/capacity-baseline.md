@@ -338,19 +338,21 @@ earlier in this document.
 Create the token file locally, then start the monitoring overlay:
 
 ```bash
-mkdir -p monitoring/prometheus/secrets
-printf '%s\n' "$METRICS_PAT" > monitoring/prometheus/secrets/metrics-pat
+# Use the same COMPOSE_PROJECT_NAME value you used when starting the base stack.
+export COMPOSE_PROJECT_NAME=satzwerk
+NETWORK_NAME="${COMPOSE_PROJECT_NAME}_default"
 
-docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+install -d -m 700 monitoring/prometheus/secrets
+(umask 077 && printf '%s\n' "$METRICS_PAT" > monitoring/prometheus/secrets/metrics-pat)
+
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d prometheus
 ```
 
 That setup was verified locally with a same-network curl container:
 
 ```bash
-# If you set COMPOSE_PROJECT_NAME, replace satzwerk_default with
-# "${COMPOSE_PROJECT_NAME}_default".
 docker run --rm \
-  --network satzwerk_default \
+  --network "$NETWORK_NAME" \
   -v "$PWD/monitoring/prometheus/secrets:/run/secrets:ro" \
   curlimages/curl:8.10.1 \
   sh -c 'curl -sf -H "Authorization: Bearer $(cat /run/secrets/metrics-pat)" \
@@ -362,7 +364,7 @@ From that same Docker network, the following request returns `404 page not found
 instead of Prometheus output:
 
 ```bash
-docker run --rm --network satzwerk_default curlimages/curl:8.10.1 \
+docker run --rm --network "$NETWORK_NAME" curlimages/curl:8.10.1 \
   -i http://traefik/actuator/prometheus
 ```
 
