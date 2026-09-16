@@ -3,7 +3,6 @@ package com.satzwerk.sessions
 import com.satzwerk.common.TransactionRunner
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
@@ -38,10 +37,10 @@ class SetLogServiceTest {
             }
         }
 
-    private fun service(prevMaxRatio: BigDecimal?): Pair<SetLogService, SetLogRepository> {
+    private fun service(): Triple<SetLogService, SetLogRepository, SetLogWriteRepository> {
         val queryRepo =
             mock<SessionQueryRepository> {
-                onBlocking { findMaxRatioForExercise(any(), any(), any(), anyOrNull()) } doReturn prevMaxRatio
+                onBlocking { findMaxRatioForExercise(any(), any(), any(), anyOrNull()) } doReturn null
             }
         val setLogRepo =
             mock<SetLogRepository> {
@@ -50,34 +49,65 @@ class SetLogServiceTest {
                     log.copy(id = UUID.randomUUID())
                 }
             }
-        return SetLogService(setLogRepo, queryRepo, mock(), inlineTransactionRunner) to setLogRepo
+        val setLogWriteRepo =
+            mock<SetLogWriteRepository> {
+                onBlocking { insertWithCalculatedPr(any(), any()) } doAnswer { invocation ->
+                    val log = invocation.getArgument<SetLog>(1)
+                    log.copy(id = UUID.randomUUID(), isPr = true)
+                }
+            }
+        return Triple(
+            SetLogService(setLogRepo, setLogWriteRepo, queryRepo, mock(), inlineTransactionRunner),
+            setLogRepo,
+            setLogWriteRepo,
+        )
     }
 
     @Test
-    fun `add sets isPr true when no prior record exists`(): Unit =
+    fun `add avoids the legacy read then save path`(): Unit =
         runBlocking {
-            val (svc, repo) = service(prevMaxRatio = null)
+            val queryRepo =
+                mock<SessionQueryRepository> {
+                    onBlocking { findMaxRatioForExercise(any(), any(), any(), anyOrNull()) } doReturn null
+                }
+            val setLogRepo =
+                mock<SetLogRepository> {
+                    onBlocking { save(any()) } doAnswer { invocation ->
+                        val log = invocation.getArgument<SetLog>(0)
+                        log.copy(id = UUID.randomUUID())
+                    }
+                }
+            val setLogWriteRepo =
+                mock<SetLogWriteRepository> {
+                    onBlocking { insertWithCalculatedPr(any(), any()) } doAnswer { invocation ->
+                        val log = invocation.getArgument<SetLog>(1)
+                        log.copy(id = UUID.randomUUID(), isPr = true)
+                    }
+                }
+            val service = SetLogService(setLogRepo, setLogWriteRepo, queryRepo, mock(), inlineTransactionRunner)
+            val request = AddSetLogRequest(exerciseId = exerciseId, setNumber = 1, weight = BigDecimal("80"), reps = 5)
+
+            val response = service.add(session, request)
+
+            verify(queryRepo, never()).findMaxRatioForExercise(any(), any(), any(), anyOrNull())
+            verify(setLogRepo, never()).save(any())
+            verify(setLogWriteRepo).insertWithCalculatedPr(any(), any())
+            assertEquals(exerciseId, response.exerciseId)
+        }
+
+    @Test
+    fun `add delegates persistence to single-round-trip writer`(): Unit =
+        runBlocking {
+            val (svc, legacyRepo, writeRepo) = service()
             val request = AddSetLogRequest(exerciseId = exerciseId, setNumber = 1, weight = BigDecimal("80"), reps = 5)
 
             svc.add(session, request)
 
             val captor = argumentCaptor<SetLog>()
-            verify(repo).save(captor.capture())
-            assertTrue(captor.firstValue.isPr)
-        }
-
-    @Test
-    fun `add sets isPr false when ratio is below existing record`(): Unit =
-        runBlocking {
-            // prev = 80/5 = 16.0; new = 70/5 = 14.0 → not a PR
-            val (svc, repo) = service(prevMaxRatio = BigDecimal("16.0000000000"))
-            val request = AddSetLogRequest(exerciseId = exerciseId, setNumber = 1, weight = BigDecimal("70"), reps = 5)
-
-            svc.add(session, request)
-
-            val captor = argumentCaptor<SetLog>()
-            verify(repo).save(captor.capture())
-            assertFalse(captor.firstValue.isPr)
+            verify(writeRepo).insertWithCalculatedPr(any(), captor.capture())
+            verify(legacyRepo, never()).save(any())
+            assertEquals(sessionId, captor.firstValue.workoutSessionId)
+            assertEquals(exerciseId, captor.firstValue.exerciseId)
         }
 
     @Test
@@ -89,7 +119,7 @@ class SetLogServiceTest {
                     onBlocking { findMaxRatioForExercise(any(), any(), any(), anyOrNull()) } doReturn null
                 }
             val setLogRepo = mock<SetLogRepository>()
-            val service = SetLogService(setLogRepo, queryRepo, analyticsCache, inlineTransactionRunner)
+            val service = SetLogService(setLogRepo, mock(), queryRepo, analyticsCache, inlineTransactionRunner)
 
             service.clearSetLogs(session)
 
@@ -118,7 +148,14 @@ class SetLogServiceTest {
                         throw IllegalStateException("redis down")
                     }
                 }
-            val service = SetLogService(setLogRepo, queryRepo, analyticsCache, inlineTransactionRunner)
+            val setLogWriteRepo =
+                mock<SetLogWriteRepository> {
+                    onBlocking { insertWithCalculatedPr(any(), any()) } doAnswer { invocation ->
+                        val log = invocation.getArgument<SetLog>(1)
+                        log.copy(id = UUID.randomUUID(), isPr = true)
+                    }
+                }
+            val service = SetLogService(setLogRepo, setLogWriteRepo, queryRepo, analyticsCache, inlineTransactionRunner)
             val request = AddSetLogRequest(exerciseId = exerciseId, setNumber = 1, weight = BigDecimal("80"), reps = 5)
 
             val response = service.add(session, request)
@@ -126,7 +163,7 @@ class SetLogServiceTest {
             assertTrue(response.id.toString().isNotBlank())
             assertEquals(exerciseId, response.exerciseId)
             assertEquals(1, response.setNumber)
-            verify(setLogRepo).save(any())
+            verify(setLogWriteRepo).insertWithCalculatedPr(any(), any())
             verify(analyticsCache).invalidateUser(userId)
         }
 }

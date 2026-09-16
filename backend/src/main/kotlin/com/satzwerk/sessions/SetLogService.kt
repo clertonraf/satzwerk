@@ -9,6 +9,7 @@ import java.util.UUID
 @Service
 class SetLogService(
     private val setLogRepository: SetLogRepository,
+    private val setLogWriteRepository: SetLogWriteRepository,
     private val sessionQueryRepository: SessionQueryRepository,
     private val analyticsReadCache: com.satzwerk.analytics.AnalyticsReadCache,
     private val transactionRunner: TransactionRunner,
@@ -19,16 +20,9 @@ class SetLogService(
     ): SetLogResponse {
         return transactionRunner.required {
             val now = Instant.now()
-            val isPr =
-                sessionQueryRepository.calculateIsPr(
-                    session.userId,
-                    request.exerciseId,
-                    request.weight,
-                    request.reps,
-                    SetLogRef(null, now),
-                )
             val response =
-                setLogRepository.save(
+                setLogWriteRepository.insertWithCalculatedPr(
+                    session.userId,
                     SetLog(
                         workoutSessionId = requireNotNull(session.id),
                         exerciseId = request.exerciseId,
@@ -37,7 +31,6 @@ class SetLogService(
                         reps = request.reps,
                         rir = request.rir,
                         loggedAt = now,
-                        isPr = isPr,
                     ),
                 ).toResponse()
             transactionRunner.afterCommit {
