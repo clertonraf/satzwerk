@@ -33,6 +33,9 @@ jobs:
     name: Set stack env vars and redeploy
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
       - name: Set Portainer stack env and trigger redeploy
         env:
           PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
@@ -67,10 +70,18 @@ jobs:
             -H "X-API-Key: ${PORTAINER_TOKEN}" \
             "${PORTAINER_URL}/api/stacks/${STACK_ID}")
 
-          STACK_FILE=$(${CURL_GET} \
-            -H "X-API-Key: ${PORTAINER_TOKEN}" \
-            "${PORTAINER_URL}/api/stacks/${STACK_ID}/file" \
-            | jq -r '.StackFileContent')
+          # Use the repo's own docker-compose.yml as the source of truth
+          # rather than trusting whatever Portainer currently has stored.
+          # Diagnosed while resolving #315: the stack's stored file had
+          # literal hardcoded DB_PASSWORD/JWT_SECRET values (not ${VAR}
+          # templating), so pushing new Env entries alone was a no-op —
+          # nothing in the stored file actually referenced them.
+          STACK_FILE=$(cat docker-compose.yml)
+
+          if ! grep -q '\${DB_PASSWORD}' <<< "${STACK_FILE}" || ! grep -q '\${JWT_SECRET}' <<< "${STACK_FILE}"; then
+            echo "Error: repo docker-compose.yml no longer templates \${DB_PASSWORD}/\${JWT_SECRET} as expected — aborting rather than pushing an unexpected file." >&2
+            exit 1
+          fi
 
           # Only generate secrets if not already present — re-running this
           # workflow must never silently rotate a live DB password/JWT secret.
