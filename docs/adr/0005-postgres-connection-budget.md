@@ -51,6 +51,28 @@ This does not change the core connection-budget decision in this ADR:
   least **4 vCPUs**, where the backend CPU budget can stay within the machine's
   capacity while still leaving headroom for the rest of the stack.
 
+## Empirical ceiling evidence after #309 / #328
+
+`docs/capacity-baseline.md` now records two follow-up measurements that are
+relevant to this ADR even though they do **not** yet cross the ADR's
+"~10 replicas / 300-400 connections" PgBouncer trigger:
+
+- With the shipped default budget restored by #308 (**2 replicas × pool 15 =
+  30 connections**), the write-heavy discovery ramp stayed stable at roughly
+  **250 VUs** and showed its first persistent failures around **500 VUs**,
+  dominated by `R2dbcTimeoutException: Connection acquisition timed out after
+  3000ms`.
+- Issue #328 then reran the same discovery ramp at a much larger temporary
+  budget (**4 replicas × pool 30 = 120 pooled connections**) and still observed
+  the first non-zero failure probes in the **few-hundred-VU range** while
+  Postgres CPU stayed comparatively low.
+
+That empirical result matters for future re-evaluation: it suggests that
+raising raw pool / replica budget alone does **not** guarantee near-linear
+concurrency scaling, so any future PgBouncer or connection-budget revisit
+should look at the measured application ceiling in `docs/capacity-baseline.md`,
+not just `replicas × pool max-size` arithmetic.
+
 ## Budget
 
 - R2DBC pool `max-size` per backend instance: **15** (`spring.r2dbc.pool.max-size`,

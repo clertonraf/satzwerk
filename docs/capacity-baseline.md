@@ -2,8 +2,9 @@
 
 Records the local capacity baseline for the resource-constrained Docker stack
 after explicit container limits (#286), Prometheus pool metrics (#294), the
-pool/replica tuning pass from #295, and the replica-default guardrail from
-#308.
+pool/replica tuning pass from #295, the measured write-saturation ceiling from
+#309, the pool-scaling follow-up from #328, and the replica-default guardrail
+from #308.
 
 ## Test environment and method
 
@@ -150,9 +151,12 @@ on the 2 vCPU / 4 GiB Colima VM described above.
 - The prior doc's **unestablished-number gap for this local
   resource-constrained baseline** is now replaced with a real measured SLO and
   saturation table for the historical 3-replica / pool-15 config. The separate
-  high-infrastructure 8,000-VU / full-infra exercise, previously tracked by
-  #297/#309, was completed on 2026-09-16 on a 6 vCPU / 18 GiB Colima VM — see
-  **"Result: measured write-saturation ceiling (resolves #309)"** below.
+  high-infrastructure **ramp-to-8,000-VU discovery run** previously tracked by
+  #297/#309 was completed on 2026-09-16 on a 6 vCPU / 18 GiB Colima VM — see
+  **"Result: measured write-saturation ceiling (resolves #309)"** below. The
+  8,000-VU figure there is the **load-generator target used to find the
+  ceiling**, not a claim that the default deployment supports 8,000 concurrent
+  users.
 
 ## Write-saturation ceiling test — local execution guide
 
@@ -165,7 +169,9 @@ harness first (`exit 137`) at roughly **2,000-2,700 VUs**.
 
 This section documents how to rerun that ceiling study locally on a machine
 with enough Docker/Colima resources to let the application fail on its own
-terms rather than letting the load generator die first.
+terms rather than letting the load generator die first. The **8,000-VU stage
+file is only a discovery ramp**: it is intentionally oversized so the run
+pushes past the real ceiling and shows where persistent failures begin.
 
 ### 1. Preflight the host VM
 
@@ -230,7 +236,8 @@ predictable for the k6 container in the next step.
 `perf/stress.js` now accepts a custom stage file so the same script can keep
 its small default CI gate while also driving the full local ceiling study. The
 companion stage file `perf/write-saturation-8000-stages.json` ramps from 250 to
-8,000 VUs, holds there for two minutes, then ramps down.
+an intentionally over-sized **8,000-VU target**, holds there for two minutes,
+then ramps down so the run can discover the actual failure band.
 
 Run it from the repo root:
 
@@ -373,14 +380,71 @@ harness died around 2,700 VUs on a 4 GiB VM; that failure mode is now closed).
   a wide margin.
 - **Practical takeaway**: for this specific replica/pool configuration, the
   write-heavy ceiling is **~250–500 concurrent VUs**, not 8,000 — the pool
-  budget, not CPU or host memory, is the limiting factor. Reaching a materially
-  higher VU ceiling requires raising `R2DBC_POOL_MAX_SIZE` and/or
+  budget, not CPU or host memory, is the limiting factor. The **8,000-VU ramp
+  target** was only the discovery tool used to expose that ceiling. Reaching a
+  materially higher VU ceiling requires raising `R2DBC_POOL_MAX_SIZE` and/or
   `BACKEND_REPLICAS` (mindful of the CPU-oversubscription guardrail from #308)
   and re-running this same ramp to find the new pool-bound ceiling, rather than
   provisioning more raw CPU/memory — this run's clean completion (no host OOM)
   demonstrates the *harness* is no longer the bottleneck, so any future re-run
   with a larger pool will measure the real application response, not another
   host-resource artifact.
+
+## Ceiling scaling follow-up (#328)
+
+Issue #328 reran the same `perf/write-saturation-8000-stages.json` discovery
+ramp against a larger temporary budget:
+
+- **Topology under test:** `BACKEND_REPLICAS=4`, `R2DBC_POOL_MAX_SIZE=30`
+  (**120 pooled connections total**), on an isolated Colima profile sized to
+  **6 vCPU / 16 GiB**.
+- **Ingress path:** `BASE_URL=http://backend:8080` from the k6 container on the
+  same Docker network so the run bypassed Traefik's new router-level rate limit
+  from #327.
+- **Result:** the larger raw connection budget **did not scale the ceiling
+  linearly**. The full ramp still collapsed badly overall
+  (`http_req_failed = 95.20%`, `http_req_duration p95 = 13.2s`), and backend
+  logs on that run contained **410,884**
+  `R2dbcTimeoutException: Connection acquisition timed out after 3000ms`
+  entries.
+
+Because the full 250 → 8,000 ramp aggregates all stages together, a clean-stack
+follow-up used shorter constant-VU probes to narrow the first-failure band:
+
+| Probe topology | Target VUs | HTTP failure rate | Checks pass rate | p95 req | Interpretation |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 4 replicas × pool 30 | 250 | **0.00%** | 100.00% | 4.71 s | Last clean probe observed. |
+| 4 replicas × pool 30 | 350 | 2.92% | 97.08% | 7.71 s | First failing probe observed. |
+| 4 replicas × pool 30 | 400 | 1.06% | 98.94% | 6.83 s | Still above the repo's 1% error threshold. |
+| 4 replicas × pool 30 | 450 | 8.55% | 91.45% | 10.12 s | Failure rate is clearly established. |
+| 4 replicas × pool 30 | 500 | 2.03% | 97.97% | 8.65 s | Same order of magnitude as the default-budget first-fail band. |
+| 4 replicas × pool 30 | 750 | 7.15% | 92.85% | 10.30 s | Deeper into sustained failure. |
+| 4 replicas × pool 30 | 1,000 | 26.61% | 73.39% | 13.41 s | Collapse accelerates quickly. |
+| 4 replicas × pool 30 | 1,250 | 69.88% | 30.12% | 15.52 s | Effectively unusable. |
+
+Observed bottleneck signals during the scaled run:
+
+- `docker stats` kept all four backend replicas pinned around **~1 vCPU each**
+  for most of the run, while Postgres stayed far lower (**roughly 2-18% CPU**
+  in the captured samples) and under **400 MiB** RSS.
+- `pg_stat_activity` samples showed the larger pool opening the full
+  **120-session** budget (`idle ≈ 120`) but **not** turning that into a
+  proportionally higher stable VU ceiling; the dominant directly observed
+  server-side failure remained **R2DBC pool-acquisition timeout**, not Postgres
+  CPU or connection exhaustion.
+- I did **not** directly capture a response-code breakdown precise enough to
+  prove how many client-visible failures were mapped to #325's newer
+  `503 + Retry-After` response versus other `5xx` statuses. The directly
+  observed evidence for this follow-up is therefore limited to the k6 failure
+  rates above plus the backend's acquisition-timeout exceptions.
+
+**Conclusion:** raising the raw connection budget from the shipped default
+**30 connections (2 × 15)** to **120 connections (4 × 30)** did **not** produce
+anything close to a 4× concurrency gain. The first cleanly observed failure
+band stayed in the **few-hundred-VU range** (clean at 250, non-zero failures in
+every focused probe from 350 VUs upward), so future capacity work should assume
+that simply multiplying pool size / replica count is **not** enough to claim a
+proportionally higher supported concurrency figure.
 
 ## Traefik fail-fast guardrail on the backend router (#327)
 
