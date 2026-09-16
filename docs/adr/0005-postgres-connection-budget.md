@@ -57,11 +57,11 @@ This does not change the core connection-budget decision in this ADR:
 relevant to this ADR even though they do **not** yet cross the ADR's
 "~10 replicas / 300-400 connections" PgBouncer trigger:
 
-- With the shipped default budget restored by #308 (**2 replicas × pool 15 =
-  30 connections**), the write-heavy discovery ramp stayed stable at roughly
-  **250 VUs** and showed its first persistent failures around **500 VUs**,
-  dominated by `R2dbcTimeoutException: Connection acquisition timed out after
-  3000ms`.
+- The write-heavy discovery ramp recorded in #309 ran against the then-default
+  **3 replicas × pool 15 = 45 connections** topology and stayed stable at
+  roughly **250 VUs** before showing its first persistent failures around
+  **500 VUs**, dominated by
+  `R2dbcTimeoutException: Connection acquisition timed out after 3000ms`.
 - Issue #328 then reran the same discovery ramp at a much larger temporary
   budget (**4 replicas × pool 30 = 120 pooled connections**) and still observed
   the first non-zero failure probes in the **few-hundred-VU range** while

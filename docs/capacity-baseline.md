@@ -417,7 +417,7 @@ follow-up used shorter constant-VU probes to narrow the first-failure band:
 | 4 replicas × pool 30 | 350 | 2.92% | 97.08% | 7.71 s | First failing probe observed. |
 | 4 replicas × pool 30 | 400 | 1.06% | 98.94% | 6.83 s | Still above the repo's 1% error threshold. |
 | 4 replicas × pool 30 | 450 | 8.55% | 91.45% | 10.12 s | Failure rate is clearly established. |
-| 4 replicas × pool 30 | 500 | 2.03% | 97.97% | 8.65 s | Same order of magnitude as the default-budget first-fail band. |
+| 4 replicas × pool 30 | 500 | 2.03% | 97.97% | 8.65 s | Same order of magnitude as the earlier 3 × 15 first-fail band. |
 | 4 replicas × pool 30 | 750 | 7.15% | 92.85% | 10.30 s | Deeper into sustained failure. |
 | 4 replicas × pool 30 | 1,000 | 26.61% | 73.39% | 13.41 s | Collapse accelerates quickly. |
 | 4 replicas × pool 30 | 1,250 | 69.88% | 30.12% | 15.52 s | Effectively unusable. |
@@ -438,13 +438,14 @@ Observed bottleneck signals during the scaled run:
   observed evidence for this follow-up is therefore limited to the k6 failure
   rates above plus the backend's acquisition-timeout exceptions.
 
-**Conclusion:** raising the raw connection budget from the shipped default
-**30 connections (2 × 15)** to **120 connections (4 × 30)** did **not** produce
-anything close to a 4× concurrency gain. The first cleanly observed failure
-band stayed in the **few-hundred-VU range** (clean at 250, non-zero failures in
-every focused probe from 350 VUs upward), so future capacity work should assume
-that simply multiplying pool size / replica count is **not** enough to claim a
-proportionally higher supported concurrency figure.
+**Conclusion:** raising the raw connection budget from the earlier measured
+**45-connection topology (3 × 15)** to **120 connections (4 × 30)** did **not**
+produce anything close to a proportional concurrency gain. The first cleanly
+observed failure band stayed in the **few-hundred-VU range** (clean at 250,
+non-zero failures in every focused probe from 350 VUs upward), so future
+capacity work should assume that simply multiplying pool size / replica count
+is **not** enough to claim a proportionally higher supported concurrency
+figure.
 
 ## Traefik fail-fast guardrail on the backend router (#327)
 
