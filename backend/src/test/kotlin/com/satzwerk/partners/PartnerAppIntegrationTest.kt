@@ -2,6 +2,7 @@ package com.satzwerk.partners
 
 import com.satzwerk.PostgresTestContainer
 import com.satzwerk.auth.AuthResponse
+import com.satzwerk.auth.CreatedPersonalApiTokenResponse
 import com.satzwerk.publicapi.PublicScope
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertNull
@@ -91,6 +92,26 @@ class PartnerAppIntegrationTest : PostgresTestContainer() {
             .responseBody
             .blockFirst()!!
 
+    private fun createPersonalApiToken(
+        jwt: String,
+        scopes: List<String> = listOf(PublicScope.SESSIONS_READ),
+    ): CreatedPersonalApiTokenResponse =
+        client
+            .post()
+            .uri("/api/tokens")
+            .contentType(MediaType.APPLICATION_JSON)
+            .headers { it.setBearerAuth(jwt) }
+            .bodyValue(
+                mapOf(
+                    "name" to "Limited Partner Management Probe",
+                    "scopes" to scopes,
+                ),
+            ).exchange()
+            .expectStatus().isCreated
+            .returnResult<CreatedPersonalApiTokenResponse>()
+            .responseBody
+            .blockFirst()!!
+
     // ── Registration ──────────────────────────────────────────────────────────
 
     @Test
@@ -172,6 +193,41 @@ class PartnerAppIntegrationTest : PostgresTestContainer() {
             .expectBody()
             .jsonPath("$").isArray
             .jsonPath("$[0].clientSecret").doesNotExist()
+    }
+
+    @Test
+    fun `personal api token cannot register partner apps`() {
+        val jwt = registerAndLogin("partner-app-pat-create")
+        val pat = createPersonalApiToken(jwt)
+
+        client
+            .post()
+            .uri("/api/partner-apps")
+            .contentType(MediaType.APPLICATION_JSON)
+            .headers { it.setBearerAuth(pat.token) }
+            .bodyValue(
+                mapOf(
+                    "name" to "PAT App",
+                    "description" to "Should be rejected",
+                    "redirectUri" to "https://pat.example/callback",
+                    "scopes" to PublicScope.EXERCISES_READ,
+                ),
+            ).exchange()
+            .expectStatus().isUnauthorized
+    }
+
+    @Test
+    fun `personal api token cannot list partner apps`() {
+        val jwt = registerAndLogin("partner-app-pat-list")
+        registerApp(jwt, scopes = PublicScope.EXERCISES_READ)
+        val pat = createPersonalApiToken(jwt)
+
+        client
+            .get()
+            .uri("/api/partner-apps")
+            .headers { it.setBearerAuth(pat.token) }
+            .exchange()
+            .expectStatus().isUnauthorized
     }
 
     // ── Grant ─────────────────────────────────────────────────────────────────
@@ -286,6 +342,41 @@ class PartnerAppIntegrationTest : PostgresTestContainer() {
             .jsonPath("$[0].appName").isEqualTo("My Test App")
     }
 
+    @Test
+    fun `personal api token cannot grant partner app access`() {
+        val jwt = registerAndLogin("partner-grant-pat-create")
+        val app = registerApp(jwt, scopes = PublicScope.EXERCISES_READ)
+        val pat = createPersonalApiToken(jwt)
+
+        client
+            .post()
+            .uri("/api/partner-grants")
+            .contentType(MediaType.APPLICATION_JSON)
+            .headers { it.setBearerAuth(pat.token) }
+            .bodyValue(
+                mapOf(
+                    "clientId" to app.clientId,
+                    "grantedScopes" to PublicScope.EXERCISES_READ,
+                ),
+            ).exchange()
+            .expectStatus().isUnauthorized
+    }
+
+    @Test
+    fun `personal api token cannot list partner grants`() {
+        val jwt = registerAndLogin("partner-grant-pat-list")
+        val app = registerApp(jwt)
+        grantAccess(jwt, app.clientId)
+        val pat = createPersonalApiToken(jwt)
+
+        client
+            .get()
+            .uri("/api/partner-grants")
+            .headers { it.setBearerAuth(pat.token) }
+            .exchange()
+            .expectStatus().isUnauthorized
+    }
+
     // ── Revocation ────────────────────────────────────────────────────────────
 
     @Test
@@ -343,6 +434,21 @@ class PartnerAppIntegrationTest : PostgresTestContainer() {
             .header("Authorization", "Bearer $tokenB")
             .exchange()
             .expectStatus().isForbidden
+    }
+
+    @Test
+    fun `personal api token cannot revoke partner grants`() {
+        val jwt = registerAndLogin("partner-grant-pat-delete")
+        val app = registerApp(jwt)
+        val grant = grantAccess(jwt, app.clientId)
+        val pat = createPersonalApiToken(jwt)
+
+        client
+            .delete()
+            .uri("/api/partner-grants/${grant.grantId}")
+            .headers { it.setBearerAuth(pat.token) }
+            .exchange()
+            .expectStatus().isUnauthorized
     }
 
     // ── Credential binding: probe route (GET /api/partner-grants/me) ──────────
