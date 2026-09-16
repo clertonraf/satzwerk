@@ -67,6 +67,187 @@ describe('offlineQueue.enqueue', () => {
 })
 
 describe('offlineQueue.flush', () => {
+  it('uses the batch endpoint for multiple queued ops in the same WorkoutSession and maps per-op results', async () => {
+    const batchSetLogsSpy = vi.spyOn(sessionServiceModule.sessionService, 'batchSetLogs').mockResolvedValue({
+      results: [
+        {
+          type: 'add-set',
+          succeeded: true,
+          setLog: {
+            id: 'log-2',
+            exerciseId: 'e1',
+            setNumber: 2,
+            weight: 82.5,
+            reps: 5,
+            rir: 1,
+            loggedAt: '2026-01-01T00:00:00Z',
+          },
+          error: null,
+        },
+        {
+          type: 'update-set',
+          succeeded: false,
+          setLog: null,
+          error: 'Set log not found',
+        },
+        {
+          type: 'delete-set',
+          succeeded: true,
+          setLog: null,
+          error: null,
+        },
+      ],
+    })
+    const addSetLogSpy = vi.spyOn(sessionServiceModule.sessionService, 'addSetLog')
+    const updateSetLogSpy = vi.spyOn(sessionServiceModule.sessionService, 'updateSetLog')
+    const deleteSetLogSpy = vi.spyOn(sessionServiceModule.sessionService, 'deleteSetLog')
+
+    await offlineQueue.enqueue({
+      type: 'add-set',
+      sessionId: 's1',
+      clientSetLogId: 'queued-log-2',
+      data: { exerciseId: 'e1', setNumber: 2, weight: 82.5, reps: 5, rir: 1 },
+    })
+    await offlineQueue.enqueue({
+      type: 'update-set',
+      sessionId: 's1',
+      setLogId: 'log-1',
+      data: { weight: 85, reps: 5, rir: 0 },
+    })
+    await offlineQueue.enqueue({
+      type: 'delete-set',
+      sessionId: 's1',
+      setLogId: 'log-3',
+    })
+
+    const queuedOps = await offlineQueue.getAll()
+    const result = await offlineQueue.flush()
+
+    expect(batchSetLogsSpy).toHaveBeenCalledWith('s1', [
+      {
+        type: 'add-set',
+        exerciseId: 'e1',
+        setNumber: 2,
+        weight: 82.5,
+        reps: 5,
+        rir: 1,
+      },
+      {
+        type: 'update-set',
+        setLogId: 'log-1',
+        weight: 85,
+        reps: 5,
+        rir: 0,
+      },
+      {
+        type: 'delete-set',
+        setLogId: 'log-3',
+      },
+    ])
+    expect(addSetLogSpy).not.toHaveBeenCalled()
+    expect(updateSetLogSpy).not.toHaveBeenCalled()
+    expect(deleteSetLogSpy).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      succeeded: [
+        {
+          type: 'add-set',
+          sessionId: 's1',
+          queuedOpId: queuedOps[0].id!,
+          clientSetLogId: 'queued-log-2',
+          data: { exerciseId: 'e1', setNumber: 2, weight: 82.5, reps: 5, rir: 1 },
+          serverSetLog: {
+            id: 'log-2',
+            exerciseId: 'e1',
+            setNumber: 2,
+            weight: 82.5,
+            reps: 5,
+            rir: 1,
+            loggedAt: '2026-01-01T00:00:00Z',
+          },
+        },
+        {
+          type: 'delete-set',
+          sessionId: 's1',
+          queuedOpId: queuedOps[2].id!,
+          setLogId: 'log-3',
+        },
+      ],
+      failed: [
+        {
+          type: 'update-set',
+          sessionId: 's1',
+          queuedOpId: queuedOps[1].id!,
+          setLogId: 'log-1',
+          data: { weight: 85, reps: 5, rir: 0 },
+          exhausted: false,
+        },
+      ],
+    })
+
+    const remaining = await offlineQueue.getAll()
+    expect(remaining).toEqual([
+      expect.objectContaining({
+        id: queuedOps[1].id,
+        retryCount: 1,
+      }),
+    ])
+  })
+
+  it('falls back to individual requests when the batch endpoint fails', async () => {
+    const batchSetLogsSpy = vi
+      .spyOn(sessionServiceModule.sessionService, 'batchSetLogs')
+      .mockRejectedValue(new Error('batch unavailable'))
+    const addSetLogSpy = vi.spyOn(sessionServiceModule.sessionService, 'addSetLog').mockResolvedValue({
+      id: 'log-1',
+      exerciseId: 'e1',
+      setNumber: 1,
+      weight: 80,
+      reps: 5,
+      rir: null,
+      loggedAt: '2026-01-01T00:00:00Z',
+    })
+    const updateSetLogSpy = vi.spyOn(sessionServiceModule.sessionService, 'updateSetLog').mockResolvedValue({
+      id: 'log-1',
+      exerciseId: 'e1',
+      setNumber: 1,
+      weight: 82.5,
+      reps: 5,
+      rir: 1,
+      loggedAt: '2026-01-01T00:00:00Z',
+    })
+
+    await offlineQueue.enqueue({
+      type: 'add-set',
+      sessionId: 's1',
+      data: { exerciseId: 'e1', setNumber: 1, weight: 80, reps: 5, rir: null },
+    })
+    await offlineQueue.enqueue({
+      type: 'update-set',
+      sessionId: 's1',
+      setLogId: 'log-1',
+      data: { weight: 82.5, reps: 5, rir: 1 },
+    })
+
+    const result = await offlineQueue.flush()
+
+    expect(batchSetLogsSpy).toHaveBeenCalledTimes(1)
+    expect(addSetLogSpy).toHaveBeenCalledWith('s1', {
+      exerciseId: 'e1',
+      setNumber: 1,
+      weight: 80,
+      reps: 5,
+      rir: null,
+    })
+    expect(updateSetLogSpy).toHaveBeenCalledWith('s1', 'log-1', {
+      weight: 82.5,
+      reps: 5,
+      rir: 1,
+    })
+    expect(result.succeeded).toHaveLength(2)
+    expect(result.failed).toEqual([])
+    expect(await offlineQueue.getAll()).toEqual([])
+  })
+
   it('dispatches add-set ops to sessionService.addSetLog', async () => {
     const addSetLogSpy = vi.spyOn(sessionServiceModule.sessionService, 'addSetLog').mockResolvedValue({
       id: 'log-1',

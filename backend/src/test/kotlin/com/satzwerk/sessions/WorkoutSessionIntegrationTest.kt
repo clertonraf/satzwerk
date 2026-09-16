@@ -8,6 +8,7 @@ import com.satzwerk.workouts.WorkoutPlanResponse
 import jakarta.validation.Validator
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -206,6 +207,69 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
     }
 
     @Test
+    fun `batch set log endpoint applies ordered operations and returns per-operation results`() {
+        val session = startSession()
+        val existingSetLog = addSetLog(session.id, BigDecimal("80.0"), reps = 5)
+        val response =
+            batchSetLogs(
+                session.id,
+                listOf(
+                    mapOf(
+                        "type" to "add-set",
+                        "exerciseId" to exerciseId,
+                        "setNumber" to 2,
+                        "weight" to BigDecimal("85.0"),
+                        "reps" to 5,
+                        "rir" to 1,
+                    ),
+                    mapOf(
+                        "type" to "update-set",
+                        "setLogId" to existingSetLog.id,
+                        "weight" to BigDecimal("82.5"),
+                        "reps" to 6,
+                        "rir" to 0,
+                    ),
+                    mapOf(
+                        "type" to "delete-set",
+                        "setLogId" to UUID.randomUUID(),
+                    ),
+                ),
+            )
+
+        assertEquals(3, response.results.size)
+        assertEquals("add-set", response.results[0].type)
+        assertTrue(response.results[0].succeeded)
+        assertNotNull(response.results[0].setLog?.id)
+        assertEquals(2, response.results[0].setLog?.setNumber)
+        assertEquals(BigDecimal("85.00"), response.results[0].setLog?.weight)
+        assertNull(response.results[0].error)
+        assertEquals("update-set", response.results[1].type)
+        assertTrue(response.results[1].succeeded)
+        assertNull(response.results[1].setLog)
+        assertNull(response.results[1].error)
+        assertEquals("delete-set", response.results[2].type)
+        assertTrue(!response.results[2].succeeded)
+        assertNull(response.results[2].setLog)
+        assertEquals("Set log not found", response.results[2].error)
+
+        val openSession =
+            client
+                .get()
+                .uri("/api/sessions/open")
+                .header("Authorization", "Bearer $authToken")
+                .exchange()
+                .expectStatus().isOk
+                .expectBody(WorkoutSessionResponse::class.java)
+                .returnResult()
+                .responseBody!!
+
+        assertEquals(2, openSession.setCount)
+        assertEquals(BigDecimal("82.50"), openSession.setLogs.first { it.id == existingSetLog.id }.weight)
+        assertEquals(6, openSession.setLogs.first { it.id == existingSetLog.id }.reps)
+        assertEquals(BigDecimal("85.00"), openSession.setLogs.first { it.setNumber == 2 }.weight)
+    }
+
+    @Test
     fun `set log weight is stored in kilograms as provided`() {
         val session = startSession()
         addSetLog(session.id, BigDecimal("100.0"), rir = 2)
@@ -223,6 +287,58 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
 
         assertEquals(BigDecimal("100.00"), openSession.setLogs.single().weight)
         assertEquals(2, openSession.setLogs.single().rir)
+    }
+
+    @Test
+    fun `batch set log add operations update personal record state in request order`() {
+        val completedSession = startSession()
+        addSetLog(completedSession.id, BigDecimal("50.0"), reps = 5)
+        completeSession(completedSession.id)
+
+        val currentSession = startSession()
+
+        client
+            .post()
+            .uri("/api/sessions/${currentSession.id}/set-logs/batch")
+            .header("Authorization", "Bearer $authToken")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "operations" to
+                        listOf(
+                            mapOf(
+                                "type" to "add-set",
+                                "exerciseId" to exerciseId,
+                                "setNumber" to 1,
+                                "weight" to BigDecimal("100.0"),
+                                "reps" to 5,
+                                "rir" to null,
+                            ),
+                            mapOf(
+                                "type" to "add-set",
+                                "exerciseId" to exerciseId,
+                                "setNumber" to 2,
+                                "weight" to BigDecimal("75.0"),
+                                "reps" to 5,
+                                "rir" to null,
+                            ),
+                        ),
+                ),
+            ).exchange()
+            .expectStatus().isOk
+
+        completeSession(currentSession.id)
+
+        client
+            .get()
+            .uri("/api/analytics/personal-records")
+            .header("Authorization", "Bearer $authToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.length()").isEqualTo(2)
+            .jsonPath("$[0].weightKg").isEqualTo(100.0)
+            .jsonPath("$[0].reps").isEqualTo(5)
     }
 
     @Test
@@ -1144,6 +1260,22 @@ class WorkoutSessionIntegrationTest : PostgresTestContainer() {
             ).exchange()
             .expectStatus().isOk
             .expectBody(SetLogResponse::class.java)
+            .returnResult()
+            .responseBody!!
+
+    private fun batchSetLogs(
+        sessionId: UUID,
+        operations: List<Map<String, Any?>>,
+    ): BatchSetLogResponse =
+        client
+            .post()
+            .uri("/api/sessions/$sessionId/set-logs/batch")
+            .header("Authorization", "Bearer $authToken")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("operations" to operations))
+            .exchange()
+            .expectStatus().isOk
+            .expectBody(BatchSetLogResponse::class.java)
             .returnResult()
             .responseBody!!
 

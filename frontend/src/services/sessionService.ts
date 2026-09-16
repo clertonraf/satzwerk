@@ -42,6 +42,22 @@ export interface UpdateSetLogRequest {
   rir: number | null
 }
 
+export type BatchSetLogOperationRequest =
+  | ({ type: 'add-set' } & AddSetLogRequest)
+  | ({ type: 'update-set'; setLogId: string } & UpdateSetLogRequest)
+  | { type: 'delete-set'; setLogId: string }
+
+export interface BatchSetLogOperationResult {
+  type: BatchSetLogOperationRequest['type']
+  succeeded: boolean
+  setLog: SetLog | null
+  error: string | null
+}
+
+export interface BatchSetLogResponse {
+  results: BatchSetLogOperationResult[]
+}
+
 export interface ExerciseReferenceWeights {
   exerciseId: string
   previousWeightKg: number | null
@@ -58,6 +74,8 @@ export const sessionService = {
   getOpenPlanDetail: () => http.get<WorkoutPlanDetail>('/sessions/open/plan-detail'),
   addSetLog: (sessionId: string, data: AddSetLogRequest) =>
     http.post<SetLog>(`/sessions/${sessionId}/set-logs`, data),
+  batchSetLogs: (sessionId: string, operations: BatchSetLogOperationRequest[]) =>
+    http.post<BatchSetLogResponse>(`/sessions/${sessionId}/set-logs/batch`, { operations }),
   updateSetLog: (sessionId: string, setLogId: string, data: UpdateSetLogRequest) =>
     http.patch<SetLog>(`/sessions/${sessionId}/set-logs/${setLogId}`, data),
   complete: (sessionId: string, notes?: string) =>

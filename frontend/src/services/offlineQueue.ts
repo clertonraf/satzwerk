@@ -1,6 +1,12 @@
 import { db, type QueuedOp } from '@/lib/db'
 import { sessionService } from './sessionService'
-import type { AddSetLogRequest, SetLog, UpdateSetLogRequest } from './sessionService'
+import type {
+  AddSetLogRequest,
+  BatchSetLogOperationRequest,
+  BatchSetLogResponse,
+  SetLog,
+  UpdateSetLogRequest,
+} from './sessionService'
 
 const MAX_RETRIES = 3
 
@@ -147,6 +153,118 @@ function toFailedReceipt(op: QueuedOp, exhausted: boolean): FlushFailedReceipt {
   }
 }
 
+function toBatchOperation(op: QueuedOp): BatchSetLogOperationRequest {
+  if (op.type === 'add-set') {
+    return {
+      type: 'add-set',
+      exerciseId: op.data.exerciseId,
+      setNumber: op.data.setNumber,
+      weight: op.data.weight,
+      reps: op.data.reps,
+      rir: op.data.rir,
+    }
+  }
+
+  if (op.type === 'update-set') {
+    return {
+      type: 'update-set',
+      setLogId: op.setLogId,
+      weight: op.data.weight,
+      reps: op.data.reps,
+      rir: op.data.rir,
+    }
+  }
+
+  return {
+    type: 'delete-set',
+    setLogId: op.setLogId,
+  }
+}
+
+async function dispatchQueuedOp(op: QueuedOp): Promise<SetLog | void> {
+  if (op.type === 'add-set') {
+    return sessionService.addSetLog(op.sessionId, op.data)
+  }
+
+  if (op.type === 'update-set') {
+    return sessionService.updateSetLog(op.sessionId, op.setLogId, op.data)
+  }
+
+  return sessionService.deleteSetLog(op.sessionId, op.setLogId)
+}
+
+async function flushOpsIndividually(ops: QueuedOp[]): Promise<FlushResult> {
+  const results = await Promise.allSettled(ops.map((op) => dispatchQueuedOp(op)))
+
+  return {
+    succeeded: ops.flatMap((op, index) =>
+      results[index].status === 'fulfilled'
+        ? [toSucceededReceipt(op, results[index].value)]
+        : [],
+    ),
+    failed: ops.flatMap((op, index) =>
+      results[index].status === 'rejected' ? [toFailedReceipt(op, false)] : [],
+    ),
+  }
+}
+
+function validateBatchResponse(
+  ops: QueuedOp[],
+  response: BatchSetLogResponse,
+): BatchSetLogResponse {
+  if (response.results.length !== ops.length) {
+    throw new Error('Batch response length did not match queued operation count.')
+  }
+
+  response.results.forEach((result, index) => {
+    if (result.type !== ops[index].type) {
+      throw new Error('Batch response order did not match queued operations.')
+    }
+    if (result.succeeded && ops[index].type === 'add-set' && result.setLog === null) {
+      throw new Error('Successful add-set batch results must include the created SetLog.')
+    }
+  })
+
+  return response
+}
+
+async function flushOpsAsBatch(ops: QueuedOp[]): Promise<FlushResult> {
+  try {
+    const response = validateBatchResponse(
+      ops,
+      await sessionService.batchSetLogs(
+        ops[0].sessionId,
+        ops.map((op) => toBatchOperation(op)),
+      ),
+    )
+
+    return {
+      succeeded: ops.flatMap((op, index) =>
+        response.results[index].succeeded
+          ? [toSucceededReceipt(op, response.results[index].setLog ?? undefined)]
+          : [],
+      ),
+      failed: ops.flatMap((op, index) =>
+        response.results[index].succeeded ? [] : [toFailedReceipt(op, false)],
+      ),
+    }
+  } catch {
+    return flushOpsIndividually(ops)
+  }
+}
+
+function groupOpsBySession(ops: QueuedOp[]): QueuedOp[][] {
+  const groups = new Map<string, QueuedOp[]>()
+
+  ops.forEach((op) => {
+    const current = groups.get(op.sessionId) ?? []
+    current.push(op)
+    groups.set(op.sessionId, current)
+  })
+
+  return [...groups.values()]
+}
+
 export const offlineQueue = {
   enqueue: (payload: EnqueuePayload) =>
     db.queuedOps.add({ ...payload, queuedAt: Date.now(), retryCount: 0 } as QueuedOp),
@@ -160,7 +278,7 @@ export const offlineQueue = {
    *
    * Guarantees:
    * - Idempotent: calling flush() when the queue is empty is a no-op.
-   * - Ordered: operations are replayed in the order they were enqueued.
+   * - Ordered: operations within each WorkoutSession are replayed in enqueue order.
    * - Partial-success: each operation is attempted independently; a failure in one
    *   does not prevent the others from being retried.
    * - Retry-capped: operations that have already failed MAX_RETRIES times are
@@ -188,27 +306,16 @@ export const offlineQueue = {
     if (retryable.length === 0) {
       return { succeeded: [], failed: exceededOps.map((op) => toFailedReceipt(op, true)) }
     }
-
-    const results = await Promise.allSettled(
-      retryable.map((op) => {
-        if (op.type === 'add-set') {
-          return sessionService.addSetLog(op.sessionId, op.data)
-        }
-        if (op.type === 'update-set') {
-          return sessionService.updateSetLog(op.sessionId, op.setLogId, op.data)
-        }
-        return sessionService.deleteSetLog(op.sessionId, op.setLogId)
-      }),
-    )
-
-    const succeeded = retryable.flatMap((op, index) =>
-      results[index].status === 'fulfilled'
-        ? [toSucceededReceipt(op, results[index].value)]
-        : [],
-    )
-    const failed = retryable.flatMap((op, index) =>
-      results[index].status === 'rejected' ? [toFailedReceipt(op, false)] : [],
-    )
+    const results: FlushResult[] = []
+    for (const sessionOps of groupOpsBySession(retryable)) {
+      results.push(
+        sessionOps.length > 1
+          ? await flushOpsAsBatch(sessionOps)
+          : await flushOpsIndividually(sessionOps),
+      )
+    }
+    const succeeded = results.flatMap((result) => result.succeeded)
+    const failed = results.flatMap((result) => result.failed)
 
     await Promise.all(succeeded.map((receipt) => db.queuedOps.delete(receipt.queuedOpId)))
     await Promise.all(

@@ -1,14 +1,18 @@
 package com.satzwerk.sessions
 
 import com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.annotation.JsonSubTypes
+import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.fasterxml.jackson.core.JacksonException
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.satzwerk.common.BadRequestException
+import jakarta.validation.Valid
 import jakarta.validation.constraints.DecimalMin
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotNull
+import jakarta.validation.constraints.Size
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
@@ -66,6 +70,61 @@ data class UpdateSetLogRequest(
     val rir: Int? = null,
     @JsonIgnore
     val rirProvided: Boolean = false,
+)
+
+data class BatchSetLogRequest(
+    @field:Size(min = 1)
+    val operations: List<@Valid BatchSetLogOperationRequest>,
+)
+
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "type")
+@JsonSubTypes(
+    JsonSubTypes.Type(value = AddBatchSetLogOperationRequest::class, name = "add-set"),
+    JsonSubTypes.Type(value = UpdateBatchSetLogOperationRequest::class, name = "update-set"),
+    JsonSubTypes.Type(value = DeleteBatchSetLogOperationRequest::class, name = "delete-set"),
+)
+sealed interface BatchSetLogOperationRequest
+
+data class AddBatchSetLogOperationRequest(
+    @field:NotNull
+    val exerciseId: UUID,
+    @field:Min(1)
+    val setNumber: Int,
+    @field:DecimalMin("0.0")
+    val weight: BigDecimal,
+    @field:Min(1)
+    val reps: Int,
+    @field:Min(0)
+    @field:Max(MAX_RIR)
+    val rir: Int? = null,
+) : BatchSetLogOperationRequest
+
+data class UpdateBatchSetLogOperationRequest(
+    @field:NotNull
+    val setLogId: UUID,
+    @field:DecimalMin("0.0")
+    val weight: BigDecimal,
+    @field:Min(1)
+    val reps: Int,
+    @field:Min(0)
+    @field:Max(MAX_RIR)
+    val rir: Int? = null,
+) : BatchSetLogOperationRequest
+
+data class DeleteBatchSetLogOperationRequest(
+    @field:NotNull
+    val setLogId: UUID,
+) : BatchSetLogOperationRequest
+
+data class BatchSetLogResponse(
+    val results: List<BatchSetLogOperationResult>,
+)
+
+data class BatchSetLogOperationResult(
+    val type: String,
+    val succeeded: Boolean,
+    val setLog: SetLogResponse?,
+    val error: String?,
 )
 
 data class CompleteSessionRequest(
