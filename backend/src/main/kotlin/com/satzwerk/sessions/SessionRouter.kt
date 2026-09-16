@@ -82,6 +82,14 @@ private fun CoRouterFunctionDsl.sessionSetLogRoutes(
             }
         }
     }
+    POST("/{id}/set-logs/batch") { request ->
+        withOwnedOpenSession(request, workoutSessionService) { ctx, session ->
+            val body = ctx.body<BatchSetLogRequest>()
+            validateOrBadRequest(validator, body) {
+                ServerResponse.ok().bodyValueAndAwait(setLogService.batch(session, body))
+            }
+        }
+    }
     PATCH("/{id}/set-logs/{setLogId}") { request ->
         withOwnedOpenSession(request, workoutSessionService) { ctx, session ->
             val body = parseUpdateSetLogRequest(ctx.body(), objectMapper)
