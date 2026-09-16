@@ -8,6 +8,10 @@ services:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       # Create monitoring/prometheus/secrets/metrics-pat locally before startup.
       - ./monitoring/prometheus/secrets:/run/secrets:ro
+      - prometheus_data:/prometheus
     depends_on:
       - traefik
       - backend
+
+volumes:
+  prometheus_data:

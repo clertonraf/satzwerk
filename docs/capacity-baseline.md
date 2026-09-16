@@ -322,12 +322,18 @@ Compose or the Prometheus config:
 
 ```yaml
 scrape_configs:
-  - job_name: satzwerk-backend
+  - job_name: satzwerk-backend-cluster
     metrics_path: /actuator/prometheus
     bearer_token_file: /run/secrets/metrics-pat
     static_configs:
       - targets: ["traefik:8082"]
 ```
+
+That target is intentionally cluster-level: Traefik round-robins requests
+across backend replicas, so it gives Prometheus one stable internal scrape path
+for operational monitoring and alerting, but it is not the same per-replica
+sampling method used to produce the aggregated pool-capacity measurements
+earlier in this document.
 
 Create the token file locally, then start the monitoring overlay:
 
