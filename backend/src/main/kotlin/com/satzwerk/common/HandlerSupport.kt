@@ -9,6 +9,12 @@ import org.springframework.web.reactive.function.server.bodyValueAndAwait
 import java.util.UUID
 import kotlin.reflect.KClass
 
+private const val RETRY_AFTER_HEADER = "Retry-After"
+
+// #309 confirmed the pool emits this exact acquisition-timeout message under transient saturation.
+private const val R2DBC_POOL_EXHAUSTION_RETRY_AFTER_SECONDS = 5
+private const val R2DBC_POOL_ACQUISITION_TIMEOUT_MESSAGE = "Connection acquisition timed out"
+
 fun parseUuid(value: String): UUID =
     try {
         UUID.fromString(value)
@@ -61,6 +67,12 @@ suspend fun handleErrors(
     } catch (_: UnauthorizedException) {
         ServerResponse.status(HttpStatus.UNAUTHORIZED).bodyValueAndAwait(ErrorResponse("Unauthorized"))
     } catch (e: Throwable) {
+        if (isR2dbcPoolExhaustion(e)) {
+            return ServerResponse.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header(RETRY_AFTER_HEADER, R2DBC_POOL_EXHAUSTION_RETRY_AFTER_SECONDS.toString())
+                .bodyValueAndAwait(ErrorResponse(e.message ?: HttpStatus.SERVICE_UNAVAILABLE.reasonPhrase))
+        }
+
         val status =
             extra.entries.firstOrNull { (klass, _) -> klass.isInstance(e) }?.value
                 ?: throw e
@@ -106,3 +118,7 @@ suspend fun requireScope(
 ) {
     RequestContext(request).requireScope(scope)
 }
+
+private fun isR2dbcPoolExhaustion(error: Throwable): Boolean =
+    error is io.r2dbc.spi.R2dbcTimeoutException &&
+        error.message?.startsWith(R2DBC_POOL_ACQUISITION_TIMEOUT_MESSAGE) == true
