@@ -9,5 +9,5 @@ class PlanImportDeps(
     val workoutExerciseRepository: WorkoutExerciseRepository,
     val exerciseResolver: ExerciseResolver,
     val planImportParsingAdapters: PlanImportParsingAdapters,
-    val exerciseCatalogCache: ExerciseCatalogCache,
+    val workoutReadCaches: WorkoutReadCaches,
 )

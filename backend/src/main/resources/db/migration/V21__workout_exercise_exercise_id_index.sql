@@ -1,0 +1,1 @@
+CREATE INDEX idx_workout_exercises_exercise_id ON workout_exercises(exercise_id);

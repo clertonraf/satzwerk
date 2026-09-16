@@ -20,6 +20,11 @@ data class ImportGroupSpec(
     val exercises: List<WorkoutExercise>,
 )
 
+data class ImportedPlanResult(
+    val planId: UUID,
+    val groupIdMap: Map<UUID, UUID>,
+)
+
 /**
  * Deep persistence boundary for workout import writes.
  *
@@ -37,7 +42,7 @@ class WorkoutImportPort(
     suspend fun importPlanWithGroups(
         plan: WorkoutPlan,
         groupSpecs: List<ImportGroupSpec>,
-    ): Map<UUID, UUID> {
+    ): ImportedPlanResult {
         val savedPlan = workoutPlanRepository.save(plan)
         val newPlanId = requireNotNull(savedPlan.id)
         val groupIdMap = mutableMapOf<UUID, UUID>()
@@ -49,7 +54,10 @@ class WorkoutImportPort(
                 workoutExerciseRepository.save(exercise.copy(workoutGroupId = newGroupId))
             }
         }
-        return groupIdMap
+        return ImportedPlanResult(
+            planId = newPlanId,
+            groupIdMap = groupIdMap,
+        )
     }
 
     suspend fun importSessionWithSetLogs(

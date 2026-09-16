@@ -10,6 +10,7 @@ import java.util.UUID
 class WorkoutGroupService(
     private val workoutPlanService: WorkoutPlanService,
     private val workoutGroupRepository: WorkoutGroupRepository,
+    private val workoutGroupReadCache: WorkoutGroupReadCache,
     private val analyticsReadCache: AnalyticsReadCache,
     private val transactionRunner: TransactionRunner,
 ) {
@@ -26,7 +27,11 @@ class WorkoutGroupService(
                     title = request.title,
                     orderIndex = request.orderIndex,
                 ),
-            ).let(WorkoutGroupResponse::from)
+            ).also {
+                transactionRunner.afterCommit {
+                    workoutGroupReadCache.invalidatePlan(userId, planId)
+                }
+            }.let(WorkoutGroupResponse::from)
     }
 
     suspend fun update(
@@ -43,7 +48,11 @@ class WorkoutGroupService(
                     orderIndex = request.orderIndex ?: existing.orderIndex,
                     updatedAt = Instant.now(),
                 ),
-            ).let(WorkoutGroupResponse::from)
+            ).also {
+                transactionRunner.afterCommit {
+                    workoutGroupReadCache.invalidatePlan(userId, planId)
+                }
+            }.let(WorkoutGroupResponse::from)
     }
 
     suspend fun delete(
@@ -54,6 +63,7 @@ class WorkoutGroupService(
         val group = workoutPlanService.getRequiredGroup(userId, planId, groupId)
         workoutGroupRepository.deleteById(requireNotNull(group.id))
         transactionRunner.afterCommit {
+            workoutGroupReadCache.invalidatePlan(userId, planId)
             analyticsReadCache.invalidateUser(userId)
         }
     }

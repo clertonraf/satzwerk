@@ -2,6 +2,7 @@ package com.satzwerk.workouts
 
 import com.satzwerk.common.NotFoundException
 import com.satzwerk.common.Owned
+import com.satzwerk.common.TransactionRunner
 import com.satzwerk.common.assertOwner
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -13,6 +14,8 @@ class WorkoutExerciseService(
     private val workoutPlanService: WorkoutPlanService,
     private val workoutExerciseRepository: WorkoutExerciseRepository,
     private val exerciseRepository: ExerciseRepository,
+    private val workoutPlanReadCache: WorkoutPlanReadCache,
+    private val transactionRunner: TransactionRunner,
 ) {
     suspend fun create(
         userId: UUID,
@@ -34,7 +37,11 @@ class WorkoutExerciseService(
                     advancedTechnique = request.advancedTechnique,
                     orderIndex = request.orderIndex,
                 ),
-            ).let { WorkoutExerciseResponse.from(it, exercise.name) }
+            ).also {
+                transactionRunner.afterCommit {
+                    workoutPlanReadCache.invalidateDetail(userId, planId)
+                }
+            }.let { WorkoutExerciseResponse.from(it, exercise.name) }
     }
 
     suspend fun update(
@@ -56,7 +63,11 @@ class WorkoutExerciseService(
                     orderIndex = request.orderIndex ?: existing.orderIndex,
                     updatedAt = Instant.now(),
                 ),
-            ).let { WorkoutExerciseResponse.from(it, exercise.name) }
+            ).also {
+                transactionRunner.afterCommit {
+                    workoutPlanReadCache.invalidateDetail(userId, planId)
+                }
+            }.let { WorkoutExerciseResponse.from(it, exercise.name) }
     }
 
     suspend fun delete(
@@ -68,6 +79,9 @@ class WorkoutExerciseService(
         workoutPlanService.getRequiredGroup(userId, planId, groupId)
         val workoutExercise = getRequiredWorkoutExercise(groupId, exerciseId)
         workoutExerciseRepository.deleteById(requireNotNull(workoutExercise.id))
+        transactionRunner.afterCommit {
+            workoutPlanReadCache.invalidateDetail(userId, planId)
+        }
     }
 
     @Transactional
@@ -99,6 +113,9 @@ class WorkoutExerciseService(
         val partner = exercises[swapIndex]
         workoutExerciseRepository.save(target.copy(orderIndex = partner.orderIndex, updatedAt = now))
         workoutExerciseRepository.save(partner.copy(orderIndex = target.orderIndex, updatedAt = now))
+        transactionRunner.afterCommit {
+            workoutPlanReadCache.invalidateDetail(userId, planId)
+        }
 
         return enrichWorkoutExercises(
             workoutExerciseRepository.findAllByWorkoutGroupIdOrderByOrderIndex(groupId),

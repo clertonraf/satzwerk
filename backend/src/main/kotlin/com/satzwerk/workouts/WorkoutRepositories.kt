@@ -46,4 +46,14 @@ interface WorkoutExerciseRepository : CoroutineCrudRepository<WorkoutExercise, U
     suspend fun findAllByWorkoutGroupIdInOrderByWorkoutGroupIdAscOrderIndexAsc(
         groupIds: Collection<UUID>,
     ): List<WorkoutExercise>
+
+    @Query(
+        """
+        SELECT DISTINCT wg.workout_plan_id
+        FROM workout_exercises we
+        JOIN workout_groups wg ON wg.id = we.workout_group_id
+        WHERE we.exercise_id = :exerciseId
+        """,
+    )
+    suspend fun findDistinctWorkoutPlanIdsByExerciseId(exerciseId: UUID): List<UUID>
 }

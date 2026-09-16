@@ -40,9 +40,14 @@ class PlanImportService(
                 }
             val resolution = planImportDeps.exerciseResolver.resolve(userId, nameToMuscleGroup)
             createGroupsAndExercises(planId, parsed, resolution.exercisesByNameLower)
+            transactionRunner.afterCommit {
+                planImportDeps.workoutReadCaches.workoutPlanReadCache.invalidateList(userId)
+                planImportDeps.workoutReadCaches.workoutPlanReadCache.invalidateDetail(userId, planId)
+                planImportDeps.workoutReadCaches.workoutGroupReadCache.invalidatePlan(userId, planId)
+            }
             if (resolution.createdCount > 0) {
                 transactionRunner.afterCommit {
-                    planImportDeps.exerciseCatalogCache.invalidateUser(userId)
+                    planImportDeps.workoutReadCaches.exerciseCatalogCache.invalidateUser(userId)
                 }
             }
             PlanImportResult(WorkoutPlanResponse.from(plan), resolution.createdCount)

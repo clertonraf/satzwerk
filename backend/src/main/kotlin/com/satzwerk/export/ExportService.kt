@@ -64,9 +64,14 @@ class ExportService(
             val export = translatorRegistry.forImport(root).importSnapshot(root)
             checkImportPreconditions(userId)
             val exerciseResult = importExercises(userId, export.exercises)
-            val (groupIdMap, importedPlans) = importPlans(userId, export.workoutPlans, exerciseResult.exerciseIdMap)
+            val importedPlans = importPlans(userId, export.workoutPlans, exerciseResult.exerciseIdMap)
             val (importedSessions, importedSetLogs) =
-                importSessions(userId, export.workoutSessions, exerciseResult.exerciseIdMap, groupIdMap)
+                importSessions(
+                    userId,
+                    export.workoutSessions,
+                    exerciseResult.exerciseIdMap,
+                    importedPlans.groupIdMap,
+                )
             val medResult =
                 importMedicationsAndLogs(
                     userId,
@@ -80,7 +85,16 @@ class ExportService(
                 )
             if (exerciseResult.importedCount > 0) {
                 exportSupportDeps.transactionRunner.afterCommit {
-                    workoutDeps.exerciseCatalogCache.invalidateUser(userId)
+                    workoutDeps.workoutReadCaches.exerciseCatalogCache.invalidateUser(userId)
+                }
+            }
+            if (importedPlans.importedPlanIds.isNotEmpty()) {
+                exportSupportDeps.transactionRunner.afterCommit {
+                    workoutDeps.workoutReadCaches.workoutPlanReadCache.invalidateList(userId)
+                    importedPlans.importedPlanIds.forEach { planId ->
+                        workoutDeps.workoutReadCaches.workoutPlanReadCache.invalidateDetail(userId, planId)
+                        workoutDeps.workoutReadCaches.workoutGroupReadCache.invalidatePlan(userId, planId)
+                    }
                 }
             }
             if (importedSetLogs > 0) {
@@ -90,7 +104,7 @@ class ExportService(
             }
             ImportSummaryDto(
                 importedExercises = exerciseResult.importedCount,
-                importedWorkoutPlans = importedPlans,
+                importedWorkoutPlans = importedPlans.importedPlanIds.size,
                 importedWorkoutSessions = importedSessions,
                 importedSetLogs = importedSetLogs,
                 reusedExercises = exerciseResult.reusedCount,
@@ -132,8 +146,9 @@ class ExportService(
         userId: UUID,
         plans: List<ExportWorkoutPlanDto>,
         exerciseIdMap: Map<UUID, UUID>,
-    ): Pair<Map<UUID, UUID>, Int> {
+    ): ImportedPlans {
         val groupIdMap = mutableMapOf<UUID, UUID>()
+        val importedPlanIds = mutableListOf<UUID>()
         for (exportedPlan in plans) {
             val groupSpecs =
                 exportedPlan.groups.map { exportedGroup ->
@@ -152,11 +167,18 @@ class ExportService(
                         exercises = exercises,
                     )
                 }
-            groupIdMap.putAll(
-                workoutDeps.workoutImportPort.importPlanWithGroups(toNewWorkoutPlan(userId, exportedPlan), groupSpecs),
-            )
+            val importedPlanResult =
+                workoutDeps.workoutImportPort.importPlanWithGroups(
+                    toNewWorkoutPlan(userId, exportedPlan),
+                    groupSpecs,
+                )
+            importedPlanIds += importedPlanResult.planId
+            groupIdMap.putAll(importedPlanResult.groupIdMap)
         }
-        return groupIdMap to plans.size
+        return ImportedPlans(
+            groupIdMap = groupIdMap,
+            importedPlanIds = importedPlanIds,
+        )
     }
 
     private suspend fun importSessions(
@@ -212,6 +234,11 @@ class ExportService(
         workoutDeps.workoutReadPort.findExportSessions(userId).map { exportData ->
             toExportSessionDto(exportData.session, exportData.setLogs)
         }
+
+    private data class ImportedPlans(
+        val groupIdMap: Map<UUID, UUID>,
+        val importedPlanIds: List<UUID>,
+    )
 }
 
 // --- Top-level factory helpers (do not count towards ExportService function limit) ---
