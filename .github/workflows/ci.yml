@@ -280,7 +280,7 @@ jobs:
 
       - name: Validate checked-out production compose file
         run: |
-          for required_var in $(grep -oE '\$\{[A-Z0-9_]+\}' docker-compose.yml | tr -d '${}' | sort -u); do
+          for required_var in $( (grep -oE '\$\{[A-Z0-9_]+\}' docker-compose.yml || true) | tr -d '${}' | sort -u ); do
             export "${required_var}=check"
           done
 
@@ -326,7 +326,7 @@ jobs:
           # the repo's real docker-compose.yml, an empty/incomplete Portainer Env
           # array could silently redeploy with missing required secrets and
           # crash-loop services like postgres before a human noticed.
-          REQUIRED_VARS=$(grep -oE '\$\{[A-Z0-9_]+\}' docker-compose.yml | tr -d '${}' | sort -u)
+          REQUIRED_VARS=$( (grep -oE '\$\{[A-Z0-9_]+\}' docker-compose.yml || true) | tr -d '${}' | sort -u )
           MISSING_VARS=()
 
           for required_var in ${REQUIRED_VARS}; do
