@@ -283,7 +283,7 @@ jobs:
               break
             fi
 
-            if echo "$PUSH_OUT" | grep -q "non-fast-forward" && [ "$attempt" -lt 3 ]; then
+            if echo "$PUSH_OUT" | grep -qiE "non-fast-forward|fetch first" && [ "$attempt" -lt 3 ]; then
               echo "::warning::CHANGELOG.md push lost a race to a newer main commit. Refreshing from origin/main and retrying (attempt ${attempt}/3)."
               continue
             fi
