@@ -1,0 +1,86 @@
+name: Check Portainer Stack Status (satzwerk)
+
+# Read-only ops workflow: reports whether the production `satzwerk` stack's
+# containers (environment `princess-celestia`, stack id=7 — see #315) are
+# running/healthy, and surfaces recent error-level log lines from each.
+#
+# Never mutates the stack — GET requests only, plus a Docker-proxy logs read.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  check-status:
+    name: Check container status and recent errors
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query Portainer for stack/container health
+        env:
+          PORTAINER_URL: ${{ secrets.PORTAINER_URL }}
+          PORTAINER_TOKEN: ${{ secrets.PORTAINER_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          CURL_GET="curl -fsSL --max-time 30 --retry 3 --retry-delay 10 --retry-connrefused"
+
+          ENDPOINT_ID=$(${CURL_GET} \
+            -H "X-API-Key: ${PORTAINER_TOKEN}" \
+            "${PORTAINER_URL}/api/endpoints" \
+            | jq '.[] | select(.Name == "princess-celestia") | .Id')
+
+          if [ -z "${ENDPOINT_ID}" ]; then
+            echo "Error: Portainer environment 'princess-celestia' not found." >&2
+            exit 1
+          fi
+
+          STACK_ID=$(${CURL_GET} \
+            -H "X-API-Key: ${PORTAINER_TOKEN}" \
+            "${PORTAINER_URL}/api/stacks" \
+            | jq ".[] | select(.Name == \"satzwerk\" and .EndpointId == ${ENDPOINT_ID}) | .Id")
+
+          if [ -z "${STACK_ID}" ]; then
+            echo "Error: Portainer stack 'satzwerk' not found on environment ${ENDPOINT_ID}." >&2
+            exit 1
+          fi
+
+          STACK_JSON=$(${CURL_GET} \
+            -H "X-API-Key: ${PORTAINER_TOKEN}" \
+            "${PORTAINER_URL}/api/stacks/${STACK_ID}")
+
+          STACK_STATUS=$(echo "${STACK_JSON}" | jq -r '.Status')
+          echo "Portainer stack status: ${STACK_STATUS} (1=active, 2=inactive, 3=deploying, 4=error)"
+
+          echo ""
+          echo "Container list for endpoint ${ENDPOINT_ID}, stack ${STACK_ID}:"
+          CONTAINERS=$(${CURL_GET} \
+            -H "X-API-Key: ${PORTAINER_TOKEN}" \
+            "${PORTAINER_URL}/api/endpoints/${ENDPOINT_ID}/docker/containers/json?all=1")
+
+          STACK_CONTAINERS=$(echo "${CONTAINERS}" | jq --arg sid "${STACK_ID}" \
+            '[.[] | select(.Labels["com.docker.compose.project"] == "satzwerk" or .Labels["io.portainer.stack.id"] == $sid)]')
+
+          echo "${STACK_CONTAINERS}" | jq -r '.[] | "- \(.Names[0]): State=\(.State) Status=\(.Status) Image=\(.Image)"'
+
+          echo ""
+          echo "Checking each container's recent logs for ERROR/Exception lines..."
+          CONTAINER_IDS=$(echo "${STACK_CONTAINERS}" | jq -r '.[].Id')
+          ANY_ERRORS=0
+          for CID in ${CONTAINER_IDS}; do
+            NAME=$(echo "${STACK_CONTAINERS}" | jq -r --arg id "${CID}" '.[] | select(.Id == $id) | .Names[0]')
+            LOGS=$(${CURL_GET} \
+              -H "X-API-Key: ${PORTAINER_TOKEN}" \
+              "${PORTAINER_URL}/api/endpoints/${ENDPOINT_ID}/docker/containers/${CID}/logs?stdout=1&stderr=1&tail=500" || echo "")
+            ERROR_COUNT=$(echo "${LOGS}" | grep -ciE "error|exception|fatal" || true)
+            echo "${NAME}: ${ERROR_COUNT} error-like lines in last 500 log lines"
+            if [ "${ERROR_COUNT}" -gt 0 ]; then
+              ANY_ERRORS=1
+              echo "  --- sample ---"
+              echo "${LOGS}" | grep -iE "error|exception|fatal" | tail -5 | sed 's/^/  /'
+            fi
+          done
+
+          echo ""
+          if [ "${STACK_STATUS}" = "1" ] && [ "${ANY_ERRORS}" = "0" ]; then
+            echo "RESULT: Stack active, no errors found in recent logs."
+          else
+            echo "RESULT: Stack status=${STACK_STATUS}, errors_found=${ANY_ERRORS} — see details above."
+          fi
