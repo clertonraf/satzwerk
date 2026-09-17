@@ -6,7 +6,10 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.reactive.function.server.ServerRequest
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
+import java.util.Collections
+import java.util.IdentityHashMap
 import java.util.UUID
+import java.util.concurrent.TimeoutException
 import kotlin.reflect.KClass
 
 private const val RETRY_AFTER_HEADER = "Retry-After"
@@ -14,6 +17,7 @@ private const val RETRY_AFTER_HEADER = "Retry-After"
 // #309 confirmed the pool emits this exact acquisition-timeout message under transient saturation.
 private const val R2DBC_POOL_EXHAUSTION_RETRY_AFTER_SECONDS = 5
 private const val R2DBC_POOL_ACQUISITION_TIMEOUT_MESSAGE = "Connection acquisition timed out"
+private const val R2DBC_POOL_REACTOR_ACQUISITION_CONTEXT = "Connection acquisition from ["
 
 fun parseUuid(value: String): UUID =
     try {
@@ -119,6 +123,27 @@ suspend fun requireScope(
     RequestContext(request).requireScope(scope)
 }
 
-private fun isR2dbcPoolExhaustion(error: Throwable): Boolean =
-    error is io.r2dbc.spi.R2dbcTimeoutException &&
-        error.message?.startsWith(R2DBC_POOL_ACQUISITION_TIMEOUT_MESSAGE) == true
+private fun isR2dbcPoolExhaustion(error: Throwable?): Boolean {
+    val visited = Collections.newSetFromMap(IdentityHashMap<Throwable, Boolean>())
+    var current = error
+    var isPoolExhaustion = false
+
+    while (current != null && visited.add(current)) {
+        if (isR2dbcPoolExhaustionCause(current)) {
+            isPoolExhaustion = true
+            break
+        }
+        current = current.cause
+    }
+
+    return isPoolExhaustion
+}
+
+private fun isR2dbcPoolExhaustionCause(error: Throwable): Boolean =
+    when {
+        error is io.r2dbc.spi.R2dbcTimeoutException ->
+            error.message?.startsWith(R2DBC_POOL_ACQUISITION_TIMEOUT_MESSAGE) == true
+        error is TimeoutException ->
+            error.message?.contains(R2DBC_POOL_REACTOR_ACQUISITION_CONTEXT) == true
+        else -> false
+    }
