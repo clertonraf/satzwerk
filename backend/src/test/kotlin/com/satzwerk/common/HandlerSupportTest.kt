@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.springframework.dao.DataAccessResourceFailureException
 import org.springframework.http.HttpStatus
 import org.springframework.http.server.reactive.ServerHttpResponse
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest
@@ -20,6 +21,23 @@ class HandlerSupportTest {
             val response =
                 handleErrors {
                     throw R2dbcTimeoutException("Connection acquisition timed out after 3000ms")
+                }
+
+            val serverResponse = writeResponse(response)
+
+            assertEquals(HttpStatus.SERVICE_UNAVAILABLE, serverResponse.statusCode)
+            assertEquals("5", serverResponse.headers.getFirst("Retry-After"))
+        }
+
+    @Test
+    fun `handleErrors maps wrapped R2dbcTimeoutException to service unavailable with retry after header`(): Unit =
+        runBlocking {
+            val response =
+                handleErrors {
+                    throw DataAccessResourceFailureException(
+                        "Failed to obtain R2DBC Connection",
+                        R2dbcTimeoutException("Connection acquisition timed out after 3000ms"),
+                    )
                 }
 
             val serverResponse = writeResponse(response)

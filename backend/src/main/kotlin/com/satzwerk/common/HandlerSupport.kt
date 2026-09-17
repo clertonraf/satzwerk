@@ -119,6 +119,10 @@ suspend fun requireScope(
     RequestContext(request).requireScope(scope)
 }
 
-private fun isR2dbcPoolExhaustion(error: Throwable): Boolean =
-    error is io.r2dbc.spi.R2dbcTimeoutException &&
-        error.message?.startsWith(R2DBC_POOL_ACQUISITION_TIMEOUT_MESSAGE) == true
+private tailrec fun isR2dbcPoolExhaustion(error: Throwable?): Boolean =
+    when {
+        error == null -> false
+        error is io.r2dbc.spi.R2dbcTimeoutException &&
+            error.message?.startsWith(R2DBC_POOL_ACQUISITION_TIMEOUT_MESSAGE) == true -> true
+        else -> isR2dbcPoolExhaustion(error.cause)
+    }
